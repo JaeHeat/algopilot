@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, TrendingUp } from "lucide-react";
+import { Link } from "wouter";
 
 export function LandingHero() {
   return (
@@ -21,13 +22,17 @@ export function LandingHero() {
             </p>
             
             <div className="flex flex-wrap gap-4">
-              <Button size="lg" className="gap-2" data-testid="button-get-started">
-                Get Started Free
-                <ArrowRight className="h-4 w-4" />
+              <Button asChild size="lg" className="gap-2" data-testid="button-get-started">
+                <a href="/api/login">
+                  Get Started Free
+                  <ArrowRight className="h-4 w-4" />
+                </a>
               </Button>
-              <Button size="lg" variant="outline" data-testid="button-view-bots">
-                View Top Bots
-              </Button>
+              <Link href="/marketplace">
+                <Button size="lg" variant="outline" data-testid="button-view-bots">
+                  View Top Bots
+                </Button>
+              </Link>
             </div>
             
             <div className="flex items-center gap-8 pt-4">

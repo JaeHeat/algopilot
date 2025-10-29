@@ -36,6 +36,7 @@ export default function DashboardLayout() {
           <main className="flex-1 overflow-auto p-6">
             <div className="max-w-screen-2xl mx-auto">
               <Switch>
+                <Route path="/" component={DashboardOverview} />
                 <Route path="/dashboard" component={DashboardOverview} />
                 <Route path="/dashboard/bots" component={DashboardOverview} />
                 <Route path="/dashboard/marketplace" component={DashboardMarketplace} />

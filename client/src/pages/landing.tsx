@@ -16,11 +16,9 @@ export default function Landing() {
     <div className="min-h-screen">
       <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border">
         <div className="max-w-7xl mx-auto px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link href="/">
-            <a className="flex items-center gap-2 hover-elevate rounded-lg px-2 -ml-2">
-              <TrendingUp className="h-6 w-6 text-primary" />
-              <span className="font-bold text-xl">AlgoPilot</span>
-            </a>
+          <Link href="/" className="flex items-center gap-2 hover-elevate rounded-lg px-2 -ml-2">
+            <TrendingUp className="h-6 w-6 text-primary" />
+            <span className="font-bold text-xl">AlgoPilot</span>
           </Link>
           
           <nav className="hidden md:flex items-center gap-6">
@@ -40,9 +38,9 @@ export default function Landing() {
           
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <a href="/api/login">
-              <Button data-testid="button-sign-in">Sign In</Button>
-            </a>
+            <Button asChild data-testid="button-sign-in">
+              <a href="/api/login">Sign In</a>
+            </Button>
           </div>
         </div>
       </header>
@@ -81,11 +79,11 @@ export default function Landing() {
               Join thousands of traders using AlgoPilot to automate their crypto strategies
             </p>
             <div className="flex flex-wrap gap-4 justify-center">
-              <Button size="lg" variant="secondary" className="gap-2" data-testid="button-cta-start">
-                Start Free Trial
+              <Button asChild size="lg" variant="secondary" className="gap-2" data-testid="button-cta-start">
+                <a href="/api/login">Start Free Trial</a>
               </Button>
-              <Button size="lg" variant="outline" className="backdrop-blur-sm bg-white/10 border-white/20 hover:bg-white/20" data-testid="button-cta-demo">
-                Book a Demo
+              <Button asChild size="lg" variant="outline" className="backdrop-blur-sm bg-white/10 border-white/20 hover:bg-white/20" data-testid="button-cta-demo">
+                <a href="/marketplace">Book a Demo</a>
               </Button>
             </div>
           </div>
