@@ -1,5 +1,10 @@
 import { LandingHero } from "@/components/landing-hero";
+import { LandingHowItWorks } from "@/components/landing-how-it-works";
+import { LandingExchanges } from "@/components/landing-exchanges";
 import { LandingFeatures } from "@/components/landing-features";
+import { LandingDashboardPreview } from "@/components/landing-dashboard-preview";
+import { LandingCreatorCTA } from "@/components/landing-creator-cta";
+import { LandingTestimonials } from "@/components/landing-testimonials";
 import { LandingPricing } from "@/components/landing-pricing";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -19,14 +24,17 @@ export default function Landing() {
           </Link>
           
           <nav className="hidden md:flex items-center gap-6">
+            <a href="#how-it-works" className="text-sm font-medium hover:text-primary transition-colors">
+              How It Works
+            </a>
             <a href="#features" className="text-sm font-medium hover:text-primary transition-colors">
               Features
             </a>
+            <a href="#creators" className="text-sm font-medium hover:text-primary transition-colors">
+              For Creators
+            </a>
             <a href="#pricing" className="text-sm font-medium hover:text-primary transition-colors">
               Pricing
-            </a>
-            <a href="#leaderboard" className="text-sm font-medium hover:text-primary transition-colors">
-              Leaderboard
             </a>
           </nav>
           
@@ -42,9 +50,23 @@ export default function Landing() {
       <main>
         <LandingHero />
         
+        <LandingExchanges />
+        
+        <div id="how-it-works">
+          <LandingHowItWorks />
+        </div>
+        
         <div id="features">
           <LandingFeatures />
         </div>
+        
+        <LandingDashboardPreview />
+        
+        <div id="creators">
+          <LandingCreatorCTA />
+        </div>
+        
+        <LandingTestimonials />
         
         <div id="pricing">
           <LandingPricing />
