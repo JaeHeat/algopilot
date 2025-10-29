@@ -26,10 +26,8 @@ export function SubscribeDialog({ bot, open, onOpenChange }: SubscribeDialogProp
 
   const subscribeMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("/api/subscriptions", {
-        method: "POST",
-        body: JSON.stringify({ botId: bot.id }),
-      });
+      const res = await apiRequest("POST", "/api/subscriptions", { botId: bot.id });
+      return await res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/subscriptions"] });
