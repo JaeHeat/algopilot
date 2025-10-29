@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { useAuth } from "@/hooks/useAuth";
 import Landing from "@/pages/landing";
+import Marketplace from "@/pages/marketplace";
 import DashboardLayout from "@/pages/dashboard-layout";
 import NotFound from "@/pages/not-found";
 
@@ -14,6 +15,7 @@ function Router() {
 
   return (
     <Switch>
+      <Route path="/marketplace" component={Marketplace} />
       {isLoading || !isAuthenticated ? (
         <Route path="/" component={Landing} />
       ) : (

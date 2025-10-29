@@ -50,14 +50,12 @@ export default function DashboardSettings() {
 
   const addConnectionMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("/api/exchanges", {
-        method: "POST",
-        body: JSON.stringify({
-          exchange: selectedExchange,
-          apiKey,
-          apiSecret,
-        }),
+      const res = await apiRequest("POST", "/api/exchanges", {
+        exchange: selectedExchange,
+        apiKey,
+        apiSecret,
       });
+      return await res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/exchanges"] });
@@ -81,9 +79,8 @@ export default function DashboardSettings() {
 
   const deleteConnectionMutation = useMutation({
     mutationFn: async (id: string) => {
-      return await apiRequest(`/api/exchanges/${id}`, {
-        method: "DELETE",
-      });
+      const res = await apiRequest("DELETE", `/api/exchanges/${id}`);
+      return await res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/exchanges"] });

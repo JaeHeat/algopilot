@@ -118,12 +118,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/exchanges", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      console.log("Creating exchange connection with data:", { ...req.body, userId });
       const validatedConnection = insertExchangeConnectionSchema.parse({ ...req.body, userId });
       const connection = await storage.createExchangeConnection(validatedConnection);
-      res.json(connection);
+      const sanitized = {
+        id: connection.id,
+        exchange: connection.exchange,
+        isActive: connection.isActive,
+        createdAt: connection.createdAt,
+      };
+      res.json(sanitized);
     } catch (error) {
       console.error("Error creating exchange connection:", error);
-      res.status(400).json({ message: "Failed to create connection" });
+      if (error instanceof Error) {
+        console.error("Error message:", error.message);
+        console.error("Error stack:", error.stack);
+      }
+      res.status(400).json({ message: "Failed to create connection", error: error instanceof Error ? error.message : String(error) });
     }
   });
 
