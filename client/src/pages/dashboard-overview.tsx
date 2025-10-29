@@ -1,10 +1,40 @@
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
 import { MetricCard } from "@/components/metric-card";
 import { PerformanceChart } from "@/components/performance-chart";
 import { TradeTable } from "@/components/trade-table";
 import { BotCard } from "@/components/bot-card";
 import { DollarSign, TrendingUp, Bot, Target } from "lucide-react";
+import type { Subscription, Bot as BotType, BotPerformance } from "@shared/schema";
+import { useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { isUnauthorizedError } from "@/lib/authUtils";
+
+type SubscriptionWithBot = Subscription & { bot: BotType; performance: BotPerformance | null };
 
 export default function DashboardOverview() {
+  const { toast } = useToast();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+
+  const { data: subscriptions, isLoading, error } = useQuery<SubscriptionWithBot[]>({
+    queryKey: ["/api/subscriptions"],
+    enabled: isAuthenticated,
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (error && isUnauthorizedError(error as Error)) {
+      toast({
+        title: "Unauthorized",
+        description: "You are logged out. Logging in again...",
+        variant: "destructive",
+      });
+      setTimeout(() => {
+        window.location.href = "/api/login";
+      }, 500);
+    }
+  }, [error, toast]);
+
   const mockData = [10000, 10500, 10200, 11000, 11500, 11200, 12000, 12800, 12500, 13200, 13800, 14500];
   const mockLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   
@@ -15,11 +45,32 @@ export default function DashboardOverview() {
     { id: "4", pair: "SOL/USDT", type: "BUY" as const, amount: 12.5000, price: 98, profit: 156.75, timestamp: "18 mins ago" },
     { id: "5", pair: "AVAX/USDT", type: "BUY" as const, amount: 25.4200, price: 35, profit: 78.30, timestamp: "25 mins ago" },
   ];
+
+  const avgRoi = subscriptions?.reduce((sum, sub) => {
+    const roi = sub.performance ? parseFloat(sub.performance.totalRoi) : 0;
+    return sum + roi;
+  }, 0) ?? 0;
   
-  const activeBots = [
-    { id: "1", name: "Momentum Master", creator: "CryptoQuant", roi: 124.5, winRate: 68, subscribers: 342, totalTrades: 1245, price: 29, strategy: "Momentum" },
-    { id: "2", name: "Arbitrage Pro", creator: "AlgoTrader", roi: 98.3, winRate: 72, subscribers: 289, totalTrades: 2341, price: 39, strategy: "Arbitrage" },
-  ];
+  const avgWinRate = subscriptions?.reduce((sum, sub) => {
+    const winRate = sub.performance ? parseFloat(sub.performance.winRate) : 0;
+    return sum + winRate;
+  }, 0) ?? 0;
+
+  const activeBotCount = subscriptions?.length ?? 0;
+  const calculatedAvgWinRate = activeBotCount > 0 ? (avgWinRate / activeBotCount).toFixed(0) : "0";
+  
+  if (authLoading || isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-20 bg-muted/50 rounded-lg animate-pulse" />
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-32 bg-muted/50 rounded-lg animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="space-y-6">
@@ -45,16 +96,16 @@ export default function DashboardOverview() {
         />
         <MetricCard
           title="Active Bots"
-          value="2"
-          change="1 new this week"
+          value={activeBotCount.toString()}
+          change={activeBotCount > 0 ? `${activeBotCount} active` : "Subscribe to bots"}
           icon={Bot}
         />
         <MetricCard
-          title="Win Rate"
-          value="68%"
-          change="+3% this month"
+          title="Avg Win Rate"
+          value={`${calculatedAvgWinRate}%`}
+          change="Across all bots"
           icon={Target}
-          trend="up"
+          trend={parseFloat(calculatedAvgWinRate) > 65 ? "up" : undefined}
         />
       </div>
       
@@ -65,12 +116,27 @@ export default function DashboardOverview() {
       />
       
       <div>
-        <h2 className="text-2xl font-bold mb-4">Active Bots</h2>
-        <div className="grid gap-6 lg:grid-cols-2">
-          {activeBots.map((bot) => (
-            <BotCard key={bot.id} {...bot} />
-          ))}
-        </div>
+        <h2 className="text-2xl font-bold mb-4">Active Subscriptions</h2>
+        {subscriptions && subscriptions.length > 0 ? (
+          <div className="grid gap-6 lg:grid-cols-2">
+            {subscriptions.map((subscription) => (
+              <BotCard
+                key={subscription.id}
+                bot={subscription.bot}
+                performance={subscription.performance}
+                showSubscribeButton={false}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12 bg-muted/30 rounded-lg">
+            <Bot className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+            <p className="text-muted-foreground mb-4">You haven't subscribed to any bots yet</p>
+            <a href="/dashboard/marketplace" className="text-primary hover:underline">
+              Browse the marketplace
+            </a>
+          </div>
+        )}
       </div>
       
       <TradeTable trades={mockTrades} />

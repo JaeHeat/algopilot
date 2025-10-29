@@ -40,9 +40,9 @@ export default function Landing() {
           
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <Link href="/dashboard">
+            <a href="/api/login">
               <Button data-testid="button-sign-in">Sign In</Button>
-            </Link>
+            </a>
           </div>
         </div>
       </header>
