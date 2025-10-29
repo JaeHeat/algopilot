@@ -1,0 +1,75 @@
+# Project Name
+AlgoPilot
+
+## Project Description
+AlgoPilot is a web-based SaaS platform that enables users to host, manage, and monetize automated crypto trading algorithms. It supports both internal and third-party algorithm bots. Users can connect their exchange accounts via API to follow trading bots, access performance dashboards, and subscribe to premium bots via membership plans.
+
+## Target Platform
+Web (responsive for desktop and mobile)
+
+## Operating Environment
+Online application, hosted on Replit (initially)
+
+## Hosting
+Replit-based deployment, with future scalability to cloud platforms like AWS or GCP
+
+## Interface Style
+Modern, fintech-inspired design with real-time charts and analytics. Use TailwindCSS or Bootstrap, and Chart.js or Highcharts for visual performance data.
+
+## Key Features
+
+### User Management
+- Authentication (OAuth + email + 2FA)
+- Role-based access (admin, creator, subscriber)
+
+### Dashboard System
+- Each bot has its own dashboard showing:
+  - Real-time and historical PnL
+  - Trade log
+  - Equity curve
+  - Win/loss ratio, drawdown, Sharpe ratio
+
+### Exchange Integration
+- Users can link their Binance, Coinbase, or KuCoin accounts via API
+- Securely store API keys using environment variables or Replit Secrets
+- Allow users to "mirror" trades from selected bots
+
+### Bot Management
+- Internal bot hosting with scheduling or event-based triggers
+- Creators can upload and manage their own bots
+- Each bot logs trades and exposes a result API
+
+### Marketplace
+- Public leaderboard with top-performing bots (ROI, Sharpe, etc.)
+- Search, filter, and sort bots
+- Subscription system per bot (monthly fee)
+- Revenue sharing model: creators earn, platform takes commission
+
+### Membership & Payment
+- Membership-based access to bots
+- Stripe (or other provider) integration for payments
+- Free tier + premium subscriptions
+
+### Admin Panel
+- User management
+- Bot approval/review
+- View earnings, payouts, commission splits
+
+## Expected Outputs
+- Live dashboards per bot
+- User account pages
+- Public leaderboard of bots
+- Performance metrics in charts and tables
+- Notifications (optional via email or in-app)
+
+## Language Preferences
+- Interact with Replit Agent in English
+- Application interface: English
+
+## Technologies
+- Backend: Flask or FastAPI (preferred for async)
+- Frontend: HTML/CSS/JS with optional React
+- Charts: Chart.js or Highcharts
+- Database: SQLite (initial) or PostgreSQL (scale)
+- Auth: OAuth2 (e.g. Google), email login, 2FA
+- API: REST endpoints for bot connections and trade tracking
