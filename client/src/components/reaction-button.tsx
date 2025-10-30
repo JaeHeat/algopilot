@@ -43,6 +43,8 @@ export function ReactionButton({ postId }: ReactionButtonProps) {
       disabled={!user || toggleReactionMutation.isPending}
       className={userLiked ? "text-red-500" : ""}
       data-testid={`button-like-post-${postId}`}
+      aria-pressed={userLiked}
+      aria-label={`${userLiked ? 'Unlike' : 'Like'} this post`}
     >
       <Heart className={`h-4 w-4 mr-1 ${userLiked ? "fill-current" : ""}`} />
       <span data-testid={`text-like-count-${postId}`}>{likeCount}</span>
