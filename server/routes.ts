@@ -270,10 +270,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         expand: ['payment_intent'],
       });
       
-      const paymentIntent = invoice.payment_intent as any;
-      
       console.log("Subscription created:", subscription.id);
       console.log("Invoice retrieved:", invoice.id);
+      console.log("Invoice status:", invoice.status);
+      console.log("Invoice object:", JSON.stringify(invoice, null, 2));
+      
+      const paymentIntent = invoice.payment_intent as any;
+      
       console.log("Payment intent:", paymentIntent?.id);
       console.log("Client secret:", paymentIntent?.client_secret);
       
