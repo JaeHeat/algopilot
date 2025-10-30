@@ -18,6 +18,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { Badge } from "@/components/ui/badge";
+import { useQuery } from "@tanstack/react-query";
 
 const menuItems = [
   { title: "Dashboard", icon: LayoutDashboard, url: "/dashboard" },
@@ -32,6 +34,12 @@ const adminItems = [
 
 export function AppSidebar() {
   const [location] = useLocation();
+  
+  const { data: subscriptions = [] } = useQuery<any[]>({
+    queryKey: ["/api/subscriptions"],
+  });
+  
+  const pausedCount = subscriptions.filter((sub) => sub.isPaused).length;
 
   return (
     <Sidebar>
@@ -45,6 +53,8 @@ export function AppSidebar() {
             <SidebarMenu>
               {menuItems.map((item) => {
                 const isActive = location === item.url;
+                const showBadge = item.title === "My Bots" && pausedCount > 0;
+                
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
@@ -55,6 +65,14 @@ export function AppSidebar() {
                       <Link href={item.url}>
                         <item.icon className="h-4 w-4" />
                         <span>{item.title}</span>
+                        {showBadge && (
+                          <Badge 
+                            className="ml-auto bg-success text-success-foreground h-5 min-w-5 px-1.5 flex items-center justify-center text-[10px] font-bold"
+                            data-testid="badge-my-bots-count"
+                          >
+                            {pausedCount}
+                          </Badge>
+                        )}
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { TrendingUp, TrendingDown, Users, Settings, Pause, Play } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,12 +14,20 @@ import type { Subscription, Bot, BotPerformance } from "@shared/schema";
 
 interface SubscriptionCardProps {
   subscription: Subscription & { bot: Bot; performance: BotPerformance | null };
+  initialSettingsOpen?: boolean;
 }
 
-export function SubscriptionCard({ subscription }: SubscriptionCardProps) {
+export function SubscriptionCard({ subscription, initialSettingsOpen = false }: SubscriptionCardProps) {
   const [, setLocation] = useLocation();
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(initialSettingsOpen);
   const { toast } = useToast();
+  
+  // Sync settingsOpen when initialSettingsOpen changes (e.g., from notification click)
+  useEffect(() => {
+    if (initialSettingsOpen) {
+      setSettingsOpen(true);
+    }
+  }, [initialSettingsOpen]);
   const roi = subscription.performance ? parseFloat(subscription.performance.totalRoi) : 0;
   const isPositive = roi > 0;
 

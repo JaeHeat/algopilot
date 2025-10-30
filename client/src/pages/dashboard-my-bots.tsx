@@ -15,6 +15,10 @@ export default function DashboardMyBots() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [location, setLocation] = useLocation();
+  
+  // Get openSettings query parameter from URL
+  const searchParams = new URLSearchParams(window.location.search);
+  const openSettingsId = searchParams.get('openSettings');
 
   const { data: subscriptions, isLoading, error } = useQuery<SubscriptionWithBot[]>({
     queryKey: ["/api/subscriptions"],
@@ -91,6 +95,7 @@ export default function DashboardMyBots() {
               <SubscriptionCard
                 key={subscription.id}
                 subscription={subscription}
+                initialSettingsOpen={subscription.id === openSettingsId}
               />
             ))}
           </div>
@@ -112,6 +117,7 @@ export default function DashboardMyBots() {
               <SubscriptionCard
                 key={subscription.id}
                 subscription={subscription}
+                initialSettingsOpen={subscription.id === openSettingsId}
               />
             ))}
           </div>
@@ -137,6 +143,7 @@ export default function DashboardMyBots() {
               <SubscriptionCard
                 key={subscription.id}
                 subscription={subscription}
+                initialSettingsOpen={subscription.id === openSettingsId}
               />
             ))}
           </div>

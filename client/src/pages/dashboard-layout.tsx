@@ -1,7 +1,8 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Bell, User } from "lucide-react";
+import { NotificationsDropdown } from "@/components/notifications-dropdown";
+import { User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Route, Switch } from "wouter";
 import DashboardOverview from "./dashboard-overview";
@@ -26,9 +27,7 @@ export default function DashboardLayout() {
           <header className="flex items-center justify-between px-6 h-16 border-b border-border">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" data-testid="button-notifications">
-                <Bell className="h-5 w-5" />
-              </Button>
+              <NotificationsDropdown />
               <ThemeToggle />
               <Button variant="ghost" size="icon" data-testid="button-profile">
                 <User className="h-5 w-5" />
