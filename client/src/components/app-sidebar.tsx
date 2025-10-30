@@ -6,6 +6,7 @@ import {
   Settings,
   ShieldCheck,
   TrendingUp,
+  Webhook,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -32,6 +33,10 @@ const adminItems = [
   { title: "Admin Panel", icon: ShieldCheck, url: "/dashboard/admin" },
 ];
 
+const creatorItems = [
+  { title: "Manage Bots", icon: Webhook, url: "/dashboard/creator" },
+];
+
 export function AppSidebar() {
   const [location] = useLocation();
   
@@ -39,7 +44,12 @@ export function AppSidebar() {
     queryKey: ["/api/subscriptions"],
   });
   
+  const { data: creatorBots = [] } = useQuery<any[]>({
+    queryKey: ["/api/creator/bots"],
+  });
+  
   const pausedCount = subscriptions.filter((sub) => sub.isPaused).length;
+  const isCreator = creatorBots.length > 0;
 
   return (
     <Sidebar>
@@ -81,6 +91,33 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        
+        {isCreator && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Creator Tools</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {creatorItems.map((item) => {
+                  const isActive = location === item.url;
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        asChild
+                        className={isActive ? "bg-sidebar-accent" : ""}
+                        data-testid="link-creator-dashboard"
+                      >
+                        <Link href={item.url}>
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
         
         <SidebarGroup>
           <SidebarGroupLabel>Administration</SidebarGroupLabel>
