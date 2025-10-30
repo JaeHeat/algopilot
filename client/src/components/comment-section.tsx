@@ -28,10 +28,7 @@ export function CommentSection({ postId }: CommentSectionProps) {
 
   const createCommentMutation = useMutation({
     mutationFn: async (content: string) => {
-      return apiRequest(`/api/posts/${postId}/comments`, {
-        method: "POST",
-        body: JSON.stringify({ content }),
-      });
+      return apiRequest("POST", `/api/posts/${postId}/comments`, { content });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/posts", postId, "comments"] });

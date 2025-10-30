@@ -5,6 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
 import type { CreatorPost, User } from "@shared/schema";
 import { CheckCircle, TrendingUp, TrendingDown } from "lucide-react";
+import { ReactionButton } from "./reaction-button";
+import { CommentSection } from "./comment-section";
 
 type PostWithCreator = CreatorPost & { creator: User };
 
@@ -101,6 +103,11 @@ export function PostFeed({ botId }: PostFeedProps) {
                 </div>
               </div>
             ) : null}
+            
+            <div className="flex items-center gap-2 pt-2 border-t">
+              <ReactionButton postId={post.id} />
+              <CommentSection postId={post.id} />
+            </div>
           </CardContent>
         </Card>
       ))}

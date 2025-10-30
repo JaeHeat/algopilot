@@ -20,10 +20,7 @@ export function ReactionButton({ postId }: ReactionButtonProps) {
 
   const toggleReactionMutation = useMutation({
     mutationFn: async (reactionType: string) => {
-      return apiRequest(`/api/posts/${postId}/reactions`, {
-        method: "POST",
-        body: JSON.stringify({ reactionType }),
-      });
+      return apiRequest("POST", `/api/posts/${postId}/reactions`, { reactionType });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/posts", postId, "reactions"] });
@@ -31,7 +28,7 @@ export function ReactionButton({ postId }: ReactionButtonProps) {
   });
 
   const likeCount = reactions.filter(r => r.reactionType === "like").length;
-  const userLiked = user ? reactions.some(r => r.userId === user.id && r.reactionType === "like") : false;
+  const userLiked = user ? reactions.some(r => r.userId === (user as any).sub && r.reactionType === "like") : false;
 
   const handleToggleLike = () => {
     if (!user) return;
