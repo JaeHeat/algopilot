@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { Bot, BotPerformance } from "@shared/schema";
 import { TrendingUp, Users, Target, Activity } from "lucide-react";
+import { SubscriptionPaymentDialog } from "./subscription-payment-dialog";
 
 interface SubscribeDialogProps {
   bot: Bot & { performance: BotPerformance | null };
@@ -25,24 +26,24 @@ export function SubscribeDialog({ bot, open, onOpenChange }: SubscribeDialogProp
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [clientSecret, setClientSecret] = useState("");
+  const [stripeSubscriptionId, setStripeSubscriptionId] = useState("");
 
-  const subscribeMutation = useMutation({
+  const createPaymentMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/subscriptions", { botId: bot.id });
+      const res = await apiRequest("POST", "/api/create-subscription-payment", { botId: bot.id });
       return await res.json();
     },
-    onSuccess: (newSubscription: any) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/subscriptions"] });
-      toast({
-        title: "Subscription Created!",
-        description: `Please configure your settings for ${bot.name} before going live`,
-      });
+    onSuccess: (data: { clientSecret: string; subscriptionId: string }) => {
+      setClientSecret(data.clientSecret);
+      setStripeSubscriptionId(data.subscriptionId);
+      setPaymentDialogOpen(true);
       onOpenChange(false);
-      setTimeout(() => {
-        setLocation(`/dashboard?openSettings=${newSubscription.id}`);
-      }, 500);
+      setIsProcessing(false);
     },
     onError: (error: Error) => {
+      setIsProcessing(false);
       if (isUnauthorizedError(error)) {
         toast({
           title: "Unauthorized",
@@ -56,7 +57,35 @@ export function SubscribeDialog({ bot, open, onOpenChange }: SubscribeDialogProp
       }
       toast({
         title: "Error",
-        description: "Failed to subscribe to bot. Please try again.",
+        description: "Failed to initiate payment. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const subscribeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/subscriptions", {
+        botId: bot.id,
+        stripeSubscriptionId: stripeSubscriptionId,
+      });
+      return await res.json();
+    },
+    onSuccess: (newSubscription: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/subscriptions"] });
+      toast({
+        title: "Subscription Created!",
+        description: `Please configure your settings for ${bot.name} before going live`,
+      });
+      setPaymentDialogOpen(false);
+      setTimeout(() => {
+        setLocation(`/dashboard?openSettings=${newSubscription.id}`);
+      }, 500);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: "Failed to create subscription. Please contact support.",
         variant: "destructive",
       });
     },
@@ -64,6 +93,10 @@ export function SubscribeDialog({ bot, open, onOpenChange }: SubscribeDialogProp
 
   const handleSubscribe = async () => {
     setIsProcessing(true);
+    createPaymentMutation.mutate();
+  };
+
+  const handlePaymentSuccess = () => {
     subscribeMutation.mutate();
   };
 
@@ -155,15 +188,24 @@ export function SubscribeDialog({ bot, open, onOpenChange }: SubscribeDialogProp
             </Button>
             <Button
               onClick={handleSubscribe}
-              disabled={subscribeMutation.isPending || isProcessing}
+              disabled={createPaymentMutation.isPending || isProcessing}
               className="flex-1"
               data-testid="button-confirm-subscribe"
             >
-              {subscribeMutation.isPending ? "Processing..." : "Confirm Subscription"}
+              {createPaymentMutation.isPending || isProcessing ? "Processing..." : "Continue to Payment"}
             </Button>
           </div>
         </div>
       </DialogContent>
+      
+      <SubscriptionPaymentDialog
+        open={paymentDialogOpen}
+        onOpenChange={setPaymentDialogOpen}
+        clientSecret={clientSecret}
+        amount={parseFloat(bot.monthlyPrice).toFixed(0)}
+        botName={bot.name}
+        onSuccess={handlePaymentSuccess}
+      />
     </Dialog>
   );
 }

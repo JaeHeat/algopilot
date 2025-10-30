@@ -9,9 +9,7 @@ import Stripe from "stripe";
 if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error('Missing required Stripe secret: STRIPE_SECRET_KEY');
 }
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2024-11-20.acacia",
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 export async function registerRoutes(app: Express): Promise<Server> {
   await setupAuth(app);
@@ -239,7 +237,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               interval: 'month',
             },
             unit_amount: priceAmount,
-          },
+          } as any,
         }],
         payment_behavior: 'default_incomplete',
         payment_settings: { 
@@ -252,12 +250,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
       });
       
-      const latestInvoice = subscription.latest_invoice as Stripe.Invoice;
-      const paymentIntent = latestInvoice.payment_intent as Stripe.PaymentIntent;
+      const latestInvoice = subscription.latest_invoice as any;
+      const paymentIntent = latestInvoice?.payment_intent as any;
       
       res.json({
         subscriptionId: subscription.id,
-        clientSecret: paymentIntent.client_secret,
+        clientSecret: paymentIntent?.client_secret,
         amount: bot.monthlyPrice,
       });
     } catch (error: any) {
