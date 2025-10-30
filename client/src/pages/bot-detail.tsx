@@ -7,12 +7,15 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SubscribeDialog } from "@/components/subscribe-dialog";
+import { PostFeed } from "@/components/post-feed";
+import { PostComposer } from "@/components/post-composer";
 import { useState } from "react";
 import { ArrowLeft, TrendingUp, TrendingDown, Shield, CheckCircle, Clock, DollarSign } from "lucide-react";
 import { Line } from "react-chartjs-2";
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from "chart.js";
 import type { Bot, User, BotTradeLog, BotPerformanceHistory, BotPerformance } from "@shared/schema";
 import { format } from "date-fns";
+import { useUser } from "@/hooks/use-user";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
@@ -23,6 +26,7 @@ export default function BotDetail() {
   const [, setLocation] = useLocation();
   const [subscribeDialogOpen, setSubscribeDialogOpen] = useState(false);
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>("1D");
+  const { user } = useUser();
 
   const { data: bot, isLoading: botLoading } = useQuery<BotWithCreator>({
     queryKey: ["/api/bots", params.id],
@@ -371,6 +375,14 @@ export default function BotDetail() {
               </CardContent>
             </Tabs>
           </Card>
+
+          <div className="space-y-6">
+            <CardTitle className="text-xl">Creator Updates</CardTitle>
+            {user && bot.creatorId === user.id && (
+              <PostComposer botId={bot.id} creatorId={bot.creatorId} />
+            )}
+            <PostFeed botId={bot.id} />
+          </div>
         </div>
 
         <div className="space-y-6">
