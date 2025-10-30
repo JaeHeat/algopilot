@@ -249,18 +249,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         payment_settings: { 
           save_default_payment_method: 'on_subscription'
         },
-        expand: ['latest_invoice.payment_intent'],
         metadata: {
           botId: bot.id,
           userId: user.id,
         },
       });
       
-      const latestInvoice = subscription.latest_invoice as any;
-      const paymentIntent = latestInvoice?.payment_intent as any;
+      // Retrieve the invoice with payment intent expanded
+      const invoiceId = typeof subscription.latest_invoice === 'string' 
+        ? subscription.latest_invoice 
+        : subscription.latest_invoice?.id;
+      
+      if (!invoiceId) {
+        return res.status(500).json({ 
+          message: "Failed to create invoice. Please try again." 
+        });
+      }
+      
+      const invoice = await stripe.invoices.retrieve(invoiceId, {
+        expand: ['payment_intent'],
+      });
+      
+      const paymentIntent = invoice.payment_intent as any;
       
       console.log("Subscription created:", subscription.id);
-      console.log("Latest invoice:", latestInvoice?.id);
+      console.log("Invoice retrieved:", invoice.id);
       console.log("Payment intent:", paymentIntent?.id);
       console.log("Client secret:", paymentIntent?.client_secret);
       
