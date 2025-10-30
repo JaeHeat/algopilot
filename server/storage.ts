@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents, creatorPosts, postComments, postReactions, botWebhooks, webhookEventLogs } from "@shared/schema";
+import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents, creatorPosts, postComments, postReactions, botWebhooks, webhookEventLogs, trades, positions } from "@shared/schema";
 import type { 
   User, UpsertUser, 
   Bot, InsertBot,
@@ -14,7 +14,9 @@ import type {
   PostComment, InsertPostComment,
   PostReaction, InsertPostReaction,
   BotWebhook, InsertBotWebhook,
-  WebhookEventLog, InsertWebhookEventLog
+  WebhookEventLog, InsertWebhookEventLog,
+  Trade, InsertTrade,
+  Position, InsertPosition
 } from "@shared/schema";
 import { eq, and, desc, or, isNull, gt } from "drizzle-orm";
 
@@ -80,6 +82,18 @@ export interface IStorage {
   
   logWebhookEvent(log: InsertWebhookEventLog): Promise<WebhookEventLog>;
   getRecentWebhookEvents(botId: string, limit?: number): Promise<WebhookEventLog[]>;
+  
+  createTrade(trade: InsertTrade): Promise<Trade>;
+  getSubscriptionTrades(subscriptionId: string, limit?: number): Promise<Trade[]>;
+  
+  createPosition(position: InsertPosition): Promise<Position>;
+  getOpenPositions(subscriptionId: string): Promise<Position[]>;
+  getPositionBySubscriptionAndSymbol(subscriptionId: string, symbol: string): Promise<Position | undefined>;
+  updatePosition(id: string, updates: Partial<Position>): Promise<Position | undefined>;
+  closePosition(id: string, closePrice: string, pnl: string): Promise<Position | undefined>;
+  
+  updateSubscriptionBalance(id: string, balance: string, pnl: string): Promise<Subscription | undefined>;
+  getActiveSubscriptionsByBot(botId: string): Promise<Subscription[]>;
 }
 
 export class DbStorage implements IStorage {
@@ -563,6 +577,104 @@ export class DbStorage implements IStorage {
       .where(eq(webhookEventLogs.botId, botId))
       .orderBy(desc(webhookEventLogs.processedAt))
       .limit(limit);
+    return result;
+  }
+
+  async createTrade(trade: InsertTrade): Promise<Trade> {
+    const result = await db.insert(trades).values(trade).returning();
+    return result[0];
+  }
+
+  async getSubscriptionTrades(subscriptionId: string, limit: number = 100): Promise<Trade[]> {
+    const result = await db
+      .select()
+      .from(trades)
+      .where(eq(trades.subscriptionId, subscriptionId))
+      .orderBy(desc(trades.executedAt))
+      .limit(limit);
+    return result;
+  }
+
+  async createPosition(position: InsertPosition): Promise<Position> {
+    const result = await db.insert(positions).values(position).returning();
+    return result[0];
+  }
+
+  async getOpenPositions(subscriptionId: string): Promise<Position[]> {
+    const result = await db
+      .select()
+      .from(positions)
+      .where(
+        and(
+          eq(positions.subscriptionId, subscriptionId),
+          eq(positions.status, 'open')
+        )
+      )
+      .orderBy(desc(positions.openedAt));
+    return result;
+  }
+
+  async getPositionBySubscriptionAndSymbol(subscriptionId: string, symbol: string): Promise<Position | undefined> {
+    const result = await db
+      .select()
+      .from(positions)
+      .where(
+        and(
+          eq(positions.subscriptionId, subscriptionId),
+          eq(positions.symbol, symbol),
+          eq(positions.status, 'open')
+        )
+      )
+      .limit(1);
+    return result[0];
+  }
+
+  async updatePosition(id: string, updates: Partial<Position>): Promise<Position | undefined> {
+    const result = await db
+      .update(positions)
+      .set(updates)
+      .where(eq(positions.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async closePosition(id: string, closePrice: string, pnl: string): Promise<Position | undefined> {
+    const result = await db
+      .update(positions)
+      .set({
+        status: 'closed',
+        currentPrice: closePrice,
+        unrealizedPnl: pnl,
+        closedAt: new Date()
+      })
+      .where(eq(positions.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async updateSubscriptionBalance(id: string, balance: string, pnl: string): Promise<Subscription | undefined> {
+    const result = await db
+      .update(subscriptions)
+      .set({
+        currentBalance: balance,
+        totalPnl: pnl
+      })
+      .where(eq(subscriptions.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async getActiveSubscriptionsByBot(botId: string): Promise<Subscription[]> {
+    const result = await db
+      .select()
+      .from(subscriptions)
+      .where(
+        and(
+          eq(subscriptions.botId, botId),
+          eq(subscriptions.status, 'active'),
+          eq(subscriptions.isPaused, false)
+        )
+      );
     return result;
   }
 }
