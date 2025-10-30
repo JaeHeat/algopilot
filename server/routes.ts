@@ -696,6 +696,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/subscriptions/:id/trades", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const subscription = await storage.getSubscriptionById(req.params.id);
+      
+      if (!subscription) {
+        return res.status(404).json({ message: "Subscription not found" });
+      }
+      
+      if (subscription.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden: You can only view your own subscription trades" });
+      }
+      
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
+      const trades = await storage.getSubscriptionTrades(req.params.id, limit);
+      res.json(trades);
+    } catch (error) {
+      console.error("Error fetching subscription trades:", error);
+      res.status(500).json({ message: "Failed to fetch subscription trades" });
+    }
+  });
+
+  app.get("/api/subscriptions/:id/positions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const subscription = await storage.getSubscriptionById(req.params.id);
+      
+      if (!subscription) {
+        return res.status(404).json({ message: "Subscription not found" });
+      }
+      
+      if (subscription.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden: You can only view your own subscription positions" });
+      }
+      
+      const positions = await storage.getOpenPositions(req.params.id);
+      res.json(positions);
+    } catch (error) {
+      console.error("Error fetching subscription positions:", error);
+      res.status(500).json({ message: "Failed to fetch subscription positions" });
+    }
+  });
+
+  app.get("/api/subscriptions/:id/pnl", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const subscription = await storage.getSubscriptionById(req.params.id);
+      
+      if (!subscription) {
+        return res.status(404).json({ message: "Subscription not found" });
+      }
+      
+      if (subscription.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden: You can only view your own subscription PnL" });
+      }
+      
+      const trades = await storage.getSubscriptionTrades(req.params.id, 1000);
+      const positions = await storage.getOpenPositions(req.params.id);
+      
+      const realizedPnl = parseFloat(subscription.totalPnl);
+      const unrealizedPnl = positions.reduce((sum, pos) => sum + parseFloat(pos.unrealizedPnl), 0);
+      const totalPnl = realizedPnl + unrealizedPnl;
+      
+      const winningTrades = trades.filter(t => t.pnl && parseFloat(t.pnl) > 0).length;
+      const losingTrades = trades.filter(t => t.pnl && parseFloat(t.pnl) < 0).length;
+      const totalClosedTrades = winningTrades + losingTrades;
+      const winRate = totalClosedTrades > 0 ? (winningTrades / totalClosedTrades) * 100 : 0;
+      
+      res.json({
+        currentBalance: subscription.currentBalance,
+        initialBalance: subscription.capitalAllocated || "0.00",
+        realizedPnl: realizedPnl.toFixed(2),
+        unrealizedPnl: unrealizedPnl.toFixed(2),
+        totalPnl: totalPnl.toFixed(2),
+        totalTrades: trades.length,
+        winningTrades,
+        losingTrades,
+        winRate: winRate.toFixed(2),
+        openPositions: positions.length,
+      });
+    } catch (error) {
+      console.error("Error fetching subscription PnL:", error);
+      res.status(500).json({ message: "Failed to fetch subscription PnL" });
+    }
+  });
+
   app.get("/api/bots/:id/trades", async (req, res) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
@@ -819,14 +905,147 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'success',
       });
       
+      const symbol = payload.symbol as string;
+      const action = (payload.action || payload.side) as string;
+      const price = parseFloat(payload.price as string);
+      
       console.log(`[Webhook] Received trade signal for bot ${botId}:`, {
-        symbol: payload.symbol || 'N/A',
-        side: payload.side || payload.action || 'N/A',
-        price: payload.price || 'N/A',
+        symbol,
+        action,
+        price,
         time: payload.time || new Date().toISOString(),
       });
       
-      res.json({ success: true, message: "Webhook received and logged successfully" });
+      if (!symbol || !action || !price) {
+        return res.json({ 
+          success: true, 
+          message: "Webhook logged but missing required fields for trade execution",
+          executed: 0
+        });
+      }
+      
+      const activeSubscriptions = await storage.getActiveSubscriptionsByBot(botId);
+      let executedTrades = 0;
+      
+      for (const subscription of activeSubscriptions) {
+        try {
+          const capitalAllocated = parseFloat(subscription.capitalAllocated || "0");
+          if (capitalAllocated <= 0) {
+            console.log(`[Trade] Skipping subscription ${subscription.id} - no capital allocated`);
+            continue;
+          }
+          
+          const riskPercent = subscription.riskPercentage || 2;
+          const positionSize = (capitalAllocated * riskPercent) / 100;
+          const quantity = positionSize / price;
+          
+          if (quantity <= 0) {
+            console.log(`[Trade] Skipping subscription ${subscription.id} - invalid quantity`);
+            continue;
+          }
+          
+          const normalizedAction = action.toLowerCase();
+          const exchange = 'mock';
+          const fees = (positionSize * 0.001);
+          
+          if (normalizedAction === 'buy' || normalizedAction === 'long') {
+            const existingPosition = await storage.getPositionBySubscriptionAndSymbol(subscription.id, symbol);
+            
+            if (existingPosition) {
+              console.log(`[Trade] Position already exists for ${subscription.id} - ${symbol}, skipping buy`);
+              continue;
+            }
+            
+            const trade = await storage.createTrade({
+              subscriptionId: subscription.id,
+              botId,
+              symbol,
+              side: 'buy',
+              quantity: quantity.toFixed(8),
+              price: price.toFixed(2),
+              exchange,
+              status: 'filled',
+              fees: fees.toFixed(2),
+            });
+            
+            await storage.createPosition({
+              subscriptionId: subscription.id,
+              botId,
+              symbol,
+              quantity: quantity.toFixed(8),
+              entryPrice: price.toFixed(2),
+              currentPrice: price.toFixed(2),
+              unrealizedPnl: "0.00",
+              status: 'open',
+            });
+            
+            const newBalance = (parseFloat(subscription.currentBalance) - positionSize - fees).toFixed(2);
+            await storage.updateSubscriptionBalance(
+              subscription.id,
+              newBalance,
+              subscription.totalPnl
+            );
+            
+            console.log(`[Trade] BUY executed for subscription ${subscription.id}: ${quantity.toFixed(8)} ${symbol} @ $${price}`);
+            executedTrades++;
+            
+          } else if (normalizedAction === 'sell' || normalizedAction === 'short' || normalizedAction === 'close') {
+            const existingPosition = await storage.getPositionBySubscriptionAndSymbol(subscription.id, symbol);
+            
+            if (!existingPosition) {
+              console.log(`[Trade] No open position for ${subscription.id} - ${symbol}, skipping sell`);
+              continue;
+            }
+            
+            const positionQty = parseFloat(existingPosition.quantity);
+            const entryPrice = parseFloat(existingPosition.entryPrice);
+            const pnl = ((price - entryPrice) * positionQty) - fees;
+            const positionValue = price * positionQty;
+            
+            const trade = await storage.createTrade({
+              subscriptionId: subscription.id,
+              botId,
+              symbol,
+              side: 'sell',
+              quantity: positionQty.toFixed(8),
+              price: price.toFixed(2),
+              exchange,
+              status: 'filled',
+              fees: fees.toFixed(2),
+              pnl: pnl.toFixed(2),
+            });
+            
+            await storage.closePosition(
+              existingPosition.id,
+              price.toFixed(2),
+              pnl.toFixed(2)
+            );
+            
+            const currentBalance = parseFloat(subscription.currentBalance);
+            const currentPnl = parseFloat(subscription.totalPnl);
+            const newBalance = (currentBalance + positionValue - fees).toFixed(2);
+            const newPnl = (currentPnl + pnl).toFixed(2);
+            
+            await storage.updateSubscriptionBalance(
+              subscription.id,
+              newBalance,
+              newPnl
+            );
+            
+            console.log(`[Trade] SELL executed for subscription ${subscription.id}: ${positionQty.toFixed(8)} ${symbol} @ $${price}, PnL: $${pnl.toFixed(2)}`);
+            executedTrades++;
+          }
+        } catch (tradeError) {
+          console.error(`[Trade] Error executing trade for subscription ${subscription.id}:`, tradeError);
+        }
+      }
+      
+      res.json({ 
+        success: true, 
+        message: "Webhook received and processed successfully",
+        executed: executedTrades,
+        subscriptions: activeSubscriptions.length
+      });
     } catch (error) {
       console.error("Error processing webhook:", error);
       
