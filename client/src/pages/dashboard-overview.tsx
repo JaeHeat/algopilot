@@ -6,6 +6,8 @@ import { TradeTable } from "@/components/trade-table";
 import { SubscriptionCard } from "@/components/subscription-card";
 import { SubscriptionSettingsDialog } from "@/components/subscription-settings-dialog";
 import { DollarSign, TrendingUp, Bot, Target } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import type { Subscription, Bot as BotType, BotPerformance } from "@shared/schema";
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -14,12 +16,15 @@ import { useLocation } from "wouter";
 
 type SubscriptionWithBot = Subscription & { bot: BotType; performance: BotPerformance | null };
 
+type Timeframe = '24h' | '7d' | '1m' | '3m' | '6m' | '1y';
+
 export default function DashboardOverview() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [location, setLocation] = useLocation();
   const [selectedSubscription, setSelectedSubscription] = useState<SubscriptionWithBot | null>(null);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
+  const [selectedTimeframe, setSelectedTimeframe] = useState<Timeframe>('1m');
 
   const { data: subscriptions, isLoading, error } = useQuery<SubscriptionWithBot[]>({
     queryKey: ["/api/subscriptions"],
@@ -56,8 +61,56 @@ export default function DashboardOverview() {
     }
   }, [subscriptions]);
 
-  const mockData = [10000, 10500, 10200, 11000, 11500, 11200, 12000, 12800, 12500, 13200, 13800, 14500];
-  const mockLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const getPortfolioData = (timeframe: Timeframe) => {
+    const baseValue = 10000;
+    
+    switch (timeframe) {
+      case '24h': {
+        const hours = Array.from({ length: 24 }, (_, i) => {
+          const hour = i;
+          return hour === 0 ? '12am' : hour < 12 ? `${hour}am` : hour === 12 ? '12pm' : `${hour - 12}pm`;
+        });
+        const data = Array.from({ length: 24 }, (_, i) => {
+          const volatility = 100 + Math.sin(i / 4) * 50 + Math.random() * 30;
+          return baseValue + i * 15 + volatility;
+        });
+        return { labels: hours, data };
+      }
+      case '7d': {
+        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        const data = [10000, 10200, 10500, 10800, 11200, 11500, 11800];
+        return { labels: days, data };
+      }
+      case '1m': {
+        const labels = Array.from({ length: 30 }, (_, i) => `Day ${i + 1}`);
+        const data = Array.from({ length: 30 }, (_, i) => {
+          return baseValue + i * 50 + Math.sin(i / 3) * 200 + Math.random() * 100;
+        });
+        return { labels, data };
+      }
+      case '3m': {
+        const weeks = Array.from({ length: 12 }, (_, i) => `W${i + 1}`);
+        const data = Array.from({ length: 12 }, (_, i) => {
+          return baseValue + i * 200 + Math.sin(i / 2) * 300;
+        });
+        return { labels: weeks, data };
+      }
+      case '6m': {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+        const data = [10000, 10500, 11200, 11800, 12500, 13200];
+        return { labels: months, data };
+      }
+      case '1y': {
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const data = [10000, 10500, 10200, 11000, 11500, 11200, 12000, 12800, 12500, 13200, 13800, 14500];
+        return { labels: months, data };
+      }
+      default:
+        return { labels: [], data: [] };
+    }
+  };
+
+  const { labels: chartLabels, data: chartData } = getPortfolioData(selectedTimeframe);
   
   const mockTrades = [
     { id: "1", pair: "BTC/USDT", type: "BUY" as const, amount: 0.0523, price: 43250, profit: 245.50, timestamp: "2 mins ago" },
@@ -130,11 +183,30 @@ export default function DashboardOverview() {
         />
       </div>
       
-      <PerformanceChart
-        title="Portfolio Equity Curve"
-        data={mockData}
-        labels={mockLabels}
-      />
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="font-semibold">Portfolio Equity Curve</h3>
+          <div className="flex gap-1">
+            {(['24h', '7d', '1m', '3m', '6m', '1y'] as Timeframe[]).map((tf) => (
+              <Button
+                key={tf}
+                variant={selectedTimeframe === tf ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setSelectedTimeframe(tf)}
+                data-testid={`button-timeframe-${tf}`}
+                className="min-w-[60px]"
+              >
+                {tf}
+              </Button>
+            ))}
+          </div>
+        </div>
+        <PerformanceChart
+          title=""
+          data={chartData}
+          labels={chartLabels}
+        />
+      </Card>
       
       <div>
         <h2 className="text-2xl font-bold mb-4">Active Subscriptions</h2>

@@ -99,7 +99,7 @@ export function PerformanceChart({ title, data, labels, height = 300 }: Performa
 
   return (
     <Card className="p-6">
-      <h3 className="font-semibold mb-6">{title}</h3>
+      {title && <h3 className="font-semibold mb-6">{title}</h3>}
       <div style={{ height }}>
         <Line data={chartData} options={options} />
       </div>
