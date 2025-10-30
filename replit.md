@@ -24,13 +24,14 @@ AlgoPilot is a web-based SaaS platform that enables users to discover, subscribe
    - Risk level selection (1-5 scale from Safest to DANGER)
    - Maximum drawdown limits
    - Notification preferences (New Trade, Drawdown Breach, Weekly/Monthly Summaries)
+   - **Capital validation against exchange balance** (prevents over-allocation)
 5. **Subscription Management**:
    - Pause/resume trading with reason tracking
    - Real-time subscription status indicators
    - Ownership-validated operations
 6. **User Dashboard**: View active subscriptions with quick settings access and portfolio metrics
 7. **Settings**: Manage profile and exchange API connections
-8. **Exchange Integration**: Connect to Binance, Coinbase, Bybit, KuCoin
+8. **Exchange Integration**: Connect to Binance, Coinbase, Bybit, KuCoin with mock USDT balances
 
 ## Database Schema
 - `users`: User accounts (managed by Replit Auth)
@@ -44,7 +45,9 @@ AlgoPilot is a web-based SaaS platform that enables users to discover, subscribe
   - isPaused, pauseReason
   - notificationPrefs (newTrade, drawdownBreach, weeklySummary, monthlySummary)
 - `subscription_events`: Event log for subscription lifecycle tracking
-- `exchange_connections`: User exchange API credentials
+- `exchange_connections`: User exchange API credentials with mock USDT balances
+  - balance (decimal): Mock USDT balance for each exchange
+  - Only active exchanges contribute to total available balance
 - `sessions`: Session storage for authentication
 
 ## Security Notes
@@ -83,6 +86,14 @@ AlgoPilot is a web-based SaaS platform that enables users to discover, subscribe
 5. **Notifications**: Trade alerts and performance notifications
 
 ## Recent Changes (Latest Session)
+- **Capital Validation Against Exchange Balance**: Prevents users from allocating more capital than available
+  - Added `balance` field to `exchange_connections` schema for mock USDT balances
+  - Created `/api/user/available-balance` endpoint to sum active exchange balances
+  - Subscription settings dialog displays total available balance ($40,000 for test user)
+  - Real-time validation with red border and inline error when exceeding balance
+  - Form submission blocked with clear toast error: "You only have $X available"
+  - Validates both amount-based ($) and percentage-based (%) allocations
+  - Comprehensive E2E test coverage for all validation scenarios
 - **Dashboard Navigation Consolidation**: Streamlined sidebar by removing redundant "My Bots" and "Subscriptions" tabs (all showed identical content as "Overview")
   - Simplified navigation: Dashboard → Marketplace → Settings → Admin Panel
   - Removed duplicate routes (/dashboard/bots, /dashboard/subscriptions)
