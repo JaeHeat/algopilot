@@ -79,3 +79,30 @@ The platform is built with a modern web stack: React with TypeScript, Wouter for
     - Bot ID metadata validation ensures subscription matches requested bot
   - **Payment Flow**: Subscribe → Payment Intent → Payment Collection → Verification → Subscription Creation → Dashboard
   - **Testing & Review**: Architect review passed with security fixes implemented
+
+- **Notification System - COMPLETED**: Implemented visual notification system to guide users to configure new subscriptions
+  - **Green Badge on "My Bots" Sidebar**:
+    - Displays count of paused subscriptions needing setup
+    - Uses Shadcn Badge component with success variant
+    - Updates automatically via React Query
+  - **Red Badge on Bell Icon**:
+    - Shows count of pending notifications (paused subscriptions)
+    - Positioned in top-right header next to theme toggle
+    - Uses Shadcn Badge component with destructive variant
+  - **Notifications Dropdown**:
+    - Created NotificationsDropdown component with clickable notification items
+    - Each notification shows bot name and "Needs configuration" message
+    - Clicking notification navigates to My Bots page with auto-open settings dialog
+  - **Auto-Open Settings Dialog**:
+    - Added openSettings query parameter support to dashboard-my-bots.tsx
+    - Updated SubscriptionCard with initialSettingsOpen prop
+    - Implemented useEffect to sync settings dialog state when prop changes
+    - Flow: Click notification → Navigate to /dashboard/my-bots?openSettings={id} → Settings dialog auto-opens
+  - **User Experience Flow**:
+    1. User subscribes to bot → paused subscription created
+    2. Green badge appears on "My Bots" sidebar showing count
+    3. Red badge appears on bell icon in header
+    4. User clicks bell → dropdown shows paused subscriptions
+    5. User clicks notification → navigates to My Bots with openSettings param
+    6. Settings dialog auto-opens for that subscription
+  - **Testing & Review**: Architect review passed, verified notification click-to-dialog-open flow works correctly
