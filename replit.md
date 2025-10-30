@@ -1,183 +1,40 @@
 # AlgoPilot - Crypto Trading Bot Marketplace
 
-## Project Overview
-AlgoPilot is a web-based SaaS platform that enables users to discover, subscribe to, and deploy cryptocurrency trading bots. The platform features a marketplace where users can browse bot performance metrics, subscribe to bots with payments, connect exchange accounts (Binance, Coinbase, etc.), and view real-time trading analytics.
+## Overview
+AlgoPilot is a web-based SaaS platform designed to be a marketplace for cryptocurrency trading bots. It allows users to discover, subscribe to, and deploy trading bots. The platform provides detailed performance metrics, secure payment integrations, connectivity to major crypto exchanges (Binance, Coinbase, etc.), and real-time trading analytics. Its purpose is to empower users with automated trading strategies and offer bot creators a platform to monetize their algorithms.
 
-## Tech Stack
-- **Frontend**: React + TypeScript, Wouter (routing), TanStack Query, Tailwind CSS, Shadcn UI
-- **Backend**: Express.js, TypeScript
+## User Preferences
+I prefer simple language and clear, concise explanations. I want iterative development with regular updates. Please ask before making major architectural changes or introducing new dependencies. Ensure all changes are well-documented, especially regarding security and data handling.
+
+## System Architecture
+The platform is built with a modern web stack: React with TypeScript, Wouter for routing, TanStack Query, and Tailwind CSS with Shadcn UI for the frontend; an Express.js backend also in TypeScript; and a PostgreSQL database managed via Neon and Drizzle ORM. Authentication is handled by Replit Auth (OIDC). Chart.js is used for data visualization.
+
+**Key Features:**
+- **Authentication**: Secure user authentication via Replit Auth.
+- **Bot Marketplace**: Browse, filter, and sort bots based on performance and verification status.
+- **Bot Detail Pages**: Display performance charts (equity curves across multiple timeframes), historical trade logs, strategy descriptions, and creator profiles.
+- **Subscription Management**: Granular settings for capital allocation (fixed/percentage), risk levels (1-5), maximum drawdown limits, and customizable notification preferences. Includes robust server-side validation for capital allocation against exchange balances.
+- **Subscription Lifecycle**: Supports pausing, resuming, canceling (with end-of-month termination), and reactivating subscriptions.
+- **User Dashboard**: Centralized view of active subscriptions, portfolio metrics, and quick settings access.
+- **Exchange Integration**: Connection to multiple crypto exchanges for managing mock USDT balances and future live trading.
+- **Social Features**: Creator posts with comment and reaction systems to foster community engagement.
+
+**Design System:**
+- Utilizes a professional fintech blue as the primary color.
+- Employs Inter for body text and Space Grotesk for headings.
+- Design inspiration draws from platforms like Coinbase, Stripe, and Robinhood.
+
+**Security Design:**
+- All subscription operations require ownership validation.
+- Exchange API responses redact sensitive information.
+- Protected routes enforce authentication via middleware.
+- Server-side validation is implemented for all critical actions, such as capital allocation and subscription activation.
+
+## External Dependencies
 - **Database**: PostgreSQL (via Neon)
-- **Authentication**: Replit Auth (OIDC)
 - **ORM**: Drizzle ORM
-- **Charts**: Chart.js / React-Chartjs-2
-
-## Key Features Implemented
-1. **Authentication**: Replit Auth integration with secure session management
-2. **Bot Marketplace**: Browse, filter, and sort trading bots with real performance data and verified badges
-3. **Bot Detail Pages**: Comprehensive bot information with:
-   - Performance charts with equity curves across multiple timeframes (1D, 1W, 1M, 3M, 1Y, ALL)
-   - Historical trade logs with Recent/All views showing entry/exit prices, PnL, duration
-   - Detailed strategy descriptions
-   - Creator profiles with verification badges
-4. **Granular Subscription Settings**:
-   - Capital allocation (fixed amount or percentage-based)
-   - Risk level selection (1-5 scale from Safest to DANGER)
-   - Maximum drawdown limits
-   - Notification preferences (New Trade, Drawdown Breach, Weekly/Monthly Summaries)
-   - **Capital validation against exchange balance** (prevents over-allocation)
-5. **Subscription Management**:
-   - Pause/resume trading with reason tracking
-   - Real-time subscription status indicators
-   - Ownership-validated operations
-6. **User Dashboard**: View active subscriptions with quick settings access and portfolio metrics
-7. **Settings**: Manage profile and exchange API connections
-8. **Exchange Integration**: Connect to Binance, Coinbase, Bybit, KuCoin with mock USDT balances
-
-## Database Schema
-- `users`: User accounts (managed by Replit Auth)
-- `bots`: Trading bot information with strategyDescription and isVerified fields
-- `bot_performance`: Performance metrics for each bot
-- `bot_trade_logs`: Historical trade data (symbol, entry/exit prices, PnL, duration, status)
-- `bot_performance_history`: Bucketed performance data for charting (1D, 1W, 1M, 3M, 1Y, ALL)
-- `subscriptions`: User subscriptions with granular settings:
-  - capitalAllocated, capitalAllocatedType (amount/percent)
-  - riskPercentage (1-5), maxDrawdown
-  - isPaused, pauseReason
-  - notificationPrefs (newTrade, drawdownBreach, weeklySummary, monthlySummary)
-  - subscriptionEndsAt (timestamp, nullable): Date when subscription ends (for end-of-month cancellation)
-  - cancelledAt (timestamp, nullable): Date when cancellation was initiated
-- `subscription_events`: Event log for subscription lifecycle tracking
-- `exchange_connections`: User exchange API credentials with mock USDT balances
-  - balance (decimal): Mock USDT balance for each exchange
-  - Only active exchanges contribute to total available balance
-- `sessions`: Session storage for authentication
-- `creator_posts`: Posts created by bot creators (social features)
-  - botId, creatorId, content, postType, chartData, tradeLogId, isAutoGenerated
-- `post_comments`: Comments on creator posts with nested reply support
-  - postId, userId, content, parentCommentId (nullable for top-level comments)
-- `post_reactions`: Reactions (likes) on creator posts
-  - postId, userId, reactionType (e.g., "like")
-
-## Security Notes
-### Exchange API Keys
-⚠️ **IMPORTANT**: Exchange API keys and secrets are currently stored in plaintext in the database. For production deployment, these MUST be encrypted at rest using a proper encryption library (e.g., crypto module with AES-256-GCM).
-
-**Production TODO**:
-1. Encrypt API keys/secrets before storing in database
-2. Decrypt only when needed for trading operations
-3. Use environment-specific encryption keys
-4. Consider using a secrets management service (AWS Secrets Manager, HashiCorp Vault, etc.)
-
-### Authorization
-- All subscription operations (update, pause, resume, cancel) require ownership validation
-- Exchange connection API responses redact sensitive API keys/secrets
-- All protected routes require authentication via `isAuthenticated` middleware
-- Backend validates percent-based capital allocation cannot exceed 100%
-- **Server-side resume validation**: POST /api/subscriptions/{id}/resume enforces:
-  - Capital allocation must be configured (non-zero)
-  - Sufficient available balance (validates against all active subscriptions)
-  - Returns 400 with specific error messages if validation fails
-
-## Development Setup
-1. Database is already provisioned and connected
-2. Run `npm install` to install dependencies
-3. Run `npm run dev` to start development server
-4. Database schema is managed via Drizzle - use `npm run db:push` to sync schema
-
-## Environment Variables
-- `DATABASE_URL`: PostgreSQL connection string (auto-configured)
-- `SESSION_SECRET`: Session encryption secret (auto-configured)
-- `REPL_ID`: Replit application ID (auto-configured)
-- `ISSUER_URL`: OIDC issuer URL (auto-configured)
-
-## Pending Features
-1. **Stripe Integration**: Payment processing for subscriptions
-2. **Admin Panel**: Real CRUD operations for bot creators
-3. **Live Trading**: Actual exchange integration for automated trading
-4. **Performance Tracking**: Real-time bot performance updates
-5. **Notifications**: Trade alerts and performance notifications
-
-## Recent Changes (Latest Session)
-- **Subscription Management Improvements - COMPLETED**: Enhanced subscription lifecycle and validation
-  - **End-of-Month Cancellation**:
-    - Added `subscriptionEndsAt` and `cancelledAt` fields to subscriptions schema
-    - Cancellation now sets end date to end of current month instead of immediate termination
-    - Subscriptions remain active and functional until `subscriptionEndsAt` date
-    - All storage methods filter by `subscriptionEndsAt` to show only active subscriptions
-    - Bot detail pages display yellow warning banner when cancellation is scheduled
-  - **Duplicate Subscription Prevention**:
-    - Bot detail pages check for existing active subscription before showing subscribe button
-    - If user already subscribed: shows "Your Subscription" card with "Manage Subscription" link
-    - If not subscribed: shows "Subscribe to {bot}" card with subscribe button
-    - Prevents accidental duplicate subscriptions to same bot
-  - **Toggle Validation (Server-Side Enforcement)**:
-    - Added comprehensive validation to POST /api/subscriptions/{id}/resume endpoint
-    - Validates capital allocation is configured (non-zero) before activation
-    - Validates sufficient available balance against all active subscriptions
-    - Returns 400 with specific error messages if validation fails
-    - Frontend displays backend error messages and auto-opens settings dialog
-    - Toggle switch disabled while balance/subscription data is loading
-  - **UX Enhancements**:
-    - Subscription end date displayed in bot detail page when cancellation is scheduled
-    - Clear error messages guide users to configure settings or adjust capital
-    - Settings dialog auto-opens when validation fails for quick correction
-  - **Testing**: Comprehensive E2E test suite passed - verified all flows including duplicate prevention, toggle validation, and cancellation display
-
-## Previous Session Changes
-- **Phase 2 Social Features - COMPLETED**: Built full comment and reaction system for creator posts
-  - **Backend Implementation**:
-    - Added storage methods for comments (create, getByPostId, getById, delete)
-    - Added storage methods for reactions (toggle, getByPostId)
-    - Created API routes: GET/POST/DELETE for comments, GET/POST for reactions
-    - Implemented ownership validation for delete operations
-    - Toggle mechanism for reactions (add/remove on click)
-  - **Frontend Components**:
-    - `ReactionButton`: Heart icon with like count, toggle functionality, accessible with aria-pressed/aria-label
-    - `CommentSection`: Expandable comment list with visible "Show/Hide comments" button, comment input form
-    - Integrated both components into `PostFeed` on bot detail pages
-  - **UX Improvements**:
-    - Eager loading of comments for accurate counts
-    - Discoverable controls with visible text labels
-    - Loading states and skeleton screens
-    - Comprehensive data-testid attributes for E2E testing
-  - **Testing**: E2E test suite passed successfully - verified liking posts, commenting, and toggling interactions
-  - **Accessibility**: Added aria-pressed and aria-label to ReactionButton, visible text on comment toggle
-  - **Performance Notes**: Comments currently load eagerly for all posts; consider lazy loading or count endpoint for scale
-
-## Earlier Session Changes
-- **Capital Validation Against Exchange Balance**: Prevents users from allocating more capital than available
-  - Added `balance` field to `exchange_connections` schema for mock USDT balances
-  - Created `/api/user/available-balance` endpoint to sum active exchange balances
-  - Subscription settings dialog displays total available balance ($40,000 for test user)
-  - Real-time validation with red border and inline error when exceeding balance
-  - Form submission blocked with clear toast error: "You only have $X available"
-  - Validates both amount-based ($) and percentage-based (%) allocations
-  - Comprehensive E2E test coverage for all validation scenarios
-- **Dashboard Navigation Consolidation**: Streamlined sidebar by removing redundant "My Bots" and "Subscriptions" tabs (all showed identical content as "Overview")
-  - Simplified navigation: Dashboard → Marketplace → Settings → Admin Panel
-  - Removed duplicate routes (/dashboard/bots, /dashboard/subscriptions)
-  - Dashboard now serves as single unified view showing portfolio metrics + all subscriptions
-- **Portfolio Chart Timeframe Filters**: Dashboard equity chart now has 6 timeframe options (24h, 7d, 1m, 3m, 6m, 1y) with stable deterministic data
-- **Component Architecture**: PerformanceChart now accepts showCard prop to prevent nested Card components
-- **Navigation Fix**: Bot detail pages now integrated with dashboard layout when authenticated - tabs remain visible when navigating back
-- **Timeframe Selectors**: Bot detail pages now have 6 timeframe options (1D, 1W, 1M, 3M, 1Y, ALL) for performance charts
-- **Default Risk Level**: Changed from "Safe" (2) to "Safest" (1) for new subscriptions
-- **Post-Subscription Flow**: New subscriptions start paused with default settings, automatically open settings dialog for configuration
-- **Quick Toggle Controls**: Added on/off switches to subscription cards for instant pause/resume without opening settings
-- **Backend Changes**: Subscriptions created with isPaused: true, default capital 1000, risk 1%, max drawdown 10%
-- **UX Improvements**: Clear URL parameters after auto-opening dialogs to prevent stale state
-
-## Previous Session
-- **Added Granular Subscription Settings**: Capital allocation (amount/percent), risk levels (1-5), max drawdown limits
-- **Built Bot Detail Pages**: Performance charts with equity curves, historical trade logs (Recent/All tabs), strategy descriptions, creator profiles
-- **Implemented Pause/Resume**: Full pause/resume functionality with reason tracking and status indicators
-- **Enhanced Notification Controls**: Per-subscription toggles for trade alerts, drawdown breaches, and summaries
-- **Added Comprehensive Seed Data**: 200+ trade logs, 36 performance history records across 6 time buckets, verified bot badges
-- **Backend Validation**: Percent-based capital allocation validation (≤100%), ownership checks on all subscription operations
-- **E2E Testing**: Comprehensive test coverage of all subscription flows, settings management, and bot detail features
-
-## Design System
-- Primary color: Professional fintech blue
-- Typography: Inter (body), Space Grotesk (headings)
-- Design inspiration: Coinbase, Stripe, Robinhood
-- Comprehensive design guidelines in `design_guidelines.md`
+- **Authentication**: Replit Auth (OIDC)
+- **Charting Library**: Chart.js / React-Chartjs-2
+- **UI Components**: Shadcn UI
+- **Styling**: Tailwind CSS
+- **API Integrations**: Binance, Coinbase, Bybit, KuCoin (mock integrations currently in place)
