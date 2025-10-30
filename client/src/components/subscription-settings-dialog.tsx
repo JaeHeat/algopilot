@@ -25,12 +25,12 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { Subscription, Bot } from "@shared/schema";
-import { Settings, Pause, Play, AlertTriangle, Bell } from "lucide-react";
+import { Settings, Pause, Play, AlertTriangle, Bell, Wallet } from "lucide-react";
 
 interface SubscriptionSettingsDialogProps {
   subscription: Subscription & { bot: Bot };
@@ -65,6 +65,10 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
   const [pauseReason, setPauseReason] = useState("");
   const [showPauseDialog, setShowPauseDialog] = useState(false);
   const [showUnsubscribeDialog, setShowUnsubscribeDialog] = useState(false);
+
+  const { data: balanceData } = useQuery<{ totalBalance: number }>({
+    queryKey: ["/api/user/available-balance"],
+  });
 
   const updateSettingsMutation = useMutation({
     mutationFn: async (settings: any) => {
@@ -179,6 +183,26 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
   });
 
   const handleSaveSettings = () => {
+    const availableBalance = balanceData?.totalBalance || 0;
+    
+    if (capitalType === "amount" && capitalAllocated > availableBalance) {
+      toast({
+        title: "Insufficient Balance",
+        description: `You only have $${availableBalance.toLocaleString()} available. Please connect more exchanges or reduce your allocation.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (capitalType === "percent" && capitalAllocated > 100) {
+      toast({
+        title: "Invalid Percentage",
+        description: "Capital allocation percentage cannot exceed 100%.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     updateSettingsMutation.mutate({
       capitalAllocated,
       capitalAllocatedType: capitalType,
@@ -241,6 +265,17 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
             </TabsList>
 
             <TabsContent value="settings" className="space-y-6 mt-6">
+              {balanceData && capitalType === "amount" && (
+                <div className="flex items-center gap-2 p-3 bg-muted rounded-md">
+                  <Wallet className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">
+                    Available Balance:{" "}
+                    <span className="font-semibold text-foreground" data-testid="text-available-balance">
+                      ${balanceData.totalBalance.toLocaleString()}
+                    </span>
+                  </span>
+                </div>
+              )}
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="capital" className="mb-2 block">
@@ -255,6 +290,7 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
                       min="0"
                       step={capitalType === "percent" ? "1" : "100"}
                       data-testid="input-capital-allocated"
+                      className={capitalType === "amount" && balanceData && capitalAllocated > balanceData.totalBalance ? "border-destructive" : ""}
                     />
                     <Select value={capitalType} onValueChange={(v: "amount" | "percent") => setCapitalType(v)}>
                       <SelectTrigger className="w-32" data-testid="select-capital-type">
@@ -266,6 +302,12 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
                       </SelectContent>
                     </Select>
                   </div>
+                  {capitalType === "amount" && balanceData && capitalAllocated > balanceData.totalBalance && (
+                    <p className="text-sm text-destructive mt-1 flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      Exceeds available balance by ${(capitalAllocated - balanceData.totalBalance).toLocaleString()}
+                    </p>
+                  )}
                   <p className="text-sm text-muted-foreground mt-1">
                     {capitalType === "amount" 
                       ? "Amount of capital to allocate to this bot"
