@@ -190,6 +190,7 @@ export const positions = pgTable("positions", {
   subscriptionId: varchar("subscription_id").notNull().references(() => subscriptions.id),
   botId: varchar("bot_id").notNull().references(() => bots.id),
   symbol: text("symbol").notNull(),
+  positionType: text("position_type").notNull().default("long"),
   quantity: decimal("quantity", { precision: 15, scale: 8 }).notNull(),
   entryPrice: decimal("entry_price", { precision: 15, scale: 2 }).notNull(),
   currentPrice: decimal("current_price", { precision: 15, scale: 2 }).notNull(),

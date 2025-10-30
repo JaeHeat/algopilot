@@ -951,89 +951,162 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (normalizedAction === 'buy' || normalizedAction === 'long') {
             const existingPosition = await storage.getPositionBySubscriptionAndSymbol(subscription.id, symbol);
             
-            if (existingPosition) {
-              console.log(`[Trade] Position already exists for ${subscription.id} - ${symbol}, skipping buy`);
-              continue;
+            if (existingPosition && existingPosition.positionType === 'short') {
+              const positionQty = parseFloat(existingPosition.quantity);
+              const entryPrice = parseFloat(existingPosition.entryPrice);
+              const pnl = ((entryPrice - price) * positionQty) - fees;
+              const positionValue = price * positionQty;
+              
+              const trade = await storage.createTrade({
+                subscriptionId: subscription.id,
+                botId,
+                symbol,
+                side: 'buy',
+                quantity: positionQty.toFixed(8),
+                price: price.toFixed(2),
+                exchange,
+                status: 'filled',
+                fees: fees.toFixed(2),
+                pnl: pnl.toFixed(2),
+              });
+              
+              await storage.closePosition(
+                existingPosition.id,
+                price.toFixed(2),
+                pnl.toFixed(2)
+              );
+              
+              const currentBalance = parseFloat(subscription.currentBalance);
+              const currentPnl = parseFloat(subscription.totalPnl);
+              const newBalance = (currentBalance + positionValue - fees).toFixed(2);
+              const newPnl = (currentPnl + pnl).toFixed(2);
+              
+              await storage.updateSubscriptionBalance(
+                subscription.id,
+                newBalance,
+                newPnl
+              );
+              
+              console.log(`[Trade] BUY to close SHORT for subscription ${subscription.id}: ${positionQty.toFixed(8)} ${symbol} @ $${price}, PnL: $${pnl.toFixed(2)}`);
+              executedTrades++;
+              
+            } else if (!existingPosition) {
+              const trade = await storage.createTrade({
+                subscriptionId: subscription.id,
+                botId,
+                symbol,
+                side: 'buy',
+                quantity: quantity.toFixed(8),
+                price: price.toFixed(2),
+                exchange,
+                status: 'filled',
+                fees: fees.toFixed(2),
+              });
+              
+              await storage.createPosition({
+                subscriptionId: subscription.id,
+                botId,
+                symbol,
+                positionType: 'long',
+                quantity: quantity.toFixed(8),
+                entryPrice: price.toFixed(2),
+                currentPrice: price.toFixed(2),
+                unrealizedPnl: "0.00",
+                status: 'open',
+              });
+              
+              const newBalance = (parseFloat(subscription.currentBalance) - positionSize - fees).toFixed(2);
+              await storage.updateSubscriptionBalance(
+                subscription.id,
+                newBalance,
+                subscription.totalPnl
+              );
+              
+              console.log(`[Trade] BUY to open LONG for subscription ${subscription.id}: ${quantity.toFixed(8)} ${symbol} @ $${price}`);
+              executedTrades++;
+            } else {
+              console.log(`[Trade] LONG position already exists for ${subscription.id} - ${symbol}, skipping buy`);
             }
-            
-            const trade = await storage.createTrade({
-              subscriptionId: subscription.id,
-              botId,
-              symbol,
-              side: 'buy',
-              quantity: quantity.toFixed(8),
-              price: price.toFixed(2),
-              exchange,
-              status: 'filled',
-              fees: fees.toFixed(2),
-            });
-            
-            await storage.createPosition({
-              subscriptionId: subscription.id,
-              botId,
-              symbol,
-              quantity: quantity.toFixed(8),
-              entryPrice: price.toFixed(2),
-              currentPrice: price.toFixed(2),
-              unrealizedPnl: "0.00",
-              status: 'open',
-            });
-            
-            const newBalance = (parseFloat(subscription.currentBalance) - positionSize - fees).toFixed(2);
-            await storage.updateSubscriptionBalance(
-              subscription.id,
-              newBalance,
-              subscription.totalPnl
-            );
-            
-            console.log(`[Trade] BUY executed for subscription ${subscription.id}: ${quantity.toFixed(8)} ${symbol} @ $${price}`);
-            executedTrades++;
             
           } else if (normalizedAction === 'sell' || normalizedAction === 'short' || normalizedAction === 'close') {
             const existingPosition = await storage.getPositionBySubscriptionAndSymbol(subscription.id, symbol);
             
-            if (!existingPosition) {
-              console.log(`[Trade] No open position for ${subscription.id} - ${symbol}, skipping sell`);
-              continue;
+            if (existingPosition && existingPosition.positionType === 'long') {
+              const positionQty = parseFloat(existingPosition.quantity);
+              const entryPrice = parseFloat(existingPosition.entryPrice);
+              const pnl = ((price - entryPrice) * positionQty) - fees;
+              const positionValue = price * positionQty;
+              
+              const trade = await storage.createTrade({
+                subscriptionId: subscription.id,
+                botId,
+                symbol,
+                side: 'sell',
+                quantity: positionQty.toFixed(8),
+                price: price.toFixed(2),
+                exchange,
+                status: 'filled',
+                fees: fees.toFixed(2),
+                pnl: pnl.toFixed(2),
+              });
+              
+              await storage.closePosition(
+                existingPosition.id,
+                price.toFixed(2),
+                pnl.toFixed(2)
+              );
+              
+              const currentBalance = parseFloat(subscription.currentBalance);
+              const currentPnl = parseFloat(subscription.totalPnl);
+              const newBalance = (currentBalance + positionValue - fees).toFixed(2);
+              const newPnl = (currentPnl + pnl).toFixed(2);
+              
+              await storage.updateSubscriptionBalance(
+                subscription.id,
+                newBalance,
+                newPnl
+              );
+              
+              console.log(`[Trade] SELL to close LONG for subscription ${subscription.id}: ${positionQty.toFixed(8)} ${symbol} @ $${price}, PnL: $${pnl.toFixed(2)}`);
+              executedTrades++;
+              
+            } else if (!existingPosition) {
+              const trade = await storage.createTrade({
+                subscriptionId: subscription.id,
+                botId,
+                symbol,
+                side: 'sell',
+                quantity: quantity.toFixed(8),
+                price: price.toFixed(2),
+                exchange,
+                status: 'filled',
+                fees: fees.toFixed(2),
+              });
+              
+              await storage.createPosition({
+                subscriptionId: subscription.id,
+                botId,
+                symbol,
+                positionType: 'short',
+                quantity: quantity.toFixed(8),
+                entryPrice: price.toFixed(2),
+                currentPrice: price.toFixed(2),
+                unrealizedPnl: "0.00",
+                status: 'open',
+              });
+              
+              const newBalance = (parseFloat(subscription.currentBalance) - positionSize - fees).toFixed(2);
+              await storage.updateSubscriptionBalance(
+                subscription.id,
+                newBalance,
+                subscription.totalPnl
+              );
+              
+              console.log(`[Trade] SELL to open SHORT for subscription ${subscription.id}: ${quantity.toFixed(8)} ${symbol} @ $${price}`);
+              executedTrades++;
+            } else {
+              console.log(`[Trade] SHORT position already exists for ${subscription.id} - ${symbol}, skipping sell`);
             }
-            
-            const positionQty = parseFloat(existingPosition.quantity);
-            const entryPrice = parseFloat(existingPosition.entryPrice);
-            const pnl = ((price - entryPrice) * positionQty) - fees;
-            const positionValue = price * positionQty;
-            
-            const trade = await storage.createTrade({
-              subscriptionId: subscription.id,
-              botId,
-              symbol,
-              side: 'sell',
-              quantity: positionQty.toFixed(8),
-              price: price.toFixed(2),
-              exchange,
-              status: 'filled',
-              fees: fees.toFixed(2),
-              pnl: pnl.toFixed(2),
-            });
-            
-            await storage.closePosition(
-              existingPosition.id,
-              price.toFixed(2),
-              pnl.toFixed(2)
-            );
-            
-            const currentBalance = parseFloat(subscription.currentBalance);
-            const currentPnl = parseFloat(subscription.totalPnl);
-            const newBalance = (currentBalance + positionValue - fees).toFixed(2);
-            const newPnl = (currentPnl + pnl).toFixed(2);
-            
-            await storage.updateSubscriptionBalance(
-              subscription.id,
-              newBalance,
-              newPnl
-            );
-            
-            console.log(`[Trade] SELL executed for subscription ${subscription.id}: ${positionQty.toFixed(8)} ${symbol} @ $${price}, PnL: $${pnl.toFixed(2)}`);
-            executedTrades++;
           }
         } catch (tradeError) {
           console.error(`[Trade] Error executing trade for subscription ${subscription.id}:`, tradeError);
