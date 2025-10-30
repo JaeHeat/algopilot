@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertBotSchema, insertSubscriptionSchema, insertExchangeConnectionSchema, updateSubscriptionSettingsSchema } from "@shared/schema";
+import { insertBotSchema, insertSubscriptionSchema, insertExchangeConnectionSchema, updateSubscriptionSettingsSchema, insertCreatorPostSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -52,6 +52,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error creating bot:", error);
       res.status(400).json({ message: "Failed to create bot" });
+    }
+  });
+
+  app.get("/api/bots/:botId/posts", async (req, res) => {
+    try {
+      const posts = await storage.getBotPosts(req.params.botId);
+      res.json(posts);
+    } catch (error) {
+      console.error("Error fetching posts:", error);
+      res.status(500).json({ message: "Failed to fetch posts" });
+    }
+  });
+
+  app.post("/api/bots/:botId/posts", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const bot = await storage.getBotById(req.params.botId);
+      
+      if (!bot) {
+        return res.status(404).json({ message: "Bot not found" });
+      }
+      
+      if (bot.creatorId !== userId) {
+        return res.status(403).json({ message: "Forbidden: Only bot creators can post updates" });
+      }
+      
+      const validatedPost = insertCreatorPostSchema.parse({
+        ...req.body,
+        botId: req.params.botId,
+        creatorId: userId,
+      });
+      
+      const post = await storage.createPost(validatedPost);
+      res.json(post);
+    } catch (error) {
+      console.error("Error creating post:", error);
+      res.status(400).json({ message: "Failed to create post" });
+    }
+  });
+
+  app.delete("/api/posts/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const posts = await storage.getBotPosts("");
+      const post = posts.find(p => p.id === req.params.id);
+      
+      if (!post) {
+        return res.status(404).json({ message: "Post not found" });
+      }
+      
+      if (post.creatorId !== userId) {
+        return res.status(403).json({ message: "Forbidden: You can only delete your own posts" });
+      }
+      
+      await storage.deletePost(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting post:", error);
+      res.status(500).json({ message: "Failed to delete post" });
     }
   });
 
