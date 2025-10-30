@@ -39,9 +39,7 @@ export default function DashboardLayout() {
               <Switch>
                 <Route path="/" component={DashboardOverview} />
                 <Route path="/dashboard" component={DashboardOverview} />
-                <Route path="/dashboard/bots" component={DashboardOverview} />
                 <Route path="/dashboard/marketplace" component={DashboardMarketplace} />
-                <Route path="/dashboard/subscriptions" component={DashboardOverview} />
                 <Route path="/dashboard/settings" component={DashboardSettings} />
                 <Route path="/dashboard/admin" component={DashboardAdmin} />
                 <Route path="/bot/:id" component={BotDetail} />

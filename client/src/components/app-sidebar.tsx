@@ -20,10 +20,8 @@ import {
 } from "@/components/ui/sidebar";
 
 const menuItems = [
-  { title: "Overview", icon: LayoutDashboard, url: "/dashboard" },
-  { title: "My Bots", icon: Bot, url: "/dashboard/bots" },
+  { title: "Dashboard", icon: LayoutDashboard, url: "/dashboard" },
   { title: "Marketplace", icon: Store, url: "/dashboard/marketplace" },
-  { title: "Subscriptions", icon: CreditCard, url: "/dashboard/subscriptions" },
   { title: "Settings", icon: Settings, url: "/dashboard/settings" },
 ];
 
