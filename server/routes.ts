@@ -266,21 +266,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      const invoice = await stripe.invoices.retrieve(invoiceId, {
-        expand: ['payment_intent'],
+      // Retrieve the invoice
+      const invoice = await stripe.invoices.retrieve(invoiceId);
+      
+      // Create a payment intent for the invoice amount
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: invoice.amount_due,
+        currency: invoice.currency,
+        customer: stripeCustomerId,
+        metadata: {
+          invoiceId: invoice.id,
+          subscriptionId: subscription.id,
+          botId: bot.id,
+          userId: user.id,
+        },
+        automatic_payment_methods: {
+          enabled: true,
+        },
       });
       
-      console.log("Subscription created:", subscription.id);
-      console.log("Invoice retrieved:", invoice.id);
-      console.log("Invoice status:", invoice.status);
-      console.log("Invoice object:", JSON.stringify(invoice, null, 2));
-      
-      const paymentIntent = invoice.payment_intent as any;
-      
-      console.log("Payment intent:", paymentIntent?.id);
-      console.log("Client secret:", paymentIntent?.client_secret);
-      
-      if (!paymentIntent?.client_secret) {
+      if (!paymentIntent.client_secret) {
         return res.status(500).json({ 
           message: "Failed to create payment intent. Please try again." 
         });
@@ -335,14 +340,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Subscription bot ID mismatch" });
       }
       
-      const validStatuses = ['active', 'trialing'];
+      // Allow incomplete status if payment has been processed
+      const validStatuses = ['active', 'trialing', 'incomplete'];
       if (!validStatuses.includes(stripeSubscription.status)) {
-        return res.status(400).json({ message: "Subscription is not active. Status: " + stripeSubscription.status });
+        return res.status(400).json({ message: "Invalid subscription status: " + stripeSubscription.status });
       }
       
-      const latestInvoice = stripeSubscription.latest_invoice as any;
-      if (latestInvoice && latestInvoice.status && latestInvoice.status !== 'paid') {
-        return res.status(400).json({ message: "Payment not completed. Invoice status: " + latestInvoice.status });
+      // If subscription is incomplete, we need to check if payment was successful
+      // and then complete the subscription
+      if (stripeSubscription.status === 'incomplete') {
+        const latestInvoice = stripeSubscription.latest_invoice as any;
+        const invoiceId = typeof latestInvoice === 'string' ? latestInvoice : latestInvoice?.id;
+        
+        if (invoiceId) {
+          // Get the payment intent from metadata (it was created separately)
+          // We'll look for any successful payment intent for this customer with this invoice in metadata
+          const paymentIntents = await stripe.paymentIntents.list({
+            customer: user.stripeCustomerId,
+            limit: 10,
+          });
+          
+          const relevantPI = paymentIntents.data.find(pi => 
+            pi.metadata.subscriptionId === stripeSubscriptionId && 
+            pi.status === 'succeeded'
+          );
+          
+          if (relevantPI) {
+            // Payment was successful, now pay the invoice with the payment method
+            try {
+              const invoice = await stripe.invoices.retrieve(invoiceId);
+              if (invoice.status === 'open') {
+                await stripe.invoices.pay(invoiceId, {
+                  paid_out_of_band: true, // Mark as paid since we collected payment separately
+                });
+              }
+            } catch (err) {
+              console.error("Error marking invoice as paid:", err);
+            }
+          } else {
+            return res.status(400).json({ message: "Payment not completed yet. Please try again in a moment." });
+          }
+        }
       }
       
       const validatedSubscription = insertSubscriptionSchema.parse({ 
