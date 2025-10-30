@@ -1,11 +1,15 @@
 import { db } from "./db";
-import { users, bots, botPerformance, subscriptions, exchangeConnections } from "@shared/schema";
+import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents } from "@shared/schema";
 import type { 
   User, UpsertUser, 
   Bot, InsertBot,
   BotPerformance, InsertBotPerformance,
   Subscription, InsertSubscription,
-  ExchangeConnection, InsertExchangeConnection
+  ExchangeConnection, InsertExchangeConnection,
+  BotTradeLog, InsertBotTradeLog,
+  BotPerformanceHistory, InsertBotPerformanceHistory,
+  SubscriptionEvent, InsertSubscriptionEvent,
+  UpdateSubscriptionSettings
 } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 
@@ -15,7 +19,7 @@ export interface IStorage {
   upsertUser(user: UpsertUser): Promise<User>;
   
   getAllBots(): Promise<Array<Bot & { performance: BotPerformance | null }>>;
-  getBotById(id: string): Promise<Bot | undefined>;
+  getBotById(id: string): Promise<(Bot & { creator: User }) | undefined>;
   createBot(bot: InsertBot): Promise<Bot>;
   updateBot(id: string, bot: Partial<InsertBot>): Promise<Bot | undefined>;
   
@@ -26,7 +30,18 @@ export interface IStorage {
   getSubscription(userId: string, botId: string): Promise<Subscription | undefined>;
   getSubscriptionById(id: string): Promise<Subscription | undefined>;
   createSubscription(subscription: InsertSubscription): Promise<Subscription>;
+  updateSubscriptionSettings(id: string, settings: UpdateSubscriptionSettings): Promise<Subscription | undefined>;
+  pauseSubscription(id: string, reason: string): Promise<Subscription | undefined>;
+  resumeSubscription(id: string): Promise<Subscription | undefined>;
   cancelSubscription(id: string): Promise<Subscription | undefined>;
+  
+  getBotTradeLogs(botId: string, limit?: number): Promise<BotTradeLog[]>;
+  createBotTradeLog(tradeLog: InsertBotTradeLog): Promise<BotTradeLog>;
+  
+  getBotPerformanceHistory(botId: string, bucket?: string): Promise<BotPerformanceHistory[]>;
+  upsertBotPerformanceHistory(history: InsertBotPerformanceHistory): Promise<BotPerformanceHistory>;
+  
+  createSubscriptionEvent(event: InsertSubscriptionEvent): Promise<SubscriptionEvent>;
   
   getUserExchangeConnections(userId: string): Promise<ExchangeConnection[]>;
   getExchangeConnectionById(id: string): Promise<ExchangeConnection | undefined>;
@@ -74,9 +89,20 @@ export class DbStorage implements IStorage {
     }));
   }
 
-  async getBotById(id: string): Promise<Bot | undefined> {
-    const result = await db.select().from(bots).where(eq(bots.id, id)).limit(1);
-    return result[0];
+  async getBotById(id: string): Promise<(Bot & { creator: User }) | undefined> {
+    const result = await db
+      .select()
+      .from(bots)
+      .innerJoin(users, eq(bots.creatorId, users.id))
+      .where(eq(bots.id, id))
+      .limit(1);
+    
+    if (!result[0]) return undefined;
+    
+    return {
+      ...result[0].bots,
+      creator: result[0].users,
+    };
   }
 
   async createBot(bot: InsertBot): Promise<Bot> {
@@ -149,12 +175,100 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
+  async updateSubscriptionSettings(id: string, settings: UpdateSubscriptionSettings): Promise<Subscription | undefined> {
+    const result = await db
+      .update(subscriptions)
+      .set(settings)
+      .where(eq(subscriptions.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async pauseSubscription(id: string, reason: string): Promise<Subscription | undefined> {
+    const result = await db
+      .update(subscriptions)
+      .set({ isPaused: true, pauseReason: reason })
+      .where(eq(subscriptions.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async resumeSubscription(id: string): Promise<Subscription | undefined> {
+    const result = await db
+      .update(subscriptions)
+      .set({ isPaused: false, pauseReason: null })
+      .where(eq(subscriptions.id, id))
+      .returning();
+    return result[0];
+  }
+
   async cancelSubscription(id: string): Promise<Subscription | undefined> {
     const result = await db
       .update(subscriptions)
       .set({ status: "cancelled", cancelledAt: new Date() })
       .where(eq(subscriptions.id, id))
       .returning();
+    return result[0];
+  }
+
+  async getBotTradeLogs(botId: string, limit: number = 100): Promise<BotTradeLog[]> {
+    return await db
+      .select()
+      .from(botTradeLogs)
+      .where(eq(botTradeLogs.botId, botId))
+      .orderBy(desc(botTradeLogs.entryTime))
+      .limit(limit);
+  }
+
+  async createBotTradeLog(tradeLog: InsertBotTradeLog): Promise<BotTradeLog> {
+    const result = await db.insert(botTradeLogs).values(tradeLog).returning();
+    return result[0];
+  }
+
+  async getBotPerformanceHistory(botId: string, bucket?: string): Promise<BotPerformanceHistory[]> {
+    let query = db
+      .select()
+      .from(botPerformanceHistory)
+      .where(eq(botPerformanceHistory.botId, botId));
+
+    if (bucket) {
+      query = query.where(and(
+        eq(botPerformanceHistory.botId, botId),
+        eq(botPerformanceHistory.bucket, bucket)
+      ));
+    }
+
+    return await query.orderBy(desc(botPerformanceHistory.createdAt));
+  }
+
+  async upsertBotPerformanceHistory(history: InsertBotPerformanceHistory): Promise<BotPerformanceHistory> {
+    const existing = await db
+      .select()
+      .from(botPerformanceHistory)
+      .where(and(
+        eq(botPerformanceHistory.botId, history.botId),
+        eq(botPerformanceHistory.bucket, history.bucket)
+      ))
+      .limit(1);
+
+    if (existing[0]) {
+      const result = await db
+        .update(botPerformanceHistory)
+        .set({ ...history, createdAt: new Date() })
+        .where(and(
+          eq(botPerformanceHistory.botId, history.botId),
+          eq(botPerformanceHistory.bucket, history.bucket)
+        ))
+        .returning();
+      return result[0];
+    } else {
+      const result = await db.insert(botPerformanceHistory).values(history).returning();
+      return result[0];
+    }
+  }
+
+  async createSubscriptionEvent(event: InsertSubscriptionEvent): Promise<SubscriptionEvent> {
+    const result = await db.insert(subscriptionEvents).values(event).returning();
     return result[0];
   }
 
