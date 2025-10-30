@@ -73,6 +73,7 @@ export const exchangeConnections = pgTable("exchange_connections", {
   exchange: text("exchange").notNull(),
   apiKey: text("api_key").notNull(),
   apiSecret: text("api_secret").notNull(),
+  balance: decimal("balance", { precision: 15, scale: 2 }).notNull().default("10000.00"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
