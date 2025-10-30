@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertBotSchema, insertSubscriptionSchema, insertExchangeConnectionSchema, updateSubscriptionSettingsSchema, insertCreatorPostSchema } from "@shared/schema";
+import { insertBotSchema, insertSubscriptionSchema, insertExchangeConnectionSchema, updateSubscriptionSettingsSchema, insertCreatorPostSchema, insertPostCommentSchema, insertPostReactionSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -110,6 +110,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting post:", error);
       res.status(500).json({ message: "Failed to delete post" });
+    }
+  });
+
+  app.get("/api/posts/:postId/comments", async (req, res) => {
+    try {
+      const comments = await storage.getPostComments(req.params.postId);
+      res.json(comments);
+    } catch (error) {
+      console.error("Error fetching comments:", error);
+      res.status(500).json({ message: "Failed to fetch comments" });
+    }
+  });
+
+  app.post("/api/posts/:postId/comments", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const validatedComment = insertPostCommentSchema.parse({
+        ...req.body,
+        postId: req.params.postId,
+        userId,
+      });
+      
+      const comment = await storage.createComment(validatedComment);
+      res.json(comment);
+    } catch (error) {
+      console.error("Error creating comment:", error);
+      res.status(400).json({ message: "Failed to create comment" });
+    }
+  });
+
+  app.delete("/api/comments/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const comment = await storage.getCommentById(req.params.id);
+      
+      if (!comment) {
+        return res.status(404).json({ message: "Comment not found" });
+      }
+      
+      if (comment.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden: You can only delete your own comments" });
+      }
+      
+      await storage.deleteComment(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting comment:", error);
+      res.status(500).json({ message: "Failed to delete comment" });
+    }
+  });
+
+  app.get("/api/posts/:postId/reactions", async (req, res) => {
+    try {
+      const reactions = await storage.getPostReactions(req.params.postId);
+      res.json(reactions);
+    } catch (error) {
+      console.error("Error fetching reactions:", error);
+      res.status(500).json({ message: "Failed to fetch reactions" });
+    }
+  });
+
+  app.post("/api/posts/:postId/reactions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const validatedReaction = insertPostReactionSchema.parse({
+        postId: req.params.postId,
+        userId,
+        reactionType: req.body.reactionType,
+      });
+      
+      const result = await storage.toggleReaction(validatedReaction);
+      res.json(result);
+    } catch (error) {
+      console.error("Error toggling reaction:", error);
+      res.status(400).json({ message: "Failed to toggle reaction" });
     }
   });
 

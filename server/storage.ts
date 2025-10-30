@@ -58,6 +58,7 @@ export interface IStorage {
   deletePost(id: string): Promise<void>;
   
   getPostComments(postId: string): Promise<Array<PostComment & { user: User }>>;
+  getCommentById(id: string): Promise<PostComment | undefined>;
   createComment(comment: InsertPostComment): Promise<PostComment>;
   deleteComment(id: string): Promise<void>;
   
@@ -375,6 +376,15 @@ export class DbStorage implements IStorage {
       ...row.post_comments,
       user: row.users!,
     }));
+  }
+
+  async getCommentById(id: string): Promise<PostComment | undefined> {
+    const result = await db
+      .select()
+      .from(postComments)
+      .where(eq(postComments.id, id))
+      .limit(1);
+    return result[0];
   }
 
   async createComment(comment: InsertPostComment): Promise<PostComment> {
