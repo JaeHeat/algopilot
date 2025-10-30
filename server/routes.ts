@@ -4,6 +4,14 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { insertBotSchema, insertSubscriptionSchema, insertExchangeConnectionSchema, updateSubscriptionSettingsSchema, insertCreatorPostSchema, insertPostCommentSchema, insertPostReactionSchema } from "@shared/schema";
 import { z } from "zod";
+import Stripe from "stripe";
+
+if (!process.env.STRIPE_SECRET_KEY) {
+  throw new Error('Missing required Stripe secret: STRIPE_SECRET_KEY');
+}
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: "2024-11-20.acacia",
+});
 
 export async function registerRoutes(app: Express): Promise<Server> {
   await setupAuth(app);
@@ -185,6 +193,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error toggling reaction:", error);
       res.status(400).json({ message: "Failed to toggle reaction" });
+    }
+  });
+
+  app.post("/api/create-subscription-payment", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { botId } = z.object({ botId: z.string() }).parse(req.body);
+      
+      const bot = await storage.getBotById(botId);
+      if (!bot) {
+        return res.status(404).json({ message: "Bot not found" });
+      }
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      let stripeCustomerId = user.stripeCustomerId;
+      
+      if (!stripeCustomerId) {
+        const customer = await stripe.customers.create({
+          email: user.email || undefined,
+          metadata: {
+            userId: user.id,
+          },
+        });
+        stripeCustomerId = customer.id;
+        await storage.updateUserStripeCustomerId(userId, stripeCustomerId);
+      }
+      
+      const priceAmount = Math.round(parseFloat(bot.monthlyPrice) * 100);
+      
+      const subscription = await stripe.subscriptions.create({
+        customer: stripeCustomerId,
+        items: [{
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: `${bot.name} Trading Bot Subscription`,
+              description: bot.description,
+            },
+            recurring: {
+              interval: 'month',
+            },
+            unit_amount: priceAmount,
+          },
+        }],
+        payment_behavior: 'default_incomplete',
+        payment_settings: { 
+          save_default_payment_method: 'on_subscription'
+        },
+        expand: ['latest_invoice.payment_intent'],
+        metadata: {
+          botId: bot.id,
+          userId: user.id,
+        },
+      });
+      
+      const latestInvoice = subscription.latest_invoice as Stripe.Invoice;
+      const paymentIntent = latestInvoice.payment_intent as Stripe.PaymentIntent;
+      
+      res.json({
+        subscriptionId: subscription.id,
+        clientSecret: paymentIntent.client_secret,
+        amount: bot.monthlyPrice,
+      });
+    } catch (error: any) {
+      console.error("Error creating subscription payment:", error);
+      res.status(500).json({ message: "Error creating subscription payment: " + error.message });
     }
   });
 

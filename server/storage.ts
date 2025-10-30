@@ -20,6 +20,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
+  updateUserStripeCustomerId(userId: string, stripeCustomerId: string): Promise<User | undefined>;
   
   getAllBots(): Promise<Array<Bot & { performance: BotPerformance | null }>>;
   getBotById(id: string): Promise<(Bot & { creator: User }) | undefined>;
@@ -90,6 +91,15 @@ export class DbStorage implements IStorage {
           updatedAt: new Date(),
         },
       })
+      .returning();
+    return result[0];
+  }
+
+  async updateUserStripeCustomerId(userId: string, stripeCustomerId: string): Promise<User | undefined> {
+    const result = await db
+      .update(users)
+      .set({ stripeCustomerId, updatedAt: new Date() })
+      .where(eq(users.id, userId))
       .returning();
     return result[0];
   }
