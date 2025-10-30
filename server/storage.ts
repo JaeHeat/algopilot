@@ -14,7 +14,7 @@ import type {
   PostComment, InsertPostComment,
   PostReaction, InsertPostReaction
 } from "@shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, or, isNull, gt } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -155,12 +155,19 @@ export class DbStorage implements IStorage {
   }
 
   async getUserSubscriptions(userId: string): Promise<Array<Subscription & { bot: Bot; performance: BotPerformance | null }>> {
+    const now = new Date();
     const result = await db
       .select()
       .from(subscriptions)
       .innerJoin(bots, eq(subscriptions.botId, bots.id))
       .leftJoin(botPerformance, eq(bots.id, botPerformance.botId))
-      .where(and(eq(subscriptions.userId, userId), eq(subscriptions.status, "active")))
+      .where(and(
+        eq(subscriptions.userId, userId),
+        or(
+          isNull(subscriptions.subscriptionEndsAt),
+          gt(subscriptions.subscriptionEndsAt, now)
+        )
+      ))
       .orderBy(desc(subscriptions.startedAt));
     
     return result.map(row => ({
@@ -229,9 +236,15 @@ export class DbStorage implements IStorage {
   }
 
   async cancelSubscription(id: string): Promise<Subscription | undefined> {
+    const now = new Date();
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    
     const result = await db
       .update(subscriptions)
-      .set({ status: "cancelled", cancelledAt: new Date() })
+      .set({ 
+        cancelledAt: now,
+        subscriptionEndsAt: endOfMonth
+      })
       .where(eq(subscriptions.id, id))
       .returning();
     return result[0];
