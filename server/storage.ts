@@ -37,6 +37,7 @@ export interface IStorage {
   pauseSubscription(id: string, reason: string): Promise<Subscription | undefined>;
   resumeSubscription(id: string): Promise<Subscription | undefined>;
   cancelSubscription(id: string): Promise<Subscription | undefined>;
+  reactivateSubscription(id: string): Promise<Subscription | undefined>;
   
   getBotTradeLogs(botId: string, limit?: number): Promise<BotTradeLog[]>;
   createBotTradeLog(tradeLog: InsertBotTradeLog): Promise<BotTradeLog>;
@@ -234,6 +235,18 @@ export class DbStorage implements IStorage {
     const result = await db
       .update(subscriptions)
       .set({ isPaused: false, pauseReason: null })
+      .where(eq(subscriptions.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async reactivateSubscription(id: string): Promise<Subscription | undefined> {
+    const result = await db
+      .update(subscriptions)
+      .set({ 
+        cancelledAt: null,
+        subscriptionEndsAt: null
+      })
       .where(eq(subscriptions.id, id))
       .returning();
     return result[0];

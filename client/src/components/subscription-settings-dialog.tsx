@@ -160,11 +160,16 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
       const res = await apiRequest("DELETE", `/api/subscriptions/${subscription.id}`, {});
       return await res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/subscriptions"] });
+      const endDate = data.subscriptionEndsAt ? new Date(data.subscriptionEndsAt).toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric' 
+      }) : 'the end of the month';
       toast({
-        title: "Unsubscribed",
-        description: "You have successfully unsubscribed from this bot.",
+        title: "Subscription Cancelled",
+        description: `Your subscription will end on ${endDate}. You will still have full access until then.`,
       });
       setShowUnsubscribeDialog(false);
       onOpenChange(false);
@@ -177,6 +182,32 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
       toast({
         title: "Error",
         description: "Failed to unsubscribe.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const reactivateMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/subscriptions/${subscription.id}/reactivate`, {});
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/subscriptions"] });
+      toast({
+        title: "Subscription Reactivated",
+        description: "Your subscription has been turned back on successfully!",
+      });
+      onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      if (isUnauthorizedError(error)) {
+        window.location.href = "/api/login";
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to reactivate subscription.",
         variant: "destructive",
       });
     },
@@ -224,10 +255,16 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
     unsubscribeMutation.mutate();
   };
 
+  const handleReactivate = () => {
+    reactivateMutation.mutate();
+  };
+
   const getRiskLabel = (risk: number) => {
     const labels = ["", "Safest", "Safe", "Aggressive", "High Risk", "DANGER"];
     return labels[risk] || "";
   };
+
+  const isCancelled = subscription.subscriptionEndsAt && new Date(subscription.subscriptionEndsAt) > new Date();
 
   return (
     <>
@@ -492,25 +529,54 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
                   </div>
                 )}
 
-                <div className="border border-red-500/20 bg-red-500/5 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-red-600">Danger Zone</h4>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Cancel your subscription and stop all trading activity
-                      </p>
-                      <Button
-                        onClick={() => setShowUnsubscribeDialog(true)}
-                        variant="destructive"
-                        className="mt-3"
-                        data-testid="button-unsubscribe"
-                      >
-                        Unsubscribe
-                      </Button>
+                {isCancelled ? (
+                  <div className="border border-blue-500/20 bg-blue-500/5 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="h-5 w-5 text-blue-600 mt-0.5" />
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-blue-600">Subscription Ending Soon</h4>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Your subscription is scheduled to end on{" "}
+                          {new Date(subscription.subscriptionEndsAt!).toLocaleDateString('en-US', { 
+                            year: 'numeric', 
+                            month: 'short', 
+                            day: 'numeric' 
+                          })}.
+                          You will have full access until then. Changed your mind?
+                        </p>
+                        <Button
+                          onClick={handleReactivate}
+                          disabled={reactivateMutation.isPending}
+                          variant="default"
+                          className="mt-3"
+                          data-testid="button-reactivate"
+                        >
+                          {reactivateMutation.isPending ? "Reactivating..." : "Reactivate Subscription"}
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="border border-red-500/20 bg-red-500/5 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-red-600">Danger Zone</h4>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Cancel your subscription and stop all trading activity
+                        </p>
+                        <Button
+                          onClick={() => setShowUnsubscribeDialog(true)}
+                          variant="destructive"
+                          className="mt-3"
+                          data-testid="button-unsubscribe"
+                        >
+                          Unsubscribe
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </TabsContent>
           </Tabs>

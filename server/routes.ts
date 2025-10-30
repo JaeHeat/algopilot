@@ -382,6 +382,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/subscriptions/:id/reactivate", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const subscription = await storage.getSubscriptionById(req.params.id);
+      
+      if (!subscription) {
+        return res.status(404).json({ message: "Subscription not found" });
+      }
+      
+      if (subscription.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden: You can only reactivate your own subscriptions" });
+      }
+      
+      const reactivated = await storage.reactivateSubscription(req.params.id);
+      
+      await storage.createSubscriptionEvent({
+        subscriptionId: req.params.id,
+        eventType: "reactivated",
+        eventData: {},
+      });
+      
+      res.json(reactivated);
+    } catch (error) {
+      console.error("Error reactivating subscription:", error);
+      res.status(500).json({ message: "Failed to reactivate subscription" });
+    }
+  });
+
   app.get("/api/bots/:id/trades", async (req, res) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
