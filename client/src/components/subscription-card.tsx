@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { SubscriptionSettingsDialog } from "@/components/subscription-settings-dialog";
 import { useLocation } from "wouter";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Subscription, Bot, BotPerformance } from "@shared/schema";
@@ -22,6 +22,14 @@ export function SubscriptionCard({ subscription }: SubscriptionCardProps) {
   const { toast } = useToast();
   const roi = subscription.performance ? parseFloat(subscription.performance.totalRoi) : 0;
   const isPositive = roi > 0;
+
+  const { data: availableBalance = 0, isLoading: balanceLoading } = useQuery<number>({
+    queryKey: ["/api/user/available-balance"],
+  });
+
+  const { data: allSubscriptions = [], isLoading: subscriptionsLoading } = useQuery<Subscription[]>({
+    queryKey: ["/api/subscriptions"],
+  });
 
   const togglePauseMutation = useMutation({
     mutationFn: async (shouldResume: boolean) => {
@@ -47,6 +55,52 @@ export function SubscriptionCard({ subscription }: SubscriptionCardProps) {
       });
     },
   });
+
+  const validateToggleOn = () => {
+    if (!subscription.capitalAllocated || parseFloat(subscription.capitalAllocated) === 0) {
+      toast({
+        title: "Settings Required",
+        description: "Please configure your capital allocation before activating this bot",
+        variant: "destructive",
+      });
+      setSettingsOpen(true);
+      return false;
+    }
+
+    const otherActiveSubscriptions = allSubscriptions.filter(
+      sub => sub.id !== subscription.id && !sub.isPaused
+    );
+
+    let totalAllocated = 0;
+    for (const sub of otherActiveSubscriptions) {
+      if (sub.capitalAllocatedType === 'amount') {
+        totalAllocated += parseFloat(sub.capitalAllocated || '0');
+      } else {
+        totalAllocated += availableBalance * (parseFloat(sub.capitalAllocated || '0') / 100);
+      }
+    }
+
+    let requiredCapital = 0;
+    if (subscription.capitalAllocatedType === 'amount') {
+      requiredCapital = parseFloat(subscription.capitalAllocated || '0');
+    } else {
+      requiredCapital = availableBalance * (parseFloat(subscription.capitalAllocated || '0') / 100);
+    }
+
+    const remainingCapital = availableBalance - totalAllocated;
+
+    if (requiredCapital > remainingCapital) {
+      toast({
+        title: "Insufficient Capital",
+        description: `You need $${requiredCapital.toFixed(2)} but only have $${remainingCapital.toFixed(2)} available. Please adjust your allocation or add more funds.`,
+        variant: "destructive",
+      });
+      setSettingsOpen(true);
+      return false;
+    }
+
+    return true;
+  };
   
   const handleCardClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
@@ -159,9 +213,12 @@ export function SubscriptionCard({ subscription }: SubscriptionCardProps) {
                   id={`toggle-${subscription.id}`}
                   checked={!subscription.isPaused}
                   onCheckedChange={(checked) => {
+                    if (checked && !validateToggleOn()) {
+                      return;
+                    }
                     togglePauseMutation.mutate(checked);
                   }}
-                  disabled={togglePauseMutation.isPending}
+                  disabled={togglePauseMutation.isPending || balanceLoading || subscriptionsLoading}
                   data-testid={`toggle-${subscription.id}`}
                 />
               </div>
