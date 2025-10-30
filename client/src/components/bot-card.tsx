@@ -2,6 +2,7 @@ import { TrendingUp, TrendingDown, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useLocation } from "wouter";
 import type { Bot, BotPerformance } from "@shared/schema";
 
 interface BotCardProps {
@@ -12,11 +13,23 @@ interface BotCardProps {
 }
 
 export function BotCard({ bot, performance, onSubscribe, showSubscribeButton = true }: BotCardProps) {
+  const [, setLocation] = useLocation();
   const roi = performance ? parseFloat(performance.totalRoi) : 0;
   const isPositive = roi > 0;
   
+  const handleCardClick = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('button')) {
+      return;
+    }
+    setLocation(`/bot/${bot.id}`);
+  };
+  
   return (
-    <Card className="p-6 hover-elevate" data-testid={`card-bot-${bot.id}`}>
+    <Card 
+      className="p-6 hover-elevate cursor-pointer" 
+      data-testid={`card-bot-${bot.id}`}
+      onClick={handleCardClick}
+    >
       <div className="space-y-4">
         <div className="flex items-start justify-between">
           <div className="flex items-start gap-3">

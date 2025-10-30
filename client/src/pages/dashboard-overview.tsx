@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { MetricCard } from "@/components/metric-card";
 import { PerformanceChart } from "@/components/performance-chart";
 import { TradeTable } from "@/components/trade-table";
-import { BotCard } from "@/components/bot-card";
+import { SubscriptionCard } from "@/components/subscription-card";
 import { DollarSign, TrendingUp, Bot, Target } from "lucide-react";
 import type { Subscription, Bot as BotType, BotPerformance } from "@shared/schema";
 import { useEffect } from "react";
@@ -120,11 +120,9 @@ export default function DashboardOverview() {
         {subscriptions && subscriptions.length > 0 ? (
           <div className="grid gap-6 lg:grid-cols-2">
             {subscriptions.map((subscription) => (
-              <BotCard
+              <SubscriptionCard
                 key={subscription.id}
-                bot={subscription.bot}
-                performance={subscription.performance}
-                showSubscribeButton={false}
+                subscription={subscription}
               />
             ))}
           </div>

@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { useAuth } from "@/hooks/useAuth";
 import Landing from "@/pages/landing";
 import Marketplace from "@/pages/marketplace";
+import BotDetail from "@/pages/bot-detail";
 import DashboardLayout from "@/pages/dashboard-layout";
 import NotFound from "@/pages/not-found";
 
@@ -16,6 +17,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/marketplace" component={Marketplace} />
+      <Route path="/bot/:id" component={BotDetail} />
       {isLoading || !isAuthenticated ? (
         <Route path="/" component={Landing} />
       ) : (
