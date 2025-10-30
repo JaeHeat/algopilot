@@ -48,7 +48,7 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
   const [capitalType, setCapitalType] = useState<"amount" | "percent">(
     subscription.capitalAllocatedType as "amount" | "percent" || "amount"
   );
-  const [riskPercentage, setRiskPercentage] = useState(subscription.riskPercentage || 2);
+  const [riskPercentage, setRiskPercentage] = useState(subscription.riskPercentage || 1);
   const [maxDrawdown, setMaxDrawdown] = useState(
     subscription.maxDrawdown ? parseFloat(subscription.maxDrawdown) : 10
   );

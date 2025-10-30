@@ -16,15 +16,19 @@ function Router() {
 
   return (
     <Switch>
-      <Route path="/marketplace" component={Marketplace} />
-      <Route path="/bot/:id" component={BotDetail} />
       {isLoading || !isAuthenticated ? (
-        <Route path="/" component={Landing} />
+        <>
+          <Route path="/marketplace" component={Marketplace} />
+          <Route path="/bot/:id" component={BotDetail} />
+          <Route path="/" component={Landing} />
+        </>
       ) : (
         <>
+          <Route path="/marketplace" component={Marketplace} />
           <Route path="/" component={DashboardLayout} />
           <Route path="/dashboard/:rest*" component={DashboardLayout} />
           <Route path="/dashboard" component={DashboardLayout} />
+          <Route path="/bot/:id" component={DashboardLayout} />
         </>
       )}
       <Route component={NotFound} />

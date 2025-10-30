@@ -22,6 +22,7 @@ export default function BotDetail() {
   const params = useParams() as { id: string };
   const [, setLocation] = useLocation();
   const [subscribeDialogOpen, setSubscribeDialogOpen] = useState(false);
+  const [selectedTimeframe, setSelectedTimeframe] = useState<string>("1D");
 
   const { data: bot, isLoading: botLoading } = useQuery<BotWithCreator>({
     queryKey: ["/api/bots", params.id],
@@ -62,7 +63,7 @@ export default function BotDetail() {
     return (
       <div className="container max-w-6xl mx-auto p-8 text-center">
         <p className="text-muted-foreground">Bot not found</p>
-        <Button variant="outline" className="mt-4" onClick={() => setLocation("/marketplace")}>
+        <Button variant="outline" className="mt-4" onClick={() => setLocation("/dashboard/marketplace")}>
           Back to Marketplace
         </Button>
       </div>
@@ -80,8 +81,8 @@ export default function BotDetail() {
 
   const riskInfo = getRiskLabelAndColor(bot.riskLevel);
 
-  const latestHistory = performanceHistory.find(h => h.bucket === "1D");
-  const equityCurveData = latestHistory?.equityCurve as any[] || [];
+  const currentHistory = performanceHistory.find(h => h.bucket === selectedTimeframe);
+  const equityCurveData = currentHistory?.equityCurve as any[] || [];
 
   const chartData = {
     labels: equityCurveData.map((_, i) => i),
@@ -134,7 +135,7 @@ export default function BotDetail() {
       <Button
         variant="ghost"
         className="mb-6"
-        onClick={() => setLocation("/marketplace")}
+        onClick={() => setLocation("/dashboard/marketplace")}
         data-testid="button-back-to-marketplace"
       >
         <ArrowLeft className="h-4 w-4 mr-2" />
@@ -199,8 +200,26 @@ export default function BotDetail() {
               )}
 
               {equityCurveData.length > 0 && (
-                <div className="h-64 mt-6">
-                  <Line data={chartData} options={chartOptions} />
+                <div className="mt-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="font-semibold">Performance Chart</h4>
+                    <div className="flex gap-1">
+                      {["1D", "1W", "1M", "3M", "1Y", "ALL"].map((timeframe) => (
+                        <Button
+                          key={timeframe}
+                          variant={selectedTimeframe === timeframe ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setSelectedTimeframe(timeframe)}
+                          data-testid={`button-timeframe-${timeframe.toLowerCase()}`}
+                        >
+                          {timeframe}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="h-64">
+                    <Line data={chartData} options={chartOptions} />
+                  </div>
                 </div>
               )}
             </CardContent>

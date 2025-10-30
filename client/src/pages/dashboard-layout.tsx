@@ -8,6 +8,7 @@ import DashboardOverview from "./dashboard-overview";
 import DashboardMarketplace from "./dashboard-marketplace";
 import DashboardSettings from "./dashboard-settings";
 import DashboardAdmin from "./dashboard-admin";
+import BotDetail from "./bot-detail";
 import NotFound from "./not-found";
 
 export default function DashboardLayout() {
@@ -43,6 +44,7 @@ export default function DashboardLayout() {
                 <Route path="/dashboard/subscriptions" component={DashboardOverview} />
                 <Route path="/dashboard/settings" component={DashboardSettings} />
                 <Route path="/dashboard/admin" component={DashboardAdmin} />
+                <Route path="/bot/:id" component={BotDetail} />
                 <Route component={NotFound} />
               </Switch>
             </div>
