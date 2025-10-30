@@ -51,6 +51,10 @@ export interface IStorage {
   createExchangeConnection(connection: InsertExchangeConnection): Promise<ExchangeConnection>;
   deleteExchangeConnection(id: string): Promise<void>;
   getUserTotalAvailableBalance(userId: string): Promise<number>;
+  
+  getBotPosts(botId: string): Promise<Array<CreatorPost & { creator: User }>>;
+  createPost(post: InsertCreatorPost): Promise<CreatorPost>;
+  deletePost(id: string): Promise<void>;
 }
 
 export class DbStorage implements IStorage {
@@ -316,6 +320,29 @@ export class DbStorage implements IStorage {
     }, 0);
     
     return totalBalance;
+  }
+
+  async getBotPosts(botId: string): Promise<Array<CreatorPost & { creator: User }>> {
+    const result = await db
+      .select()
+      .from(creatorPosts)
+      .leftJoin(users, eq(creatorPosts.creatorId, users.id))
+      .where(eq(creatorPosts.botId, botId))
+      .orderBy(desc(creatorPosts.createdAt));
+    
+    return result.map(row => ({
+      ...row.creator_posts,
+      creator: row.users!,
+    }));
+  }
+
+  async createPost(post: InsertCreatorPost): Promise<CreatorPost> {
+    const result = await db.insert(creatorPosts).values(post).returning();
+    return result[0];
+  }
+
+  async deletePost(id: string): Promise<void> {
+    await db.delete(creatorPosts).where(eq(creatorPosts.id, id));
   }
 }
 
