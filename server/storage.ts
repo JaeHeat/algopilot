@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents } from "@shared/schema";
+import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents, creatorPosts, postComments, postReactions } from "@shared/schema";
 import type { 
   User, UpsertUser, 
   Bot, InsertBot,
@@ -9,7 +9,10 @@ import type {
   BotTradeLog, InsertBotTradeLog,
   BotPerformanceHistory, InsertBotPerformanceHistory,
   SubscriptionEvent, InsertSubscriptionEvent,
-  UpdateSubscriptionSettings
+  UpdateSubscriptionSettings,
+  CreatorPost, InsertCreatorPost,
+  PostComment, InsertPostComment,
+  PostReaction, InsertPostReaction
 } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 
