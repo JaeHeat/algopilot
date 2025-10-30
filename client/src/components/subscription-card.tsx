@@ -3,8 +3,13 @@ import { TrendingUp, TrendingDown, Users, Settings, Pause, Play } from "lucide-r
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { SubscriptionSettingsDialog } from "@/components/subscription-settings-dialog";
 import { useLocation } from "wouter";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import type { Subscription, Bot, BotPerformance } from "@shared/schema";
 
 interface SubscriptionCardProps {
@@ -14,8 +19,31 @@ interface SubscriptionCardProps {
 export function SubscriptionCard({ subscription }: SubscriptionCardProps) {
   const [, setLocation] = useLocation();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const { toast } = useToast();
   const roi = subscription.performance ? parseFloat(subscription.performance.totalRoi) : 0;
   const isPositive = roi > 0;
+
+  const togglePauseMutation = useMutation({
+    mutationFn: async (shouldResume: boolean) => {
+      const endpoint = shouldResume ? `/api/subscriptions/${subscription.id}/resume` : `/api/subscriptions/${subscription.id}/pause`;
+      const res = await apiRequest("POST", endpoint, shouldResume ? {} : { reason: "User toggled off" });
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/subscriptions"] });
+      toast({
+        title: subscription.isPaused ? "Bot Activated" : "Bot Paused",
+        description: subscription.isPaused ? "Your bot is now live and trading" : "Your bot has been paused",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update bot status",
+        variant: "destructive",
+      });
+    },
+  });
   
   const handleCardClick = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button')) {
@@ -111,18 +139,41 @@ export function SubscriptionCard({ subscription }: SubscriptionCardProps) {
                 </div>
               )}
             </div>
-            <Button 
-              variant="outline"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                setSettingsOpen(true);
-              }}
-              data-testid={`button-settings-${subscription.id}`}
-            >
-              <Settings className="h-4 w-4 mr-2" />
-              Settings
-            </Button>
+            <div className="flex items-center gap-3">
+              <div 
+                className="flex items-center gap-2"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Label 
+                  htmlFor={`toggle-${subscription.id}`}
+                  className="text-sm cursor-pointer"
+                  data-testid={`label-toggle-${subscription.id}`}
+                >
+                  {subscription.isPaused ? "Off" : "On"}
+                </Label>
+                <Switch
+                  id={`toggle-${subscription.id}`}
+                  checked={!subscription.isPaused}
+                  onCheckedChange={(checked) => {
+                    togglePauseMutation.mutate(checked);
+                  }}
+                  disabled={togglePauseMutation.isPending}
+                  data-testid={`toggle-${subscription.id}`}
+                />
+              </div>
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSettingsOpen(true);
+                }}
+                data-testid={`button-settings-${subscription.id}`}
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Settings
+              </Button>
+            </div>
           </div>
         </div>
       </Card>

@@ -83,6 +83,15 @@ AlgoPilot is a web-based SaaS platform that enables users to discover, subscribe
 5. **Notifications**: Trade alerts and performance notifications
 
 ## Recent Changes (Latest Session)
+- **Navigation Fix**: Bot detail pages now integrated with dashboard layout when authenticated - tabs remain visible when navigating back
+- **Timeframe Selectors**: Bot detail pages now have 6 timeframe options (1D, 1W, 1M, 3M, 1Y, ALL) for performance charts
+- **Default Risk Level**: Changed from "Safe" (2) to "Safest" (1) for new subscriptions
+- **Post-Subscription Flow**: New subscriptions start paused with default settings, automatically open settings dialog for configuration
+- **Quick Toggle Controls**: Added on/off switches to subscription cards for instant pause/resume without opening settings
+- **Backend Changes**: Subscriptions created with isPaused: true, default capital 1000, risk 1%, max drawdown 10%
+- **UX Improvements**: Clear URL parameters after auto-opening dialogs to prevent stale state
+
+## Previous Session
 - **Added Granular Subscription Settings**: Capital allocation (amount/percent), risk levels (1-5), max drawdown limits
 - **Built Bot Detail Pages**: Performance charts with equity curves, historical trade logs (Recent/All tabs), strategy descriptions, creator profiles
 - **Implemented Pause/Resume**: Full pause/resume functionality with reason tracking and status indicators
