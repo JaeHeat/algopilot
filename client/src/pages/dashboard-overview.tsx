@@ -118,17 +118,19 @@ export default function DashboardOverview() {
     { id: "5", pair: "AVAX/USDT", type: "BUY" as const, amount: 25.4200, price: 35, profit: 78.30, timestamp: "25 mins ago" },
   ];
 
-  const avgRoi = subscriptions?.reduce((sum, sub) => {
+  const activeSubscriptions = subscriptions?.filter(sub => !sub.isPaused) || [];
+  
+  const avgRoi = activeSubscriptions.reduce((sum, sub) => {
     const roi = sub.performance ? parseFloat(sub.performance.totalRoi) : 0;
     return sum + roi;
-  }, 0) ?? 0;
+  }, 0);
   
-  const avgWinRate = subscriptions?.reduce((sum, sub) => {
+  const avgWinRate = activeSubscriptions.reduce((sum, sub) => {
     const winRate = sub.performance ? parseFloat(sub.performance.winRate) : 0;
     return sum + winRate;
-  }, 0) ?? 0;
+  }, 0);
 
-  const activeBotCount = subscriptions?.length ?? 0;
+  const activeBotCount = activeSubscriptions.length;
   const calculatedAvgWinRate = activeBotCount > 0 ? (avgWinRate / activeBotCount).toFixed(0) : "0";
   
   if (authLoading || isLoading) {
@@ -208,10 +210,15 @@ export default function DashboardOverview() {
       </Card>
       
       <div>
-        <h2 className="text-2xl font-bold mb-4">Active Subscriptions</h2>
-        {subscriptions && subscriptions.length > 0 ? (
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-bold">Active Bots</h2>
+          <Button variant="ghost" size="sm" onClick={() => setLocation("/dashboard/my-bots")} data-testid="button-view-all-bots">
+            View All Bots
+          </Button>
+        </div>
+        {activeSubscriptions.length > 0 ? (
           <div className="grid gap-6 lg:grid-cols-2">
-            {subscriptions.map((subscription) => (
+            {activeSubscriptions.map((subscription) => (
               <SubscriptionCard
                 key={subscription.id}
                 subscription={subscription}
@@ -221,7 +228,12 @@ export default function DashboardOverview() {
         ) : (
           <div className="text-center py-12 bg-muted/30 rounded-lg">
             <Bot className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-            <p className="text-muted-foreground mb-4">You haven't subscribed to any bots yet</p>
+            <p className="text-muted-foreground mb-4">You don't have any active bots</p>
+            <p className="text-sm text-muted-foreground mb-4">
+              {subscriptions && subscriptions.length > 0 
+                ? "All your bots are paused. Visit My Bots to manage them."
+                : "You haven't subscribed to any bots yet"}
+            </p>
             <a href="/dashboard/marketplace" className="text-primary hover:underline">
               Browse the marketplace
             </a>
