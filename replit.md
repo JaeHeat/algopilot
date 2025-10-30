@@ -83,6 +83,8 @@ AlgoPilot is a web-based SaaS platform that enables users to discover, subscribe
 5. **Notifications**: Trade alerts and performance notifications
 
 ## Recent Changes (Latest Session)
+- **Portfolio Chart Timeframe Filters**: Dashboard equity chart now has 6 timeframe options (24h, 7d, 1m, 3m, 6m, 1y) with stable deterministic data
+- **Component Architecture**: PerformanceChart now accepts showCard prop to prevent nested Card components
 - **Navigation Fix**: Bot detail pages now integrated with dashboard layout when authenticated - tabs remain visible when navigating back
 - **Timeframe Selectors**: Bot detail pages now have 6 timeframe options (1D, 1W, 1M, 3M, 1Y, ALL) for performance charts
 - **Default Risk Level**: Changed from "Safe" (2) to "Safest" (1) for new subscriptions
