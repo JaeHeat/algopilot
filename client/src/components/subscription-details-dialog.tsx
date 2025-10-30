@@ -214,6 +214,9 @@ export function SubscriptionDetailsDialog({ subscription, open, onOpenChange }: 
                               <span className="font-semibold" data-testid={`text-position-symbol-${position.id}`}>
                                 {position.symbol}
                               </span>
+                              <Badge variant={position.positionType === 'long' ? 'default' : 'outline'} data-testid={`badge-position-type-${position.id}`}>
+                                {position.positionType?.toUpperCase() || 'LONG'}
+                              </Badge>
                               <Badge variant={position.status === 'open' ? 'default' : 'secondary'}>
                                 {position.status}
                               </Badge>
