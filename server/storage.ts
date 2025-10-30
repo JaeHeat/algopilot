@@ -110,6 +110,11 @@ export class DbStorage implements IStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
+    // Check if user already exists
+    const userId = userData.id;
+    const existingUser = userId ? await this.getUser(userId) : undefined;
+    const isNewUser = !existingUser;
+    
     const result = await db
       .insert(users)
       .values(userData)
@@ -121,6 +126,19 @@ export class DbStorage implements IStorage {
         },
       })
       .returning();
+    
+    // Create default exchange connection for new users
+    if (isNewUser && userId) {
+      await db.insert(exchangeConnections).values({
+        userId: userId,
+        exchange: "Mock Exchange",
+        apiKey: `mock_${userId.substring(0, 8)}`,
+        apiSecret: `secret_${userId.substring(0, 8)}`,
+        balance: "10000.00", // $10,000 starting balance for testing
+        isActive: true,
+      });
+    }
+    
     return result[0];
   }
 
