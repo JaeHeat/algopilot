@@ -23,7 +23,6 @@ export function CommentSection({ postId }: CommentSectionProps) {
 
   const { data: comments = [], isLoading } = useQuery<CommentWithUser[]>({
     queryKey: ["/api/posts", postId, "comments"],
-    enabled: showComments,
   });
 
   const createCommentMutation = useMutation({
@@ -50,9 +49,15 @@ export function CommentSection({ postId }: CommentSectionProps) {
         size="sm"
         onClick={() => setShowComments(!showComments)}
         data-testid={`button-toggle-comments-${postId}`}
+        aria-label={`${showComments ? 'Hide' : 'Show'} comments`}
       >
-        <MessageCircle className="h-4 w-4 mr-1" />
-        <span data-testid={`text-comment-count-${postId}`}>{comments.length}</span>
+        <MessageCircle className="h-4 w-4 mr-2" />
+        <span>{showComments ? 'Hide' : 'Show'} comments</span>
+        {comments.length > 0 && (
+          <span className="ml-1 text-muted-foreground" data-testid={`text-comment-count-${postId}`}>
+            ({comments.length})
+          </span>
+        )}
       </Button>
 
       {showComments && (
