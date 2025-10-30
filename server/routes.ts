@@ -2,7 +2,8 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertBotSchema, insertSubscriptionSchema, insertExchangeConnectionSchema } from "@shared/schema";
+import { insertBotSchema, insertSubscriptionSchema, insertExchangeConnectionSchema, updateSubscriptionSettingsSchema } from "@shared/schema";
+import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   await setupAuth(app);
@@ -77,6 +78,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/subscriptions/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const subscription = await storage.getSubscriptionById(req.params.id);
+      
+      if (!subscription) {
+        return res.status(404).json({ message: "Subscription not found" });
+      }
+      
+      if (subscription.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden: You can only modify your own subscriptions" });
+      }
+      
+      const validatedSettings = updateSubscriptionSettingsSchema.parse(req.body);
+      const updated = await storage.updateSubscriptionSettings(req.params.id, validatedSettings);
+      
+      await storage.createSubscriptionEvent({
+        subscriptionId: req.params.id,
+        eventType: "settings_updated",
+        eventData: validatedSettings,
+      });
+      
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating subscription settings:", error);
+      res.status(400).json({ message: "Failed to update subscription settings" });
+    }
+  });
+
+  app.post("/api/subscriptions/:id/pause", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const subscription = await storage.getSubscriptionById(req.params.id);
+      
+      if (!subscription) {
+        return res.status(404).json({ message: "Subscription not found" });
+      }
+      
+      if (subscription.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden: You can only pause your own subscriptions" });
+      }
+      
+      const { reason } = z.object({ reason: z.string().optional() }).parse(req.body);
+      const paused = await storage.pauseSubscription(req.params.id, reason || "User paused");
+      
+      await storage.createSubscriptionEvent({
+        subscriptionId: req.params.id,
+        eventType: "paused",
+        eventData: { reason: reason || "User paused" },
+      });
+      
+      res.json(paused);
+    } catch (error) {
+      console.error("Error pausing subscription:", error);
+      res.status(500).json({ message: "Failed to pause subscription" });
+    }
+  });
+
+  app.post("/api/subscriptions/:id/resume", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const subscription = await storage.getSubscriptionById(req.params.id);
+      
+      if (!subscription) {
+        return res.status(404).json({ message: "Subscription not found" });
+      }
+      
+      if (subscription.userId !== userId) {
+        return res.status(403).json({ message: "Forbidden: You can only resume your own subscriptions" });
+      }
+      
+      const resumed = await storage.resumeSubscription(req.params.id);
+      
+      await storage.createSubscriptionEvent({
+        subscriptionId: req.params.id,
+        eventType: "resumed",
+        eventData: {},
+      });
+      
+      res.json(resumed);
+    } catch (error) {
+      console.error("Error resuming subscription:", error);
+      res.status(500).json({ message: "Failed to resume subscription" });
+    }
+  });
+
   app.delete("/api/subscriptions/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -91,10 +178,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const cancelled = await storage.cancelSubscription(req.params.id);
+      
+      await storage.createSubscriptionEvent({
+        subscriptionId: req.params.id,
+        eventType: "cancelled",
+        eventData: {},
+      });
+      
       res.json(cancelled);
     } catch (error) {
       console.error("Error cancelling subscription:", error);
       res.status(500).json({ message: "Failed to cancel subscription" });
+    }
+  });
+
+  app.get("/api/bots/:id/trades", async (req, res) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
+      const trades = await storage.getBotTradeLogs(req.params.id, limit);
+      res.json(trades);
+    } catch (error) {
+      console.error("Error fetching bot trades:", error);
+      res.status(500).json({ message: "Failed to fetch bot trades" });
+    }
+  });
+
+  app.get("/api/bots/:id/performance-history", async (req, res) => {
+    try {
+      const bucket = req.query.bucket as string | undefined;
+      const history = await storage.getBotPerformanceHistory(req.params.id, bucket);
+      res.json(history);
+    } catch (error) {
+      console.error("Error fetching bot performance history:", error);
+      res.status(500).json({ message: "Failed to fetch bot performance history" });
     }
   });
 
