@@ -224,20 +224,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const priceAmount = Math.round(parseFloat(bot.monthlyPrice) * 100);
       
+      // Create or get a product for this bot
+      const product = await stripe.products.create({
+        name: `${bot.name} Trading Bot Subscription`,
+        description: bot.description,
+        metadata: {
+          botId: bot.id,
+        },
+      });
+      
       const subscription = await stripe.subscriptions.create({
         customer: stripeCustomerId,
         items: [{
           price_data: {
             currency: 'usd',
-            product_data: {
-              name: `${bot.name} Trading Bot Subscription`,
-              description: bot.description,
-            },
+            product: product.id,
             recurring: {
               interval: 'month',
             },
             unit_amount: priceAmount,
-          } as any,
+          },
         }],
         payment_behavior: 'default_incomplete',
         payment_settings: { 
