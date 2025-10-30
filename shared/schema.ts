@@ -65,6 +65,7 @@ export const subscriptions = pgTable("subscriptions", {
   notificationPrefs: jsonb("notification_prefs").notNull().default(sql`'{"newTrade":true,"drawdownBreach":true,"weeklySummary":true,"monthlySummary":true}'::jsonb`),
   startedAt: timestamp("started_at").notNull().defaultNow(),
   cancelledAt: timestamp("cancelled_at"),
+  subscriptionEndsAt: timestamp("subscription_ends_at"),
 });
 
 export const exchangeConnections = pgTable("exchange_connections", {
