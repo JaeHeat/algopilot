@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents, creatorPosts, postComments, postReactions } from "@shared/schema";
+import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents, creatorPosts, postComments, postReactions, botWebhooks, webhookEventLogs } from "@shared/schema";
 import type { 
   User, UpsertUser, 
   Bot, InsertBot,
@@ -12,7 +12,9 @@ import type {
   UpdateSubscriptionSettings,
   CreatorPost, InsertCreatorPost,
   PostComment, InsertPostComment,
-  PostReaction, InsertPostReaction
+  PostReaction, InsertPostReaction,
+  BotWebhook, InsertBotWebhook,
+  WebhookEventLog, InsertWebhookEventLog
 } from "@shared/schema";
 import { eq, and, desc, or, isNull, gt } from "drizzle-orm";
 
@@ -67,6 +69,17 @@ export interface IStorage {
   getPostReactions(postId: string): Promise<PostReaction[]>;
   toggleReaction(reaction: InsertPostReaction): Promise<{ added: boolean }>;
   deleteReaction(postId: string, userId: string, reactionType: string): Promise<void>;
+  
+  createBotWebhook(webhook: InsertBotWebhook): Promise<BotWebhook>;
+  getWebhookByBotId(botId: string): Promise<BotWebhook | undefined>;
+  getWebhookByBotAndSecret(botId: string, secret: string): Promise<BotWebhook | undefined>;
+  regenerateWebhookSecret(botId: string, newSecret: string): Promise<BotWebhook | undefined>;
+  updateWebhookLastReceived(botId: string): Promise<void>;
+  incrementWebhookFailureCount(botId: string): Promise<void>;
+  resetWebhookFailureCount(botId: string): Promise<void>;
+  
+  logWebhookEvent(log: InsertWebhookEventLog): Promise<WebhookEventLog>;
+  getRecentWebhookEvents(botId: string, limit?: number): Promise<WebhookEventLog[]>;
 }
 
 export class DbStorage implements IStorage {
@@ -474,6 +487,83 @@ export class DbStorage implements IStorage {
         eq(postReactions.reactionType, reactionType)
       )
     );
+  }
+
+  async createBotWebhook(webhook: InsertBotWebhook): Promise<BotWebhook> {
+    const result = await db.insert(botWebhooks).values(webhook).returning();
+    return result[0];
+  }
+
+  async getWebhookByBotId(botId: string): Promise<BotWebhook | undefined> {
+    const result = await db
+      .select()
+      .from(botWebhooks)
+      .where(eq(botWebhooks.botId, botId))
+      .limit(1);
+    return result[0];
+  }
+
+  async getWebhookByBotAndSecret(botId: string, secret: string): Promise<BotWebhook | undefined> {
+    const result = await db
+      .select()
+      .from(botWebhooks)
+      .where(
+        and(
+          eq(botWebhooks.botId, botId),
+          eq(botWebhooks.secret, secret),
+          eq(botWebhooks.status, 'active')
+        )
+      )
+      .limit(1);
+    return result[0];
+  }
+
+  async regenerateWebhookSecret(botId: string, newSecret: string): Promise<BotWebhook | undefined> {
+    const result = await db
+      .update(botWebhooks)
+      .set({ secret: newSecret })
+      .where(eq(botWebhooks.botId, botId))
+      .returning();
+    return result[0];
+  }
+
+  async updateWebhookLastReceived(botId: string): Promise<void> {
+    await db
+      .update(botWebhooks)
+      .set({ lastReceivedAt: new Date() })
+      .where(eq(botWebhooks.botId, botId));
+  }
+
+  async incrementWebhookFailureCount(botId: string): Promise<void> {
+    const webhook = await this.getWebhookByBotId(botId);
+    if (webhook) {
+      await db
+        .update(botWebhooks)
+        .set({ failureCount: (webhook.failureCount || 0) + 1 })
+        .where(eq(botWebhooks.botId, botId));
+    }
+  }
+
+  async resetWebhookFailureCount(botId: string): Promise<void> {
+    await db
+      .update(botWebhooks)
+      .set({ failureCount: 0 })
+      .where(eq(botWebhooks.botId, botId));
+  }
+
+  async logWebhookEvent(log: InsertWebhookEventLog): Promise<WebhookEventLog> {
+    const result = await db.insert(webhookEventLogs).values(log).returning();
+    return result[0];
+  }
+
+  async getRecentWebhookEvents(botId: string, limit: number = 50): Promise<WebhookEventLog[]> {
+    const result = await db
+      .select()
+      .from(webhookEventLogs)
+      .where(eq(webhookEventLogs.botId, botId))
+      .orderBy(desc(webhookEventLogs.processedAt))
+      .limit(limit);
+    return result;
   }
 }
 

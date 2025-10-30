@@ -5,6 +5,11 @@ import { setupAuth, isAuthenticated } from "./replitAuth";
 import { insertBotSchema, insertSubscriptionSchema, insertExchangeConnectionSchema, updateSubscriptionSettingsSchema, insertCreatorPostSchema, insertPostCommentSchema, insertPostReactionSchema } from "@shared/schema";
 import { z } from "zod";
 import Stripe from "stripe";
+import { randomBytes } from "crypto";
+
+function generateWebhookSecret(): string {
+  return randomBytes(32).toString('hex');
+}
 
 if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error('Missing required Stripe secret: STRIPE_SECRET_KEY');
@@ -58,6 +63,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error creating bot:", error);
       res.status(400).json({ message: "Failed to create bot" });
+    }
+  });
+
+  app.get("/api/creator/bots", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const allBots = await storage.getAllBots();
+      const creatorBots = allBots.filter(bot => bot.creatorId === userId);
+      
+      const botsWithWebhooks = await Promise.all(
+        creatorBots.map(async (bot) => {
+          const webhook = await storage.getWebhookByBotId(bot.id);
+          const recentEvents = webhook ? await storage.getRecentWebhookEvents(bot.id, 10) : [];
+          
+          return {
+            ...bot,
+            webhook: webhook ? {
+              id: webhook.id,
+              secret: webhook.secret,
+              status: webhook.status,
+              lastReceivedAt: webhook.lastReceivedAt,
+              failureCount: webhook.failureCount,
+              webhookUrl: `${req.protocol}://${req.get('host')}/api/webhooks/${bot.id}/${webhook.secret}`,
+            } : null,
+            recentEvents,
+          };
+        })
+      );
+      
+      res.json(botsWithWebhooks);
+    } catch (error) {
+      console.error("Error fetching creator bots:", error);
+      res.status(500).json({ message: "Failed to fetch creator bots" });
+    }
+  });
+
+  app.post("/api/creator/bots", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const validatedBot = insertBotSchema.parse({ ...req.body, creatorId: userId });
+      const bot = await storage.createBot(validatedBot);
+      
+      const secret = generateWebhookSecret();
+      const webhook = await storage.createBotWebhook({
+        botId: bot.id,
+        secret,
+        status: 'active',
+      });
+      
+      const webhookUrl = `${req.protocol}://${req.get('host')}/api/webhooks/${bot.id}/${webhook.secret}`;
+      
+      res.json({
+        ...bot,
+        webhook: {
+          id: webhook.id,
+          secret: webhook.secret,
+          status: webhook.status,
+          webhookUrl,
+        },
+      });
+    } catch (error) {
+      console.error("Error creating bot:", error);
+      res.status(400).json({ message: "Failed to create bot" });
+    }
+  });
+
+  app.patch("/api/creator/bots/:id/regenerate-webhook", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const bot = await storage.getBotById(req.params.id);
+      
+      if (!bot) {
+        return res.status(404).json({ message: "Bot not found" });
+      }
+      
+      if (bot.creatorId !== userId) {
+        return res.status(403).json({ message: "Forbidden: Only bot creators can regenerate webhooks" });
+      }
+      
+      const newSecret = generateWebhookSecret();
+      const webhook = await storage.regenerateWebhookSecret(req.params.id, newSecret);
+      
+      if (!webhook) {
+        return res.status(404).json({ message: "Webhook not found for this bot" });
+      }
+      
+      const webhookUrl = `${req.protocol}://${req.get('host')}/api/webhooks/${req.params.id}/${webhook.secret}`;
+      
+      res.json({
+        secret: webhook.secret,
+        webhookUrl,
+      });
+    } catch (error) {
+      console.error("Error regenerating webhook:", error);
+      res.status(500).json({ message: "Failed to regenerate webhook" });
     }
   });
 
@@ -687,6 +787,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching available balance:", error);
       res.status(500).json({ message: "Failed to fetch available balance" });
+    }
+  });
+
+  app.post("/api/webhooks/:botId/:secret", async (req, res) => {
+    const { botId, secret } = req.params;
+    const payload = req.body;
+    const headers = req.headers;
+    
+    try {
+      const webhook = await storage.getWebhookByBotAndSecret(botId, secret);
+      
+      if (!webhook) {
+        await storage.logWebhookEvent({
+          botId,
+          payload,
+          headers: headers as any,
+          status: 'rejected',
+          error: 'Invalid bot ID or webhook secret',
+        });
+        return res.status(401).json({ message: "Unauthorized: Invalid webhook credentials" });
+      }
+      
+      await storage.updateWebhookLastReceived(botId);
+      await storage.resetWebhookFailureCount(botId);
+      
+      await storage.logWebhookEvent({
+        botId,
+        payload,
+        headers: headers as any,
+        status: 'success',
+      });
+      
+      console.log(`[Webhook] Received trade signal for bot ${botId}:`, {
+        symbol: payload.symbol || 'N/A',
+        side: payload.side || payload.action || 'N/A',
+        price: payload.price || 'N/A',
+        time: payload.time || new Date().toISOString(),
+      });
+      
+      res.json({ success: true, message: "Webhook received and logged successfully" });
+    } catch (error) {
+      console.error("Error processing webhook:", error);
+      
+      await storage.incrementWebhookFailureCount(botId);
+      await storage.logWebhookEvent({
+        botId,
+        payload,
+        headers: headers as any,
+        status: 'error',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      
+      res.status(500).json({ message: "Failed to process webhook" });
     }
   });
 

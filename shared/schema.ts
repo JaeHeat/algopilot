@@ -147,6 +147,27 @@ export const postReactions = pgTable("post_reactions", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const botWebhooks = pgTable("bot_webhooks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  botId: varchar("bot_id").notNull().unique().references(() => bots.id),
+  secret: text("secret").notNull(),
+  status: text("status").notNull().default("active"),
+  lastReceivedAt: timestamp("last_received_at"),
+  failureCount: integer("failure_count").notNull().default(0),
+  disabledAt: timestamp("disabled_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const webhookEventLogs = pgTable("webhook_event_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  botId: varchar("bot_id").notNull().references(() => bots.id),
+  payload: jsonb("payload").notNull(),
+  headers: jsonb("headers"),
+  status: text("status").notNull(),
+  error: text("error"),
+  processedAt: timestamp("processed_at").notNull().defaultNow(),
+});
+
 export const insertBotSchema = createInsertSchema(bots).omit({ id: true, createdAt: true });
 export const insertBotPerformanceSchema = createInsertSchema(botPerformance).omit({ id: true, updatedAt: true });
 export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({ id: true, startedAt: true, cancelledAt: true }).extend({
@@ -159,6 +180,8 @@ export const insertSubscriptionEventSchema = createInsertSchema(subscriptionEven
 export const insertCreatorPostSchema = createInsertSchema(creatorPosts).omit({ id: true, createdAt: true });
 export const insertPostCommentSchema = createInsertSchema(postComments).omit({ id: true, createdAt: true });
 export const insertPostReactionSchema = createInsertSchema(postReactions).omit({ id: true, createdAt: true });
+export const insertBotWebhookSchema = createInsertSchema(botWebhooks).omit({ id: true, createdAt: true });
+export const insertWebhookEventLogSchema = createInsertSchema(webhookEventLogs).omit({ id: true, processedAt: true });
 
 export const updateSubscriptionSettingsSchema = z.object({
   capitalAllocated: z.number().positive().optional(),
@@ -207,3 +230,7 @@ export type InsertPostComment = z.infer<typeof insertPostCommentSchema>;
 export type PostComment = typeof postComments.$inferSelect;
 export type InsertPostReaction = z.infer<typeof insertPostReactionSchema>;
 export type PostReaction = typeof postReactions.$inferSelect;
+export type InsertBotWebhook = z.infer<typeof insertBotWebhookSchema>;
+export type BotWebhook = typeof botWebhooks.$inferSelect;
+export type InsertWebhookEventLog = z.infer<typeof insertWebhookEventLogSchema>;
+export type WebhookEventLog = typeof webhookEventLogs.$inferSelect;
