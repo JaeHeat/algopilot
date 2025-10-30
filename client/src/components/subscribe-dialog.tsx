@@ -8,12 +8,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { isUnauthorizedError } from "@/lib/authUtils";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { Bot, BotPerformance } from "@shared/schema";
-import { TrendingUp, Users, Target, Activity } from "lucide-react";
+import { TrendingUp, Users, Target, Activity, TestTube } from "lucide-react";
 import { SubscriptionPaymentDialog } from "./subscription-payment-dialog";
 
 interface SubscribeDialogProps {
@@ -24,11 +27,14 @@ interface SubscribeDialogProps {
 
 export function SubscribeDialog({ bot, open, onOpenChange }: SubscribeDialogProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [, setLocation] = useLocation();
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [clientSecret, setClientSecret] = useState("");
   const [stripeSubscriptionId, setStripeSubscriptionId] = useState("");
+
+  const isCreator = user?.id === bot.creatorId;
 
   const createPaymentMutation = useMutation({
     mutationFn: async () => {
@@ -91,9 +97,41 @@ export function SubscribeDialog({ bot, open, onOpenChange }: SubscribeDialogProp
     },
   });
 
+  const testModeSubscribeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/subscriptions", {
+        botId: bot.id,
+        testMode: true,
+      });
+      return await res.json();
+    },
+    onSuccess: (newSubscription: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/subscriptions"] });
+      toast({
+        title: "Test Subscription Created!",
+        description: `You can now test ${bot.name} with your TradingView webhooks`,
+      });
+      onOpenChange(false);
+      setTimeout(() => {
+        setLocation(`/dashboard/my-bots`);
+      }, 500);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create test subscription.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSubscribe = async () => {
     setIsProcessing(true);
     createPaymentMutation.mutate();
+  };
+
+  const handleTestModeSubscribe = async () => {
+    testModeSubscribeMutation.mutate();
   };
 
   const handlePaymentSuccess = () => {
@@ -111,6 +149,18 @@ export function SubscribeDialog({ bot, open, onOpenChange }: SubscribeDialogProp
         </DialogHeader>
 
         <div className="space-y-6">
+          {isCreator && (
+            <Alert className="bg-primary/10 border-primary">
+              <TestTube className="h-4 w-4 text-primary" />
+              <AlertDescription>
+                <div className="flex items-center gap-2">
+                  <Badge variant="default" className="text-xs">CREATOR</Badge>
+                  <span className="text-sm">You can test your own bot for free without payment</span>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="bg-muted/50 rounded-lg p-4">
             <h4 className="font-semibold mb-3">Bot Performance</h4>
             {bot.performance && (
@@ -167,15 +217,17 @@ export function SubscribeDialog({ bot, open, onOpenChange }: SubscribeDialogProp
             <p className="text-sm text-muted-foreground">{bot.description}</p>
           </div>
 
-          <div className="bg-muted/50 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-semibold">Monthly Subscription</span>
-              <span className="text-2xl font-bold">${parseFloat(bot.monthlyPrice).toFixed(0)}</span>
+          {!isCreator && (
+            <div className="bg-muted/50 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-semibold">Monthly Subscription</span>
+                <span className="text-2xl font-bold">${parseFloat(bot.monthlyPrice).toFixed(0)}</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                You can cancel anytime. No hidden fees.
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              You can cancel anytime. No hidden fees.
-            </p>
-          </div>
+          )}
 
           <div className="flex gap-3">
             <Button
@@ -186,14 +238,26 @@ export function SubscribeDialog({ bot, open, onOpenChange }: SubscribeDialogProp
             >
               Cancel
             </Button>
-            <Button
-              onClick={handleSubscribe}
-              disabled={createPaymentMutation.isPending || isProcessing}
-              className="flex-1"
-              data-testid="button-confirm-subscribe"
-            >
-              {createPaymentMutation.isPending || isProcessing ? "Processing..." : "Continue to Payment"}
-            </Button>
+            {isCreator ? (
+              <Button
+                onClick={handleTestModeSubscribe}
+                disabled={testModeSubscribeMutation.isPending}
+                className="flex-1 gap-2"
+                data-testid="button-test-mode-subscribe"
+              >
+                <TestTube className="h-4 w-4" />
+                {testModeSubscribeMutation.isPending ? "Creating..." : "Test Mode - Free"}
+              </Button>
+            ) : (
+              <Button
+                onClick={handleSubscribe}
+                disabled={createPaymentMutation.isPending || isProcessing}
+                className="flex-1"
+                data-testid="button-confirm-subscribe"
+              >
+                {createPaymentMutation.isPending || isProcessing ? "Processing..." : "Continue to Payment"}
+              </Button>
+            )}
           </div>
         </div>
       </DialogContent>

@@ -422,12 +422,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "User not found" });
       }
       
-      const { stripeSubscriptionId, botId } = req.body;
+      const { stripeSubscriptionId, botId, testMode } = req.body;
       
-      if (!stripeSubscriptionId) {
-        return res.status(400).json({ message: "Stripe subscription ID is required" });
+      // Check if this is a test mode subscription (creator testing their own bot)
+      if (testMode || !stripeSubscriptionId) {
+        const bot = await storage.getBotById(botId);
+        if (!bot) {
+          return res.status(404).json({ message: "Bot not found" });
+        }
+        
+        // Only allow test mode if user is the bot creator
+        if (bot.creatorId !== userId) {
+          return res.status(400).json({ message: "Stripe subscription ID is required for non-creator subscriptions" });
+        }
+        
+        // Create test mode subscription (no Stripe payment required)
+        const validatedSubscription = insertSubscriptionSchema.parse({ 
+          ...req.body, 
+          userId,
+          stripeSubscriptionId: `test_${Date.now()}_${botId.substring(0, 8)}`,
+          isPaused: true,
+          pauseReason: "Test Mode - Configure settings before going live",
+          riskPercentage: 1,
+          capitalAllocated: "1000",
+          capitalAllocatedType: "amount",
+          maxDrawdown: "10",
+          notificationPrefs: {
+            newTrade: true,
+            drawdownBreach: true,
+            weeklySummary: true,
+            monthlySummary: true,
+          },
+          status: 'active',
+        });
+        
+        const subscription = await storage.createSubscription(validatedSubscription);
+        return res.json({ ...subscription, testMode: true });
       }
       
+      // Regular Stripe subscription flow
       const stripeSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId, {
         expand: ['latest_invoice'],
       });
