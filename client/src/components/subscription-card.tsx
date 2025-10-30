@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { TrendingUp, TrendingDown, Users, Settings, Pause, Play } from "lucide-react";
+import { TrendingUp, TrendingDown, Users, Settings, Pause, Play, BarChart3 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { SubscriptionSettingsDialog } from "@/components/subscription-settings-dialog";
+import { SubscriptionDetailsDialog } from "@/components/subscription-details-dialog";
 import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -20,6 +21,7 @@ interface SubscriptionCardProps {
 export function SubscriptionCard({ subscription, initialSettingsOpen = false }: SubscriptionCardProps) {
   const [, setLocation] = useLocation();
   const [settingsOpen, setSettingsOpen] = useState(initialSettingsOpen);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const { toast } = useToast();
   
   // Sync settingsOpen when initialSettingsOpen changes (e.g., from notification click)
@@ -242,6 +244,18 @@ export function SubscriptionCard({ subscription, initialSettingsOpen = false }: 
                 size="sm"
                 onClick={(e) => {
                   e.stopPropagation();
+                  setDetailsOpen(true);
+                }}
+                data-testid={`button-performance-${subscription.id}`}
+              >
+                <BarChart3 className="h-4 w-4 mr-2" />
+                Performance
+              </Button>
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
                   setSettingsOpen(true);
                 }}
                 data-testid={`button-settings-${subscription.id}`}
@@ -258,6 +272,12 @@ export function SubscriptionCard({ subscription, initialSettingsOpen = false }: 
         subscription={subscription}
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
+      />
+
+      <SubscriptionDetailsDialog
+        subscription={subscription}
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
       />
     </>
   );
