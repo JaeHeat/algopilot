@@ -27,13 +27,16 @@ export function SubscriptionCard({ subscription }: SubscriptionCardProps) {
     mutationFn: async (shouldResume: boolean) => {
       const endpoint = shouldResume ? `/api/subscriptions/${subscription.id}/resume` : `/api/subscriptions/${subscription.id}/pause`;
       const res = await apiRequest("POST", endpoint, shouldResume ? {} : { reason: "User toggled off" });
+      if (!res.ok) {
+        throw new Error("Failed to update subscription status");
+      }
       return await res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, shouldResume) => {
       queryClient.invalidateQueries({ queryKey: ["/api/subscriptions"] });
       toast({
-        title: subscription.isPaused ? "Bot Activated" : "Bot Paused",
-        description: subscription.isPaused ? "Your bot is now live and trading" : "Your bot has been paused",
+        title: shouldResume ? "Bot Activated" : "Bot Paused",
+        description: shouldResume ? "Your bot is now live and trading" : "Your bot has been paused",
       });
     },
     onError: () => {
@@ -46,7 +49,8 @@ export function SubscriptionCard({ subscription }: SubscriptionCardProps) {
   });
   
   const handleCardClick = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('button')) {
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('[role="switch"]') || target.closest('label[for^="toggle-"]')) {
       return;
     }
     setLocation(`/bot/${subscription.bot.id}`);
