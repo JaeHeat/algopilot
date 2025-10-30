@@ -5,6 +5,7 @@ import { Bell, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Route, Switch } from "wouter";
 import DashboardOverview from "./dashboard-overview";
+import DashboardMyBots from "./dashboard-my-bots";
 import DashboardMarketplace from "./dashboard-marketplace";
 import DashboardSettings from "./dashboard-settings";
 import DashboardAdmin from "./dashboard-admin";
@@ -39,6 +40,7 @@ export default function DashboardLayout() {
               <Switch>
                 <Route path="/" component={DashboardOverview} />
                 <Route path="/dashboard" component={DashboardOverview} />
+                <Route path="/dashboard/my-bots" component={DashboardMyBots} />
                 <Route path="/dashboard/marketplace" component={DashboardMarketplace} />
                 <Route path="/dashboard/settings" component={DashboardSettings} />
                 <Route path="/dashboard/admin" component={DashboardAdmin} />

@@ -21,6 +21,7 @@ import {
 
 const menuItems = [
   { title: "Dashboard", icon: LayoutDashboard, url: "/dashboard" },
+  { title: "My Bots", icon: Bot, url: "/dashboard/my-bots" },
   { title: "Marketplace", icon: Store, url: "/dashboard/marketplace" },
   { title: "Settings", icon: Settings, url: "/dashboard/settings" },
 ];
