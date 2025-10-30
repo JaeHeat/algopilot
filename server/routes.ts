@@ -278,6 +278,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/subscriptions", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      const { stripeSubscriptionId, botId } = req.body;
+      
+      if (!stripeSubscriptionId) {
+        return res.status(400).json({ message: "Stripe subscription ID is required" });
+      }
+      
+      const stripeSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId, {
+        expand: ['latest_invoice'],
+      });
+      
+      if (stripeSubscription.customer !== user.stripeCustomerId) {
+        return res.status(403).json({ message: "This subscription does not belong to you" });
+      }
+      
+      if (stripeSubscription.metadata.botId !== botId) {
+        return res.status(400).json({ message: "Subscription bot ID mismatch" });
+      }
+      
+      const validStatuses = ['active', 'trialing'];
+      if (!validStatuses.includes(stripeSubscription.status)) {
+        return res.status(400).json({ message: "Subscription is not active. Status: " + stripeSubscription.status });
+      }
+      
+      const latestInvoice = stripeSubscription.latest_invoice as any;
+      if (latestInvoice && latestInvoice.status && latestInvoice.status !== 'paid') {
+        return res.status(400).json({ message: "Payment not completed. Invoice status: " + latestInvoice.status });
+      }
+      
       const validatedSubscription = insertSubscriptionSchema.parse({ 
         ...req.body, 
         userId,
@@ -292,13 +326,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           drawdownBreach: true,
           weeklySummary: true,
           monthlySummary: true,
-        }
+        },
+        status: stripeSubscription.status === 'active' ? 'active' : 'pending',
       });
+      
       const subscription = await storage.createSubscription(validatedSubscription);
       res.json(subscription);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating subscription:", error);
-      res.status(400).json({ message: "Failed to create subscription" });
+      if (error.type === 'StripeInvalidRequestError') {
+        return res.status(400).json({ message: "Invalid Stripe subscription ID" });
+      }
+      res.status(400).json({ message: error.message || "Failed to create subscription" });
     }
   });
 

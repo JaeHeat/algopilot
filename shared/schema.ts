@@ -149,7 +149,9 @@ export const postReactions = pgTable("post_reactions", {
 
 export const insertBotSchema = createInsertSchema(bots).omit({ id: true, createdAt: true });
 export const insertBotPerformanceSchema = createInsertSchema(botPerformance).omit({ id: true, updatedAt: true });
-export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({ id: true, startedAt: true, cancelledAt: true });
+export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({ id: true, startedAt: true, cancelledAt: true }).extend({
+  stripeSubscriptionId: z.string().min(1, "Stripe subscription ID is required"),
+});
 export const insertExchangeConnectionSchema = createInsertSchema(exchangeConnections).omit({ id: true, createdAt: true });
 export const insertBotTradeLogSchema = createInsertSchema(botTradeLogs).omit({ id: true });
 export const insertBotPerformanceHistorySchema = createInsertSchema(botPerformanceHistory).omit({ id: true, createdAt: true });
