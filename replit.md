@@ -13,17 +13,37 @@ AlgoPilot is a web-based SaaS platform that enables users to discover, subscribe
 
 ## Key Features Implemented
 1. **Authentication**: Replit Auth integration with secure session management
-2. **Bot Marketplace**: Browse, filter, and sort trading bots with real performance data
-3. **Subscriptions**: Subscribe to trading bots (basic implementation)
-4. **User Dashboard**: View active subscriptions and portfolio metrics
-5. **Settings**: Manage profile and exchange API connections
-6. **Exchange Integration**: Connect to Binance, Coinbase, Bybit, KuCoin
+2. **Bot Marketplace**: Browse, filter, and sort trading bots with real performance data and verified badges
+3. **Bot Detail Pages**: Comprehensive bot information with:
+   - Performance charts with equity curves across multiple timeframes (1D, 1W, 1M, 3M, 1Y, ALL)
+   - Historical trade logs with Recent/All views showing entry/exit prices, PnL, duration
+   - Detailed strategy descriptions
+   - Creator profiles with verification badges
+4. **Granular Subscription Settings**:
+   - Capital allocation (fixed amount or percentage-based)
+   - Risk level selection (1-5 scale from Safest to DANGER)
+   - Maximum drawdown limits
+   - Notification preferences (New Trade, Drawdown Breach, Weekly/Monthly Summaries)
+5. **Subscription Management**:
+   - Pause/resume trading with reason tracking
+   - Real-time subscription status indicators
+   - Ownership-validated operations
+6. **User Dashboard**: View active subscriptions with quick settings access and portfolio metrics
+7. **Settings**: Manage profile and exchange API connections
+8. **Exchange Integration**: Connect to Binance, Coinbase, Bybit, KuCoin
 
 ## Database Schema
 - `users`: User accounts (managed by Replit Auth)
-- `bots`: Trading bot information
+- `bots`: Trading bot information with strategyDescription and isVerified fields
 - `bot_performance`: Performance metrics for each bot
-- `subscriptions`: User subscriptions to bots
+- `bot_trade_logs`: Historical trade data (symbol, entry/exit prices, PnL, duration, status)
+- `bot_performance_history`: Bucketed performance data for charting (1D, 1W, 1M, 3M, 1Y, ALL)
+- `subscriptions`: User subscriptions with granular settings:
+  - capitalAllocated, capitalAllocatedType (amount/percent)
+  - riskPercentage (1-5), maxDrawdown
+  - isPaused, pauseReason
+  - notificationPrefs (newTrade, drawdownBreach, weeklySummary, monthlySummary)
+- `subscription_events`: Event log for subscription lifecycle tracking
 - `exchange_connections`: User exchange API credentials
 - `sessions`: Session storage for authentication
 
@@ -38,9 +58,10 @@ AlgoPilot is a web-based SaaS platform that enables users to discover, subscribe
 4. Consider using a secrets management service (AWS Secrets Manager, HashiCorp Vault, etc.)
 
 ### Authorization
-- Subscription deletion is protected - users can only cancel their own subscriptions
+- All subscription operations (update, pause, resume, cancel) require ownership validation
 - Exchange connection API responses redact sensitive API keys/secrets
 - All protected routes require authentication via `isAuthenticated` middleware
+- Backend validates percent-based capital allocation cannot exceed 100%
 
 ## Development Setup
 1. Database is already provisioned and connected
@@ -61,11 +82,14 @@ AlgoPilot is a web-based SaaS platform that enables users to discover, subscribe
 4. **Performance Tracking**: Real-time bot performance updates
 5. **Notifications**: Trade alerts and performance notifications
 
-## Recent Changes
-- Fixed security vulnerability: Added ownership check for subscription cancellation
-- Sanitized exchange connection responses to hide API credentials
-- Implemented comprehensive error handling with unauthorized redirects
-- Added loading states and skeleton screens throughout the app
+## Recent Changes (Latest Session)
+- **Added Granular Subscription Settings**: Capital allocation (amount/percent), risk levels (1-5), max drawdown limits
+- **Built Bot Detail Pages**: Performance charts with equity curves, historical trade logs (Recent/All tabs), strategy descriptions, creator profiles
+- **Implemented Pause/Resume**: Full pause/resume functionality with reason tracking and status indicators
+- **Enhanced Notification Controls**: Per-subscription toggles for trade alerts, drawdown breaches, and summaries
+- **Added Comprehensive Seed Data**: 200+ trade logs, 36 performance history records across 6 time buckets, verified bot badges
+- **Backend Validation**: Percent-based capital allocation validation (≤100%), ownership checks on all subscription operations
+- **E2E Testing**: Comprehensive test coverage of all subscription flows, settings management, and bot detail features
 
 ## Design System
 - Primary color: Professional fintech blue
