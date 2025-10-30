@@ -83,6 +83,10 @@ AlgoPilot is a web-based SaaS platform that enables users to discover, subscribe
 5. **Notifications**: Trade alerts and performance notifications
 
 ## Recent Changes (Latest Session)
+- **Dashboard Navigation Consolidation**: Streamlined sidebar by removing redundant "My Bots" and "Subscriptions" tabs (all showed identical content as "Overview")
+  - Simplified navigation: Dashboard → Marketplace → Settings → Admin Panel
+  - Removed duplicate routes (/dashboard/bots, /dashboard/subscriptions)
+  - Dashboard now serves as single unified view showing portfolio metrics + all subscriptions
 - **Portfolio Chart Timeframe Filters**: Dashboard equity chart now has 6 timeframe options (24h, 7d, 1m, 3m, 6m, 1y) with stable deterministic data
 - **Component Architecture**: PerformanceChart now accepts showCard prop to prevent nested Card components
 - **Navigation Fix**: Bot detail pages now integrated with dashboard layout when authenticated - tabs remain visible when navigating back
