@@ -95,8 +95,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/posts/:id", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const posts = await storage.getBotPosts("");
-      const post = posts.find(p => p.id === req.params.id);
+      const post = await storage.getPostById(req.params.id);
       
       if (!post) {
         return res.status(404).json({ message: "Post not found" });

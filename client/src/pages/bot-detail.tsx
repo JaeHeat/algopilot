@@ -15,7 +15,7 @@ import { Line } from "react-chartjs-2";
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from "chart.js";
 import type { Bot, User, BotTradeLog, BotPerformanceHistory, BotPerformance } from "@shared/schema";
 import { format } from "date-fns";
-import { useUser } from "@/hooks/use-user";
+import { useAuth } from "@/hooks/useAuth";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
@@ -26,7 +26,7 @@ export default function BotDetail() {
   const [, setLocation] = useLocation();
   const [subscribeDialogOpen, setSubscribeDialogOpen] = useState(false);
   const [selectedTimeframe, setSelectedTimeframe] = useState<string>("1D");
-  const { user } = useUser();
+  const { user } = useAuth();
 
   const { data: bot, isLoading: botLoading } = useQuery<BotWithCreator>({
     queryKey: ["/api/bots", params.id],

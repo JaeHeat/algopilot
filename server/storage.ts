@@ -53,6 +53,7 @@ export interface IStorage {
   getUserTotalAvailableBalance(userId: string): Promise<number>;
   
   getBotPosts(botId: string): Promise<Array<CreatorPost & { creator: User }>>;
+  getPostById(id: string): Promise<CreatorPost | undefined>;
   createPost(post: InsertCreatorPost): Promise<CreatorPost>;
   deletePost(id: string): Promise<void>;
 }
@@ -334,6 +335,15 @@ export class DbStorage implements IStorage {
       ...row.creator_posts,
       creator: row.users!,
     }));
+  }
+
+  async getPostById(id: string): Promise<CreatorPost | undefined> {
+    const result = await db
+      .select()
+      .from(creatorPosts)
+      .where(eq(creatorPosts.id, id))
+      .limit(1);
+    return result[0];
   }
 
   async createPost(post: InsertCreatorPost): Promise<CreatorPost> {
