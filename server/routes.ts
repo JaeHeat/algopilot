@@ -69,7 +69,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/subscriptions", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const validatedSubscription = insertSubscriptionSchema.parse({ ...req.body, userId });
+      const validatedSubscription = insertSubscriptionSchema.parse({ 
+        ...req.body, 
+        userId,
+        isPaused: true,
+        pauseReason: "Setup required - Configure your subscription settings before going live",
+        riskPercentage: 1,
+        capitalAllocated: "1000",
+        capitalAllocatedType: "amount",
+        maxDrawdown: "10",
+        notificationPrefs: {
+          newTrade: true,
+          drawdownBreach: true,
+          weeklySummary: true,
+          monthlySummary: true,
+        }
+      });
       const subscription = await storage.createSubscription(validatedSubscription);
       res.json(subscription);
     } catch (error) {

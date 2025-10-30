@@ -4,17 +4,22 @@ import { MetricCard } from "@/components/metric-card";
 import { PerformanceChart } from "@/components/performance-chart";
 import { TradeTable } from "@/components/trade-table";
 import { SubscriptionCard } from "@/components/subscription-card";
+import { SubscriptionSettingsDialog } from "@/components/subscription-settings-dialog";
 import { DollarSign, TrendingUp, Bot, Target } from "lucide-react";
 import type { Subscription, Bot as BotType, BotPerformance } from "@shared/schema";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
+import { useLocation } from "wouter";
 
 type SubscriptionWithBot = Subscription & { bot: BotType; performance: BotPerformance | null };
 
 export default function DashboardOverview() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const [location, setLocation] = useLocation();
+  const [selectedSubscription, setSelectedSubscription] = useState<SubscriptionWithBot | null>(null);
+  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
 
   const { data: subscriptions, isLoading, error } = useQuery<SubscriptionWithBot[]>({
     queryKey: ["/api/subscriptions"],
@@ -34,6 +39,22 @@ export default function DashboardOverview() {
       }, 500);
     }
   }, [error, toast]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const openSettingsId = params.get('openSettings');
+    
+    if (openSettingsId && subscriptions) {
+      const subscription = subscriptions.find(sub => sub.id === openSettingsId);
+      if (subscription) {
+        setSelectedSubscription(subscription);
+        setSettingsDialogOpen(true);
+        window.history.replaceState({}, '', '/dashboard');
+      } else if (subscriptions.length > 0) {
+        window.history.replaceState({}, '', '/dashboard');
+      }
+    }
+  }, [subscriptions]);
 
   const mockData = [10000, 10500, 10200, 11000, 11500, 11200, 12000, 12800, 12500, 13200, 13800, 14500];
   const mockLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -138,6 +159,14 @@ export default function DashboardOverview() {
       </div>
       
       <TradeTable trades={mockTrades} />
+      
+      {selectedSubscription && (
+        <SubscriptionSettingsDialog
+          subscription={selectedSubscription}
+          open={settingsDialogOpen}
+          onOpenChange={setSettingsDialogOpen}
+        />
+      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import {
   Dialog,
   DialogContent,
@@ -22,6 +23,7 @@ interface SubscribeDialogProps {
 
 export function SubscribeDialog({ bot, open, onOpenChange }: SubscribeDialogProps) {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [isProcessing, setIsProcessing] = useState(false);
 
   const subscribeMutation = useMutation({
@@ -29,13 +31,16 @@ export function SubscribeDialog({ bot, open, onOpenChange }: SubscribeDialogProp
       const res = await apiRequest("POST", "/api/subscriptions", { botId: bot.id });
       return await res.json();
     },
-    onSuccess: () => {
+    onSuccess: (newSubscription: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/subscriptions"] });
       toast({
-        title: "Success!",
-        description: `You're now subscribed to ${bot.name}`,
+        title: "Subscription Created!",
+        description: `Please configure your settings for ${bot.name} before going live`,
       });
       onOpenChange(false);
+      setTimeout(() => {
+        setLocation(`/dashboard?openSettings=${newSubscription.id}`);
+      }, 500);
     },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
