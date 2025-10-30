@@ -19,6 +19,8 @@ The platform is built with a modern web stack: React with TypeScript, Wouter for
 - **User Dashboard**: Centralized view of active subscriptions, portfolio metrics, and quick settings access.
 - **Exchange Integration**: Connection to multiple crypto exchanges for managing mock USDT balances and future live trading.
 - **Social Features**: Creator posts with comment and reaction systems to foster community engagement.
+- **Creator Dashboard**: Bot creators can manage their bots, view webhook URLs, monitor trade signal activity, and create new bots with auto-generated webhooks.
+- **TradingView Integration**: Webhook-based integration allowing bot creators to send trade signals from TradingView alerts directly to AlgoPilot for execution.
 
 **Design System:**
 - Utilizes a professional fintech blue as the primary color.
@@ -106,3 +108,47 @@ The platform is built with a modern web stack: React with TypeScript, Wouter for
     5. User clicks notification → navigates to My Bots with openSettings param
     6. Settings dialog auto-opens for that subscription
   - **Testing & Review**: Architect review passed, verified notification click-to-dialog-open flow works correctly
+
+- **TradingView Webhook Integration - COMPLETED**: Implemented full webhook system for bot creators to receive trade signals from TradingView alerts
+  - **Database Schema**:
+    - Added `bot_webhooks` table: Tracks webhook secret, status (active/disabled), last received timestamp, failure count, and disabled timestamp
+    - Added `webhook_event_logs` table: Audit log for all webhook requests with payload, headers, status, processed time, and error messages
+  - **Storage Layer**:
+    - `createWebhook`: Auto-generates 64-character random secret for new bots
+    - `getWebhookByBotAndSecret`: Validates webhook requests with bot ID and secret
+    - `regenerateWebhookSecret`: Allows creators to rotate webhook secrets for security
+    - `logWebhookEvent`: Records every webhook attempt with full payload and status
+    - `getRecentWebhookEvents`: Retrieves recent webhook activity for dashboard display
+  - **Backend API Routes**:
+    - GET /api/creator/bots: Lists creator's bots with webhook URLs and recent activity
+    - POST /api/creator/bots: Creates new bot and auto-generates webhook with unique URL
+    - PATCH /api/creator/bots/:id/regenerate-webhook: Regenerates webhook secret for security rotation
+    - POST /api/webhooks/:botId/:secret: Public endpoint for TradingView to send trade signals
+  - **Webhook Ingestion**:
+    - Validates bot ID and secret before processing
+    - Logs all attempts (success and failure) to webhook_event_logs
+    - Extracts trade signal data: symbol, action, price, timestamp
+    - Updates lastReceivedAt timestamp on successful processing
+    - Returns appropriate HTTP status codes for debugging
+  - **Creator Dashboard UI**:
+    - **Sidebar Navigation**: "Creator Tools" section appears only for users who own bots
+    - **Statistics Dashboard**: Shows total bots, active webhooks, and recent event count
+    - **Bot Cards**: Display bot details, webhook URL, copy/regenerate buttons, recent activity with success/error icons
+    - **Bot Creation Form**: Dialog with validation for name, description, strategy, risk level, monthly price, strategy description
+    - **TradingView Setup Guide**: Step-by-step instructions with JSON payload format examples
+    - **Recent Activity Display**: Shows last 3 webhook events per bot with status indicators and timestamps
+  - **Security Measures**:
+    - Webhook secrets are 64-character cryptographically random strings (crypto.randomBytes)
+    - Webhook URLs include both botId and secret: /api/webhooks/:botId/:secret
+    - All webhook attempts logged for auditing
+    - Creators can regenerate secrets to invalidate compromised webhooks
+    - Public endpoint requires both parameters to prevent unauthorized access
+  - **User Experience Flow**:
+    1. Creator creates bot → webhook URL auto-generated
+    2. Creator copies webhook URL with one click
+    3. Creator configures TradingView alert with webhook URL
+    4. TradingView sends trade signals → AlgoPilot logs and processes
+    5. Creator monitors recent activity in dashboard
+    6. Creator can regenerate secret if needed
+  - **Type Coercion Fix**: Bot creation form properly converts monthlyPrice to float using parseFloat() before API submission
+  - **Testing & Review**: Architect review passed, verified type coercion fix and webhook flow logic

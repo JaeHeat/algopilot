@@ -65,15 +65,7 @@ export default function DashboardCreator() {
 
   const createBotMutation = useMutation({
     mutationFn: async (data: CreateBotForm) => {
-      const payload = {
-        name: data.name,
-        description: data.description,
-        strategy: data.strategy,
-        riskLevel: data.riskLevel,
-        monthlyPrice: parseFloat(data.monthlyPrice),
-        strategyDescription: data.strategyDescription,
-      };
-      const res = await apiRequest("POST", "/api/creator/bots", payload);
+      const res = await apiRequest("POST", "/api/creator/bots", data);
       return await res.json();
     },
     onSuccess: () => {
