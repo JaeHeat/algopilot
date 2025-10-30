@@ -47,6 +47,7 @@ export interface IStorage {
   getExchangeConnectionById(id: string): Promise<ExchangeConnection | undefined>;
   createExchangeConnection(connection: InsertExchangeConnection): Promise<ExchangeConnection>;
   deleteExchangeConnection(id: string): Promise<void>;
+  getUserTotalAvailableBalance(userId: string): Promise<number>;
 }
 
 export class DbStorage implements IStorage {
@@ -292,6 +293,19 @@ export class DbStorage implements IStorage {
 
   async deleteExchangeConnection(id: string): Promise<void> {
     await db.update(exchangeConnections).set({ isActive: false }).where(eq(exchangeConnections.id, id));
+  }
+
+  async getUserTotalAvailableBalance(userId: string): Promise<number> {
+    const connections = await db
+      .select()
+      .from(exchangeConnections)
+      .where(and(eq(exchangeConnections.userId, userId), eq(exchangeConnections.isActive, true)));
+    
+    const totalBalance = connections.reduce((sum, conn) => {
+      return sum + parseFloat(conn.balance);
+    }, 0);
+    
+    return totalBalance;
   }
 }
 
