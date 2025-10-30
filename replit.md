@@ -44,6 +44,8 @@ AlgoPilot is a web-based SaaS platform that enables users to discover, subscribe
   - riskPercentage (1-5), maxDrawdown
   - isPaused, pauseReason
   - notificationPrefs (newTrade, drawdownBreach, weeklySummary, monthlySummary)
+  - subscriptionEndsAt (timestamp, nullable): Date when subscription ends (for end-of-month cancellation)
+  - cancelledAt (timestamp, nullable): Date when cancellation was initiated
 - `subscription_events`: Event log for subscription lifecycle tracking
 - `exchange_connections`: User exchange API credentials with mock USDT balances
   - balance (decimal): Mock USDT balance for each exchange
@@ -71,6 +73,10 @@ AlgoPilot is a web-based SaaS platform that enables users to discover, subscribe
 - Exchange connection API responses redact sensitive API keys/secrets
 - All protected routes require authentication via `isAuthenticated` middleware
 - Backend validates percent-based capital allocation cannot exceed 100%
+- **Server-side resume validation**: POST /api/subscriptions/{id}/resume enforces:
+  - Capital allocation must be configured (non-zero)
+  - Sufficient available balance (validates against all active subscriptions)
+  - Returns 400 with specific error messages if validation fails
 
 ## Development Setup
 1. Database is already provisioned and connected
@@ -92,6 +98,32 @@ AlgoPilot is a web-based SaaS platform that enables users to discover, subscribe
 5. **Notifications**: Trade alerts and performance notifications
 
 ## Recent Changes (Latest Session)
+- **Subscription Management Improvements - COMPLETED**: Enhanced subscription lifecycle and validation
+  - **End-of-Month Cancellation**:
+    - Added `subscriptionEndsAt` and `cancelledAt` fields to subscriptions schema
+    - Cancellation now sets end date to end of current month instead of immediate termination
+    - Subscriptions remain active and functional until `subscriptionEndsAt` date
+    - All storage methods filter by `subscriptionEndsAt` to show only active subscriptions
+    - Bot detail pages display yellow warning banner when cancellation is scheduled
+  - **Duplicate Subscription Prevention**:
+    - Bot detail pages check for existing active subscription before showing subscribe button
+    - If user already subscribed: shows "Your Subscription" card with "Manage Subscription" link
+    - If not subscribed: shows "Subscribe to {bot}" card with subscribe button
+    - Prevents accidental duplicate subscriptions to same bot
+  - **Toggle Validation (Server-Side Enforcement)**:
+    - Added comprehensive validation to POST /api/subscriptions/{id}/resume endpoint
+    - Validates capital allocation is configured (non-zero) before activation
+    - Validates sufficient available balance against all active subscriptions
+    - Returns 400 with specific error messages if validation fails
+    - Frontend displays backend error messages and auto-opens settings dialog
+    - Toggle switch disabled while balance/subscription data is loading
+  - **UX Enhancements**:
+    - Subscription end date displayed in bot detail page when cancellation is scheduled
+    - Clear error messages guide users to configure settings or adjust capital
+    - Settings dialog auto-opens when validation fails for quick correction
+  - **Testing**: Comprehensive E2E test suite passed - verified all flows including duplicate prevention, toggle validation, and cancellation display
+
+## Previous Session Changes
 - **Phase 2 Social Features - COMPLETED**: Built full comment and reaction system for creator posts
   - **Backend Implementation**:
     - Added storage methods for comments (create, getByPostId, getById, delete)
@@ -112,7 +144,7 @@ AlgoPilot is a web-based SaaS platform that enables users to discover, subscribe
   - **Accessibility**: Added aria-pressed and aria-label to ReactionButton, visible text on comment toggle
   - **Performance Notes**: Comments currently load eagerly for all posts; consider lazy loading or count endpoint for scale
 
-## Previous Session Changes
+## Earlier Session Changes
 - **Capital Validation Against Exchange Balance**: Prevents users from allocating more capital than available
   - Added `balance` field to `exchange_connections` schema for mock USDT balances
   - Created `/api/user/available-balance` endpoint to sum active exchange balances
