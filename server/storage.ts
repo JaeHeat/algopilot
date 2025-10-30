@@ -85,9 +85,11 @@ export interface IStorage {
   
   createTrade(trade: InsertTrade): Promise<Trade>;
   getSubscriptionTrades(subscriptionId: string, limit?: number): Promise<Trade[]>;
+  getAllUserTrades(userId: string, limit?: number): Promise<Array<Trade & { bot: Bot }>>;
   
   createPosition(position: InsertPosition): Promise<Position>;
   getOpenPositions(subscriptionId: string): Promise<Position[]>;
+  getAllUserPositions(userId: string): Promise<Array<Position & { bot: Bot }>>;
   getPositionBySubscriptionAndSymbol(subscriptionId: string, symbol: string): Promise<Position | undefined>;
   updatePosition(id: string, updates: Partial<Position>): Promise<Position | undefined>;
   closePosition(id: string, closePrice: string, pnl: string): Promise<Position | undefined>;
@@ -595,6 +597,22 @@ export class DbStorage implements IStorage {
     return result;
   }
 
+  async getAllUserTrades(userId: string, limit: number = 200): Promise<Array<Trade & { bot: Bot }>> {
+    const result = await db
+      .select()
+      .from(trades)
+      .innerJoin(subscriptions, eq(trades.subscriptionId, subscriptions.id))
+      .innerJoin(bots, eq(trades.botId, bots.id))
+      .where(eq(subscriptions.userId, userId))
+      .orderBy(desc(trades.executedAt))
+      .limit(limit);
+    
+    return result.map(row => ({
+      ...row.trades,
+      bot: row.bots,
+    }));
+  }
+
   async createPosition(position: InsertPosition): Promise<Position> {
     const result = await db.insert(positions).values(position).returning();
     return result[0];
@@ -612,6 +630,21 @@ export class DbStorage implements IStorage {
       )
       .orderBy(desc(positions.openedAt));
     return result;
+  }
+
+  async getAllUserPositions(userId: string): Promise<Array<Position & { bot: Bot }>> {
+    const result = await db
+      .select()
+      .from(positions)
+      .innerJoin(subscriptions, eq(positions.subscriptionId, subscriptions.id))
+      .innerJoin(bots, eq(positions.botId, bots.id))
+      .where(eq(subscriptions.userId, userId))
+      .orderBy(desc(positions.openedAt));
+    
+    return result.map(row => ({
+      ...row.positions,
+      bot: row.bots,
+    }));
   }
 
   async getPositionBySubscriptionAndSymbol(subscriptionId: string, symbol: string): Promise<Position | undefined> {

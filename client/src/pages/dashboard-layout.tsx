@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Route, Switch } from "wouter";
 import DashboardOverview from "./dashboard-overview";
 import DashboardMyBots from "./dashboard-my-bots";
+import DashboardMyTrades from "./dashboard-my-trades";
 import DashboardMarketplace from "./dashboard-marketplace";
 import DashboardSettings from "./dashboard-settings";
 import DashboardAdmin from "./dashboard-admin";
@@ -41,6 +42,7 @@ export default function DashboardLayout() {
                 <Route path="/" component={DashboardOverview} />
                 <Route path="/dashboard" component={DashboardOverview} />
                 <Route path="/dashboard/my-bots" component={DashboardMyBots} />
+                <Route path="/dashboard/my-trades" component={DashboardMyTrades} />
                 <Route path="/dashboard/marketplace" component={DashboardMarketplace} />
                 <Route path="/dashboard/settings" component={DashboardSettings} />
                 <Route path="/dashboard/creator" component={DashboardCreator} />

@@ -782,6 +782,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/user/trades", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 200;
+      const trades = await storage.getAllUserTrades(userId, limit);
+      res.json(trades);
+    } catch (error) {
+      console.error("Error fetching user trades:", error);
+      res.status(500).json({ message: "Failed to fetch user trades" });
+    }
+  });
+
+  app.get("/api/user/positions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const positions = await storage.getAllUserPositions(userId);
+      res.json(positions);
+    } catch (error) {
+      console.error("Error fetching user positions:", error);
+      res.status(500).json({ message: "Failed to fetch user positions" });
+    }
+  });
+
+  app.get("/api/user/analytics", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const trades = await storage.getAllUserTrades(userId, 1000);
+      const positions = await storage.getAllUserPositions(userId);
+      
+      const closedTrades = trades.filter(t => t.pnl !== null);
+      const winningTrades = closedTrades.filter(t => parseFloat(t.pnl!) > 0);
+      const losingTrades = closedTrades.filter(t => parseFloat(t.pnl!) < 0);
+      
+      const totalPnl = closedTrades.reduce((sum, t) => sum + parseFloat(t.pnl!), 0);
+      const unrealizedPnl = positions.filter(p => p.status === 'open').reduce((sum, p) => sum + parseFloat(p.unrealizedPnl), 0);
+      
+      const winRate = closedTrades.length > 0 ? (winningTrades.length / closedTrades.length) * 100 : 0;
+      
+      const bestTrade = closedTrades.length > 0 
+        ? closedTrades.reduce((best, t) => parseFloat(t.pnl!) > parseFloat(best.pnl!) ? t : best)
+        : null;
+      
+      const worstTrade = closedTrades.length > 0
+        ? closedTrades.reduce((worst, t) => parseFloat(t.pnl!) < parseFloat(worst.pnl!) ? t : worst)
+        : null;
+      
+      const profitFactor = losingTrades.length > 0
+        ? Math.abs(winningTrades.reduce((sum, t) => sum + parseFloat(t.pnl!), 0) / losingTrades.reduce((sum, t) => sum + parseFloat(t.pnl!), 0))
+        : winningTrades.length > 0 ? 999 : 0;
+      
+      res.json({
+        totalTrades: trades.length,
+        closedTrades: closedTrades.length,
+        openPositions: positions.filter(p => p.status === 'open').length,
+        totalPnl: totalPnl.toFixed(2),
+        unrealizedPnl: unrealizedPnl.toFixed(2),
+        combinedPnl: (totalPnl + unrealizedPnl).toFixed(2),
+        winningTrades: winningTrades.length,
+        losingTrades: losingTrades.length,
+        winRate: winRate.toFixed(2),
+        profitFactor: profitFactor.toFixed(2),
+        bestTrade: bestTrade ? {
+          symbol: bestTrade.symbol,
+          pnl: parseFloat(bestTrade.pnl!).toFixed(2),
+          date: bestTrade.executedAt,
+        } : null,
+        worstTrade: worstTrade ? {
+          symbol: worstTrade.symbol,
+          pnl: parseFloat(worstTrade.pnl!).toFixed(2),
+          date: worstTrade.executedAt,
+        } : null,
+      });
+    } catch (error) {
+      console.error("Error fetching user analytics:", error);
+      res.status(500).json({ message: "Failed to fetch user analytics" });
+    }
+  });
+
   app.get("/api/bots/:id/trades", async (req, res) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;

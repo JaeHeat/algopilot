@@ -7,6 +7,7 @@ import {
   ShieldCheck,
   TrendingUp,
   Webhook,
+  LineChart,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -25,6 +26,7 @@ import { useQuery } from "@tanstack/react-query";
 const menuItems = [
   { title: "Dashboard", icon: LayoutDashboard, url: "/dashboard" },
   { title: "My Bots", icon: Bot, url: "/dashboard/my-bots" },
+  { title: "My Trades", icon: LineChart, url: "/dashboard/my-trades" },
   { title: "Marketplace", icon: Store, url: "/dashboard/marketplace" },
   { title: "Settings", icon: Settings, url: "/dashboard/settings" },
 ];
