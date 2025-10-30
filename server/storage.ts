@@ -56,6 +56,14 @@ export interface IStorage {
   getPostById(id: string): Promise<CreatorPost | undefined>;
   createPost(post: InsertCreatorPost): Promise<CreatorPost>;
   deletePost(id: string): Promise<void>;
+  
+  getPostComments(postId: string): Promise<Array<PostComment & { user: User }>>;
+  createComment(comment: InsertPostComment): Promise<PostComment>;
+  deleteComment(id: string): Promise<void>;
+  
+  getPostReactions(postId: string): Promise<PostReaction[]>;
+  toggleReaction(reaction: InsertPostReaction): Promise<{ added: boolean }>;
+  deleteReaction(postId: string, userId: string, reactionType: string): Promise<void>;
 }
 
 export class DbStorage implements IStorage {
@@ -353,6 +361,69 @@ export class DbStorage implements IStorage {
 
   async deletePost(id: string): Promise<void> {
     await db.delete(creatorPosts).where(eq(creatorPosts.id, id));
+  }
+
+  async getPostComments(postId: string): Promise<Array<PostComment & { user: User }>> {
+    const result = await db
+      .select()
+      .from(postComments)
+      .leftJoin(users, eq(postComments.userId, users.id))
+      .where(eq(postComments.postId, postId))
+      .orderBy(postComments.createdAt);
+    
+    return result.map(row => ({
+      ...row.post_comments,
+      user: row.users!,
+    }));
+  }
+
+  async createComment(comment: InsertPostComment): Promise<PostComment> {
+    const result = await db.insert(postComments).values(comment).returning();
+    return result[0];
+  }
+
+  async deleteComment(id: string): Promise<void> {
+    await db.delete(postComments).where(eq(postComments.id, id));
+  }
+
+  async getPostReactions(postId: string): Promise<PostReaction[]> {
+    const result = await db
+      .select()
+      .from(postReactions)
+      .where(eq(postReactions.postId, postId));
+    return result;
+  }
+
+  async toggleReaction(reaction: InsertPostReaction): Promise<{ added: boolean }> {
+    const existing = await db
+      .select()
+      .from(postReactions)
+      .where(
+        and(
+          eq(postReactions.postId, reaction.postId),
+          eq(postReactions.userId, reaction.userId),
+          eq(postReactions.reactionType, reaction.reactionType)
+        )
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      await db.delete(postReactions).where(eq(postReactions.id, existing[0].id));
+      return { added: false };
+    } else {
+      await db.insert(postReactions).values(reaction);
+      return { added: true };
+    }
+  }
+
+  async deleteReaction(postId: string, userId: string, reactionType: string): Promise<void> {
+    await db.delete(postReactions).where(
+      and(
+        eq(postReactions.postId, postId),
+        eq(postReactions.userId, userId),
+        eq(postReactions.reactionType, reactionType)
+      )
+    );
   }
 }
 
