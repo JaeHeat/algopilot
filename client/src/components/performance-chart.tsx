@@ -28,9 +28,10 @@ interface PerformanceChartProps {
   data: number[];
   labels: string[];
   height?: number;
+  showCard?: boolean;
 }
 
-export function PerformanceChart({ title, data, labels, height = 300 }: PerformanceChartProps) {
+export function PerformanceChart({ title, data, labels, height = 300, showCard = true }: PerformanceChartProps) {
   const chartData = {
     labels,
     datasets: [
@@ -97,12 +98,22 @@ export function PerformanceChart({ title, data, labels, height = 300 }: Performa
     },
   };
 
-  return (
-    <Card className="p-6">
+  const chartContent = (
+    <>
       {title && <h3 className="font-semibold mb-6">{title}</h3>}
       <div style={{ height }}>
         <Line data={chartData} options={options} />
       </div>
+    </>
+  );
+
+  if (!showCard) {
+    return chartContent;
+  }
+
+  return (
+    <Card className="p-6">
+      {chartContent}
     </Card>
   );
 }

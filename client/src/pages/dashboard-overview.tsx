@@ -9,7 +9,7 @@ import { DollarSign, TrendingUp, Bot, Target } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { Subscription, Bot as BotType, BotPerformance } from "@shared/schema";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { useLocation } from "wouter";
@@ -61,17 +61,17 @@ export default function DashboardOverview() {
     }
   }, [subscriptions]);
 
-  const getPortfolioData = (timeframe: Timeframe) => {
+  const { labels: chartLabels, data: chartData } = useMemo(() => {
     const baseValue = 10000;
     
-    switch (timeframe) {
+    switch (selectedTimeframe) {
       case '24h': {
         const hours = Array.from({ length: 24 }, (_, i) => {
           const hour = i;
           return hour === 0 ? '12am' : hour < 12 ? `${hour}am` : hour === 12 ? '12pm' : `${hour - 12}pm`;
         });
         const data = Array.from({ length: 24 }, (_, i) => {
-          const volatility = 100 + Math.sin(i / 4) * 50 + Math.random() * 30;
+          const volatility = 100 + Math.sin(i / 4) * 50 + Math.sin(i / 2) * 30;
           return baseValue + i * 15 + volatility;
         });
         return { labels: hours, data };
@@ -84,7 +84,7 @@ export default function DashboardOverview() {
       case '1m': {
         const labels = Array.from({ length: 30 }, (_, i) => `Day ${i + 1}`);
         const data = Array.from({ length: 30 }, (_, i) => {
-          return baseValue + i * 50 + Math.sin(i / 3) * 200 + Math.random() * 100;
+          return baseValue + i * 50 + Math.sin(i / 3) * 200 + Math.cos(i / 4) * 100;
         });
         return { labels, data };
       }
@@ -108,9 +108,7 @@ export default function DashboardOverview() {
       default:
         return { labels: [], data: [] };
     }
-  };
-
-  const { labels: chartLabels, data: chartData } = getPortfolioData(selectedTimeframe);
+  }, [selectedTimeframe]);
   
   const mockTrades = [
     { id: "1", pair: "BTC/USDT", type: "BUY" as const, amount: 0.0523, price: 43250, profit: 245.50, timestamp: "2 mins ago" },
@@ -205,6 +203,7 @@ export default function DashboardOverview() {
           title=""
           data={chartData}
           labels={chartLabels}
+          showCard={false}
         />
       </Card>
       
