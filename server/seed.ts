@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { users, bots, botPerformance, botTradeLogs, botPerformanceHistory, subscriptions } from "@shared/schema";
+import { users, bots, botPerformance, botTradeLogs, botPerformanceHistory, subscriptions, exchangeConnections } from "@shared/schema";
 
 async function seed() {
   console.log("Seeding database...");
@@ -193,6 +193,39 @@ async function seed() {
     await db.insert(botPerformanceHistory).values(performanceHistory).onConflictDoNothing();
     console.log(`Created ${performanceHistory.length} performance history records`);
   }
+
+  const testUser = { id: "test-user-1", email: "test@example.com", name: "Test User", role: "user" };
+  await db.insert(users).values(testUser).onConflictDoNothing();
+
+  const sampleExchangeConnections = [
+    {
+      userId: "test-user-1",
+      exchange: "Binance",
+      apiKey: "binance-test-key-123",
+      apiSecret: "binance-test-secret-456",
+      balance: "25000.00",
+      isActive: true,
+    },
+    {
+      userId: "test-user-1",
+      exchange: "Coinbase",
+      apiKey: "coinbase-test-key-789",
+      apiSecret: "coinbase-test-secret-012",
+      balance: "15000.00",
+      isActive: true,
+    },
+    {
+      userId: "test-user-1",
+      exchange: "Bybit",
+      apiKey: "bybit-test-key-345",
+      apiSecret: "bybit-test-secret-678",
+      balance: "5000.00",
+      isActive: false,
+    },
+  ];
+
+  await db.insert(exchangeConnections).values(sampleExchangeConnections).onConflictDoNothing();
+  console.log(`Created ${sampleExchangeConnections.length} exchange connections`);
 
   console.log("Seeding complete!");
 }
