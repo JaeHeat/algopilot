@@ -177,9 +177,17 @@ export class DbStorage implements IStorage {
   }
 
   async updateSubscriptionSettings(id: string, settings: UpdateSubscriptionSettings): Promise<Subscription | undefined> {
+    const updateData: any = { ...settings };
+    if (settings.capitalAllocated !== undefined) {
+      updateData.capitalAllocated = settings.capitalAllocated.toString();
+    }
+    if (settings.maxDrawdown !== undefined) {
+      updateData.maxDrawdown = settings.maxDrawdown.toString();
+    }
+    
     const result = await db
       .update(subscriptions)
-      .set(settings)
+      .set(updateData)
       .where(eq(subscriptions.id, id))
       .returning();
     return result[0];
@@ -227,19 +235,18 @@ export class DbStorage implements IStorage {
   }
 
   async getBotPerformanceHistory(botId: string, bucket?: string): Promise<BotPerformanceHistory[]> {
-    let query = db
+    const whereClause = bucket
+      ? and(
+          eq(botPerformanceHistory.botId, botId),
+          eq(botPerformanceHistory.bucket, bucket)
+        )
+      : eq(botPerformanceHistory.botId, botId);
+
+    return await db
       .select()
       .from(botPerformanceHistory)
-      .where(eq(botPerformanceHistory.botId, botId));
-
-    if (bucket) {
-      query = query.where(and(
-        eq(botPerformanceHistory.botId, botId),
-        eq(botPerformanceHistory.bucket, bucket)
-      ));
-    }
-
-    return await query.orderBy(desc(botPerformanceHistory.createdAt));
+      .where(whereClause)
+      .orderBy(desc(botPerformanceHistory.createdAt));
   }
 
   async upsertBotPerformanceHistory(history: InsertBotPerformanceHistory): Promise<BotPerformanceHistory> {
