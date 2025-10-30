@@ -19,7 +19,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import type { ExchangeConnection } from "@shared/schema";
-import { Plus } from "lucide-react";
+import { Plus, LogOut } from "lucide-react";
 
 export default function DashboardSettings() {
   const { user, isLoading: authLoading } = useAuth();
@@ -194,6 +194,27 @@ export default function DashboardSettings() {
               <p className="text-sm text-muted-foreground">Reminders for upcoming bot subscription renewals</p>
             </div>
             <Switch defaultChecked data-testid="switch-subscription-renewals" />
+          </div>
+        </div>
+      </Card>
+
+      <Card className="p-6 border-danger/50">
+        <h2 className="text-xl font-semibold mb-4 text-danger">Account Actions</h2>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium">Sign Out</p>
+              <p className="text-sm text-muted-foreground">Sign out of your AlgoPilot account</p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => window.location.href = "/api/logout"}
+              className="gap-2"
+              data-testid="button-logout"
+            >
+              <LogOut className="h-4 w-4" />
+              Logout
+            </Button>
           </div>
         </div>
       </Card>

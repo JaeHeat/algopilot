@@ -4,7 +4,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationsDropdown } from "@/components/notifications-dropdown";
 import { User } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Route, Switch } from "wouter";
+import { Route, Switch, Link } from "wouter";
 import DashboardOverview from "./dashboard-overview";
 import DashboardMyBots from "./dashboard-my-bots";
 import DashboardMyTrades from "./dashboard-my-trades";
@@ -31,8 +31,10 @@ export default function DashboardLayout() {
             <div className="flex items-center gap-2">
               <NotificationsDropdown />
               <ThemeToggle />
-              <Button variant="ghost" size="icon" data-testid="button-profile">
-                <User className="h-5 w-5" />
+              <Button variant="ghost" size="icon" asChild data-testid="button-profile">
+                <Link href="/dashboard/settings">
+                  <User className="h-5 w-5" />
+                </Link>
               </Button>
             </div>
           </header>

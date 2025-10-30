@@ -51,7 +51,7 @@ export function AppSidebar() {
   });
   
   const pausedCount = subscriptions.filter((sub) => sub.isPaused).length;
-  const isCreator = creatorBots.length > 0;
+  const hasCreatedBots = creatorBots.length > 0;
 
   return (
     <Sidebar>
@@ -94,32 +94,37 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
         
-        {isCreator && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Creator Tools</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {creatorItems.map((item) => {
-                  const isActive = location === item.url;
-                  return (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton
-                        asChild
-                        className={isActive ? "bg-sidebar-accent" : ""}
-                        data-testid="link-creator-dashboard"
-                      >
-                        <Link href={item.url}>
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
+        <SidebarGroup>
+          <SidebarGroupLabel>Creator Tools</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {creatorItems.map((item) => {
+                const isActive = location === item.url;
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      className={isActive ? "bg-sidebar-accent" : ""}
+                      data-testid="link-creator-dashboard"
+                    >
+                      <Link href={item.url}>
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                        {hasCreatedBots && (
+                          <Badge 
+                            className="ml-auto bg-primary text-primary-foreground h-5 min-w-5 px-1.5 flex items-center justify-center text-[10px] font-bold"
+                          >
+                            {creatorBots.length}
+                          </Badge>
+                        )}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
         
         <SidebarGroup>
           <SidebarGroupLabel>Administration</SidebarGroupLabel>
