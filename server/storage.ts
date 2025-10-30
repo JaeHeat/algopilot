@@ -178,13 +178,17 @@ export class DbStorage implements IStorage {
   }
 
   async getSubscription(userId: string, botId: string): Promise<Subscription | undefined> {
+    const now = new Date();
     const result = await db
       .select()
       .from(subscriptions)
       .where(and(
         eq(subscriptions.userId, userId),
         eq(subscriptions.botId, botId),
-        eq(subscriptions.status, "active")
+        or(
+          isNull(subscriptions.subscriptionEndsAt),
+          gt(subscriptions.subscriptionEndsAt, now)
+        )
       ))
       .limit(1);
     return result[0];

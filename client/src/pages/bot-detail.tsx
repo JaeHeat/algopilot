@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useParams, useLocation } from "wouter";
+import { useParams, useLocation, Link } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +13,7 @@ import { useState } from "react";
 import { ArrowLeft, TrendingUp, TrendingDown, Shield, CheckCircle, Clock, DollarSign } from "lucide-react";
 import { Line } from "react-chartjs-2";
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from "chart.js";
-import type { Bot, User, BotTradeLog, BotPerformanceHistory, BotPerformance } from "@shared/schema";
+import type { Bot, User, BotTradeLog, BotPerformanceHistory, BotPerformance, Subscription } from "@shared/schema";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -42,6 +42,13 @@ export default function BotDetail() {
     queryKey: ["/api/bots", params.id, "performance-history"],
     enabled: !!params.id,
   });
+
+  const { data: userSubscriptions = [] } = useQuery<Subscription[]>({
+    queryKey: ["/api/subscriptions"],
+    enabled: !!user,
+  });
+
+  const existingSubscription = userSubscriptions.find(sub => sub.botId === params.id);
 
   if (botLoading) {
     return (
@@ -412,32 +419,59 @@ export default function BotDetail() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Subscribe to {bot.name}</CardTitle>
+              <CardTitle>{existingSubscription ? 'Your Subscription' : `Subscribe to ${bot.name}`}</CardTitle>
               <CardDescription>
-                Start trading with this bot and customize your settings
+                {existingSubscription 
+                  ? 'Manage your active subscription'
+                  : 'Start trading with this bot and customize your settings'
+                }
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <DollarSign className="h-4 w-4" />
-                  <span>${parseFloat(bot.monthlyPrice).toFixed(2)}/month</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Shield className="h-4 w-4" />
-                  <span>{riskInfo.label}</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Clock className="h-4 w-4" />
-                  <span>Cancel anytime</span>
-                </div>
-                <Button 
-                  className="w-full" 
-                  onClick={() => setSubscribeDialogOpen(true)}
-                  data-testid="button-subscribe"
-                >
-                  Subscribe Now
-                </Button>
+                {!existingSubscription && (
+                  <>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <DollarSign className="h-4 w-4" />
+                      <span>${parseFloat(bot.monthlyPrice).toFixed(2)}/month</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Shield className="h-4 w-4" />
+                      <span>{riskInfo.label}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Clock className="h-4 w-4" />
+                      <span>Cancel anytime</span>
+                    </div>
+                    <Button 
+                      className="w-full" 
+                      onClick={() => setSubscribeDialogOpen(true)}
+                      data-testid="button-subscribe"
+                    >
+                      Subscribe Now
+                    </Button>
+                  </>
+                )}
+                {existingSubscription && (
+                  <>
+                    <div className="flex items-center gap-2 text-sm">
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      <span className="text-green-600 font-medium">Active Subscription</span>
+                    </div>
+                    {existingSubscription.cancelledAt && existingSubscription.subscriptionEndsAt && (
+                      <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-md">
+                        <p className="text-sm text-yellow-600 dark:text-yellow-400">
+                          Subscription ends on {format(new Date(existingSubscription.subscriptionEndsAt), 'MMM d, yyyy')}
+                        </p>
+                      </div>
+                    )}
+                    <Link href="/dashboard">
+                      <Button className="w-full" variant="outline" data-testid="button-manage-subscription">
+                        Manage Subscription
+                      </Button>
+                    </Link>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>
