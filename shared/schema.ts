@@ -64,6 +64,8 @@ export const subscriptions = pgTable("subscriptions", {
   isPaused: boolean("is_paused").notNull().default(false),
   pauseReason: text("pause_reason"),
   notificationPrefs: jsonb("notification_prefs").notNull().default(sql`'{"newTrade":true,"drawdownBreach":true,"weeklySummary":true,"monthlySummary":true}'::jsonb`),
+  currentBalance: decimal("current_balance", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  totalPnl: decimal("total_pnl", { precision: 15, scale: 2 }).notNull().default("0.00"),
   startedAt: timestamp("started_at").notNull().defaultNow(),
   cancelledAt: timestamp("cancelled_at"),
   subscriptionEndsAt: timestamp("subscription_ends_at"),
@@ -168,6 +170,35 @@ export const webhookEventLogs = pgTable("webhook_event_logs", {
   processedAt: timestamp("processed_at").notNull().defaultNow(),
 });
 
+export const trades = pgTable("trades", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  subscriptionId: varchar("subscription_id").notNull().references(() => subscriptions.id),
+  botId: varchar("bot_id").notNull().references(() => bots.id),
+  symbol: text("symbol").notNull(),
+  side: text("side").notNull(),
+  quantity: decimal("quantity", { precision: 15, scale: 8 }).notNull(),
+  price: decimal("price", { precision: 15, scale: 2 }).notNull(),
+  exchange: text("exchange").notNull(),
+  status: text("status").notNull().default("filled"),
+  fees: decimal("fees", { precision: 10, scale: 2 }).notNull().default("0.00"),
+  pnl: decimal("pnl", { precision: 15, scale: 2 }),
+  executedAt: timestamp("executed_at").notNull().defaultNow(),
+});
+
+export const positions = pgTable("positions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  subscriptionId: varchar("subscription_id").notNull().references(() => subscriptions.id),
+  botId: varchar("bot_id").notNull().references(() => bots.id),
+  symbol: text("symbol").notNull(),
+  quantity: decimal("quantity", { precision: 15, scale: 8 }).notNull(),
+  entryPrice: decimal("entry_price", { precision: 15, scale: 2 }).notNull(),
+  currentPrice: decimal("current_price", { precision: 15, scale: 2 }).notNull(),
+  unrealizedPnl: decimal("unrealized_pnl", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  status: text("status").notNull().default("open"),
+  openedAt: timestamp("opened_at").notNull().defaultNow(),
+  closedAt: timestamp("closed_at"),
+});
+
 export const insertBotSchema = createInsertSchema(bots).omit({ id: true, createdAt: true });
 export const insertBotPerformanceSchema = createInsertSchema(botPerformance).omit({ id: true, updatedAt: true });
 export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({ id: true, startedAt: true, cancelledAt: true }).extend({
@@ -182,6 +213,8 @@ export const insertPostCommentSchema = createInsertSchema(postComments).omit({ i
 export const insertPostReactionSchema = createInsertSchema(postReactions).omit({ id: true, createdAt: true });
 export const insertBotWebhookSchema = createInsertSchema(botWebhooks).omit({ id: true, createdAt: true });
 export const insertWebhookEventLogSchema = createInsertSchema(webhookEventLogs).omit({ id: true, processedAt: true });
+export const insertTradeSchema = createInsertSchema(trades).omit({ id: true, executedAt: true });
+export const insertPositionSchema = createInsertSchema(positions).omit({ id: true, openedAt: true, closedAt: true });
 
 export const updateSubscriptionSettingsSchema = z.object({
   capitalAllocated: z.number().positive().optional(),
@@ -234,3 +267,7 @@ export type InsertBotWebhook = z.infer<typeof insertBotWebhookSchema>;
 export type BotWebhook = typeof botWebhooks.$inferSelect;
 export type InsertWebhookEventLog = z.infer<typeof insertWebhookEventLogSchema>;
 export type WebhookEventLog = typeof webhookEventLogs.$inferSelect;
+export type InsertTrade = z.infer<typeof insertTradeSchema>;
+export type Trade = typeof trades.$inferSelect;
+export type InsertPosition = z.infer<typeof insertPositionSchema>;
+export type Position = typeof positions.$inferSelect;
