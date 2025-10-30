@@ -36,7 +36,8 @@ export function SubscriptionCard({ subscription }: SubscriptionCardProps) {
       const endpoint = shouldResume ? `/api/subscriptions/${subscription.id}/resume` : `/api/subscriptions/${subscription.id}/pause`;
       const res = await apiRequest("POST", endpoint, shouldResume ? {} : { reason: "User toggled off" });
       if (!res.ok) {
-        throw new Error("Failed to update subscription status");
+        const errorData = await res.json();
+        throw errorData;
       }
       return await res.json();
     },
@@ -47,12 +48,18 @@ export function SubscriptionCard({ subscription }: SubscriptionCardProps) {
         description: shouldResume ? "Your bot is now live and trading" : "Your bot has been paused",
       });
     },
-    onError: () => {
+    onError: (error: any) => {
+      const errorMessage = error?.error || error?.message || "Failed to update bot status";
       toast({
-        title: "Error",
-        description: "Failed to update bot status",
+        title: error?.message || "Error",
+        description: errorMessage,
         variant: "destructive",
       });
+      
+      // Open settings dialog if validation failed
+      if (error?.message === "Settings Required" || error?.message === "Insufficient Capital") {
+        setSettingsOpen(true);
+      }
     },
   });
 

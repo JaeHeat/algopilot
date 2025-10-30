@@ -296,6 +296,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (subscription.userId !== userId) {
         return res.status(403).json({ message: "Forbidden: You can only resume your own subscriptions" });
       }
+
+      // Validate capital allocation is configured
+      if (!subscription.capitalAllocated || parseFloat(subscription.capitalAllocated) === 0) {
+        return res.status(400).json({ 
+          message: "Settings Required",
+          error: "Please configure your capital allocation before activating this bot" 
+        });
+      }
+
+      // Validate sufficient capital is available
+      const availableBalance = await storage.getUserTotalAvailableBalance(userId);
+      const allSubscriptions = await storage.getUserSubscriptions(userId);
+      const otherActiveSubscriptions = allSubscriptions.filter(
+        sub => sub.id !== subscription.id && !sub.isPaused
+      );
+
+      let totalAllocated = 0;
+      for (const sub of otherActiveSubscriptions) {
+        if (sub.capitalAllocatedType === 'amount') {
+          totalAllocated += parseFloat(sub.capitalAllocated || '0');
+        } else {
+          totalAllocated += availableBalance * (parseFloat(sub.capitalAllocated || '0') / 100);
+        }
+      }
+
+      let requiredCapital = 0;
+      if (subscription.capitalAllocatedType === 'amount') {
+        requiredCapital = parseFloat(subscription.capitalAllocated || '0');
+      } else {
+        requiredCapital = availableBalance * (parseFloat(subscription.capitalAllocated || '0') / 100);
+      }
+
+      const remainingCapital = availableBalance - totalAllocated;
+
+      if (requiredCapital > remainingCapital) {
+        return res.status(400).json({ 
+          message: "Insufficient Capital",
+          error: `You need $${requiredCapital.toFixed(2)} but only have $${remainingCapital.toFixed(2)} available. Please adjust your allocation or add more funds.`,
+          availableBalance: remainingCapital,
+          requiredCapital
+        });
+      }
       
       const resumed = await storage.resumeSubscription(req.params.id);
       
