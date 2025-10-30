@@ -134,7 +134,18 @@ export const updateSubscriptionSettingsSchema = z.object({
     weeklySummary: z.boolean(),
     monthlySummary: z.boolean(),
   }).optional(),
-});
+}).refine(
+  (data) => {
+    if (data.capitalAllocatedType === "percent" && data.capitalAllocated !== undefined) {
+      return data.capitalAllocated <= 100;
+    }
+    return true;
+  },
+  {
+    message: "Capital allocation percentage must not exceed 100%",
+    path: ["capitalAllocated"],
+  }
+);
 
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
