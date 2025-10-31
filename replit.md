@@ -43,3 +43,31 @@ The platform utilizes a modern web stack: React with TypeScript, Wouter for rout
 - **UI Components**: Shadcn UI
 - **Styling**: Tailwind CSS
 - **API Integrations**: Binance, Coinbase, Bybit, KuCoin (mock integrations currently in place)
+- **Email Service**: Resend (ready for integration - requires RESEND_API_KEY secret for production use)
+
+## Notification System
+The platform includes a comprehensive email notification system with professional HTML templates:
+- **Trade Alerts**: Sent when positions are opened or closed, includes P&L for closed positions
+- **Drawdown Warnings**: Sent when subscriptions exceed max drawdown limits and are auto-paused
+- **P&L Summaries**: Daily/weekly performance summaries with bot-by-bot breakdown
+
+**Status**: Email service implementation complete (`server/services/email.ts`). Ready for production use once RESEND_API_KEY secret is configured. The service uses Resend for transactional emails with responsive HTML templates.
+
+**Setup Instructions for Production**:
+1. Sign up for Resend at https://resend.com
+2. Create a Resend API key
+3. Add RESEND_API_KEY to environment secrets
+4. Verify sending domain in Resend dashboard
+5. Update `fromEmail` in email service configuration
+
+## Launch Readiness Checklist
+- [x] Core trading functionality (webhook integration, position management)
+- [x] Payment processing (Stripe subscriptions)
+- [x] Multi-timeframe support with position limits
+- [x] Real-time price fetching with 5-source fallback
+- [x] Email notification system (ready for API key)
+- [ ] User onboarding flow and documentation
+- [ ] Legal pages (Terms of Service, Privacy Policy, Risk Disclaimer)
+- [ ] Production email configuration (Resend API key)
+- [ ] Performance testing and optimization
+- [ ] Security audit of webhook endpoints

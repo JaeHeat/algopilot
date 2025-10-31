@@ -6,6 +6,7 @@ import { insertBotSchema, insertSubscriptionSchema, insertExchangeConnectionSche
 import { z } from "zod";
 import Stripe from "stripe";
 import { randomBytes } from "crypto";
+import { notifyTradeExecuted, notifyDrawdownBreach } from "./services/notifications";
 
 function generateWebhookSecret(): string {
   return randomBytes(32).toString('hex');
@@ -1388,6 +1389,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
               console.log(`[Trade] BUY to close SHORT for subscription ${subscription.id}: ${positionQty.toFixed(8)} ${symbol} @ $${price}, PnL: $${pnl.toFixed(2)}`);
               executedTrades++;
               
+              // Send trade notification
+              const user = await storage.getUser(subscription.userId);
+              const bot = await storage.getBotById(botId);
+              if (user && bot && user.email) {
+                notifyTradeExecuted({
+                  userEmail: user.email,
+                  userName: user.name || 'User',
+                  botName: bot.name,
+                  symbol,
+                  action: 'closed',
+                  positionType: 'short',
+                  quantity: positionQty.toFixed(8),
+                  price: price.toFixed(2),
+                  pnl: pnl.toFixed(2),
+                }).catch(err => console.error('[Webhook] Notification error:', err));
+              }
+              
+              // Check for drawdown breach
+              const initialCapital = parseFloat(subscription.capitalAllocated);
+              const maxDrawdownPercent = parseFloat(subscription.maxDrawdown);
+              const currentDrawdown = ((initialCapital - parseFloat(newBalance)) / initialCapital) * 100;
+              
+              if (currentDrawdown > maxDrawdownPercent && subscription.status === 'active') {
+                await storage.pauseSubscription(subscription.id, `Drawdown limit exceeded: ${currentDrawdown.toFixed(2)}%`);
+                console.log(`[Trade] Subscription ${subscription.id} auto-paused due to drawdown breach: ${currentDrawdown.toFixed(2)}% > ${maxDrawdownPercent}%`);
+                
+                if (user && bot && user.email) {
+                  notifyDrawdownBreach({
+                    userEmail: user.email,
+                    userName: user.name || 'User',
+                    botName: bot.name,
+                    currentDrawdown: currentDrawdown.toFixed(2),
+                    maxDrawdown: maxDrawdownPercent.toFixed(2),
+                    currentBalance: newBalance,
+                  }).catch(err => console.error('[Webhook] Drawdown notification error:', err));
+                }
+              }
+              
             } else if (!existingPosition) {
               const trade = await storage.createTrade({
                 subscriptionId: subscription.id,
@@ -1422,6 +1461,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               console.log(`[Trade] BUY to open LONG for subscription ${subscription.id}: ${quantity.toFixed(8)} ${symbol} @ $${price}`);
               executedTrades++;
+              
+              // Send trade notification
+              const user = await storage.getUser(subscription.userId);
+              const bot = await storage.getBotById(botId);
+              if (user && bot && user.email) {
+                notifyTradeExecuted({
+                  userEmail: user.email,
+                  userName: user.name || 'User',
+                  botName: bot.name,
+                  symbol,
+                  action: 'opened',
+                  positionType: 'long',
+                  quantity: quantity.toFixed(8),
+                  price: price.toFixed(2),
+                }).catch(err => console.error('[Webhook] Notification error:', err));
+              }
             } else {
               console.log(`[Trade] LONG position already exists for ${subscription.id} - ${symbol}, skipping buy`);
             }
@@ -1473,6 +1528,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
               console.log(`[Trade] SELL to close LONG for subscription ${subscription.id}: ${positionQty.toFixed(8)} ${symbol} @ $${price}, PnL: $${pnl.toFixed(2)}`);
               executedTrades++;
               
+              // Send trade notification
+              const user = await storage.getUser(subscription.userId);
+              const bot = await storage.getBotById(botId);
+              if (user && bot && user.email) {
+                notifyTradeExecuted({
+                  userEmail: user.email,
+                  userName: user.name || 'User',
+                  botName: bot.name,
+                  symbol,
+                  action: 'closed',
+                  positionType: 'long',
+                  quantity: positionQty.toFixed(8),
+                  price: price.toFixed(2),
+                  pnl: pnl.toFixed(2),
+                }).catch(err => console.error('[Webhook] Notification error:', err));
+              }
+              
+              // Check for drawdown breach
+              const initialCapital = parseFloat(subscription.capitalAllocated);
+              const maxDrawdownPercent = parseFloat(subscription.maxDrawdown);
+              const currentDrawdown = ((initialCapital - parseFloat(newBalance)) / initialCapital) * 100;
+              
+              if (currentDrawdown > maxDrawdownPercent && subscription.status === 'active') {
+                await storage.pauseSubscription(subscription.id, `Drawdown limit exceeded: ${currentDrawdown.toFixed(2)}%`);
+                console.log(`[Trade] Subscription ${subscription.id} auto-paused due to drawdown breach: ${currentDrawdown.toFixed(2)}% > ${maxDrawdownPercent}%`);
+                
+                if (user && bot && user.email) {
+                  notifyDrawdownBreach({
+                    userEmail: user.email,
+                    userName: user.name || 'User',
+                    botName: bot.name,
+                    currentDrawdown: currentDrawdown.toFixed(2),
+                    maxDrawdown: maxDrawdownPercent.toFixed(2),
+                    currentBalance: newBalance,
+                  }).catch(err => console.error('[Webhook] Drawdown notification error:', err));
+                }
+              }
+              
             } else if (!existingPosition) {
               const trade = await storage.createTrade({
                 subscriptionId: subscription.id,
@@ -1507,6 +1600,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               console.log(`[Trade] SELL to open SHORT for subscription ${subscription.id}: ${quantity.toFixed(8)} ${symbol} @ $${price}`);
               executedTrades++;
+              
+              // Send trade notification
+              const user = await storage.getUser(subscription.userId);
+              const bot = await storage.getBotById(botId);
+              if (user && bot && user.email) {
+                notifyTradeExecuted({
+                  userEmail: user.email,
+                  userName: user.name || 'User',
+                  botName: bot.name,
+                  symbol,
+                  action: 'opened',
+                  positionType: 'short',
+                  quantity: quantity.toFixed(8),
+                  price: price.toFixed(2),
+                }).catch(err => console.error('[Webhook] Notification error:', err));
+              }
             } else {
               console.log(`[Trade] SHORT position already exists for ${subscription.id} - ${symbol}, skipping sell`);
             }
