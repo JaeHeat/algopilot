@@ -290,6 +290,25 @@ export const botEvaluations = pgTable("bot_evaluations", {
   index("idx_bot_evaluations_bot_id").on(table.botId),
 ]);
 
+export const payouts = pgTable("payouts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  creatorId: varchar("creator_id").notNull().references(() => users.id),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  status: text("status").notNull().default("pending"),
+  paymentMethod: text("payment_method"),
+  paymentDetails: jsonb("payment_details"),
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
+  completedAt: timestamp("completed_at"),
+  rejectionReason: text("rejection_reason"),
+  requestedAt: timestamp("requested_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_payouts_creator_id").on(table.creatorId),
+  index("idx_payouts_status").on(table.status),
+]);
+
 export const insertBotSchema = createInsertSchema(bots).omit({ id: true, createdAt: true });
 export const insertBotPerformanceSchema = createInsertSchema(botPerformance).omit({ id: true, updatedAt: true });
 export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({ id: true, startedAt: true, cancelledAt: true }).extend({
@@ -310,6 +329,7 @@ export const insertUserOnboardingSchema = createInsertSchema(userOnboarding).omi
 export const insertCreatorApplicationSchema = createInsertSchema(creatorApplications).omit({ id: true, createdAt: true, updatedAt: true, reviewedAt: true });
 export const insertFeaturedPlacementSchema = createInsertSchema(featuredPlacements).omit({ id: true, createdAt: true });
 export const insertBotEvaluationSchema = createInsertSchema(botEvaluations).omit({ id: true, createdAt: true, updatedAt: true, startedAt: true, completedAt: true });
+export const insertPayoutSchema = createInsertSchema(payouts).omit({ id: true, createdAt: true, updatedAt: true, requestedAt: true, reviewedAt: true, completedAt: true });
 
 export const updateBotEvaluationProgressSchema = z.object({
   currentTrades: z.number().int().nonnegative().optional(),
@@ -381,3 +401,5 @@ export type InsertFeaturedPlacement = z.infer<typeof insertFeaturedPlacementSche
 export type FeaturedPlacement = typeof featuredPlacements.$inferSelect;
 export type InsertBotEvaluation = z.infer<typeof insertBotEvaluationSchema>;
 export type BotEvaluation = typeof botEvaluations.$inferSelect;
+export type InsertPayout = z.infer<typeof insertPayoutSchema>;
+export type Payout = typeof payouts.$inferSelect;
