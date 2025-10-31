@@ -10,6 +10,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { TrendingUp } from "lucide-react";
 import { Link } from "wouter";
+import { Footer } from "@/components/footer";
 
 export default function Landing() {
   return (
@@ -88,50 +89,8 @@ export default function Landing() {
             </div>
           </div>
         </section>
-        
-        <footer className="py-12 bg-muted/30 border-t border-border">
-          <div className="max-w-7xl mx-auto px-6 lg:px-8">
-            <div className="grid md:grid-cols-4 gap-8 mb-8">
-              <div>
-                <div className="flex items-center gap-2 mb-4">
-                  <TrendingUp className="h-5 w-5 text-primary" />
-                  <span className="font-bold">AlgoPilot</span>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Automated crypto trading for everyone.
-                </p>
-              </div>
-              <div>
-                <h4 className="font-semibold mb-4">Product</h4>
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li><a href="#" className="hover:text-foreground transition-colors">Features</a></li>
-                  <li><a href="#" className="hover:text-foreground transition-colors">Pricing</a></li>
-                  <li><a href="#" className="hover:text-foreground transition-colors">Marketplace</a></li>
-                </ul>
-              </div>
-              <div>
-                <h4 className="font-semibold mb-4">Resources</h4>
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li><a href="#" className="hover:text-foreground transition-colors">Documentation</a></li>
-                  <li><a href="#" className="hover:text-foreground transition-colors">API Reference</a></li>
-                  <li><a href="#" className="hover:text-foreground transition-colors">Support</a></li>
-                </ul>
-              </div>
-              <div>
-                <h4 className="font-semibold mb-4">Legal</h4>
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li><a href="#" className="hover:text-foreground transition-colors">Privacy Policy</a></li>
-                  <li><a href="#" className="hover:text-foreground transition-colors">Terms of Service</a></li>
-                  <li><a href="#" className="hover:text-foreground transition-colors">Cookie Policy</a></li>
-                </ul>
-              </div>
-            </div>
-            <div className="pt-8 border-t border-border text-center text-sm text-muted-foreground">
-              © 2025 AlgoPilot. All rights reserved.
-            </div>
-          </div>
-        </footer>
       </main>
+      <Footer />
     </div>
   );
 }

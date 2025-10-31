@@ -9,6 +9,9 @@ import Landing from "@/pages/landing";
 import Marketplace from "@/pages/marketplace";
 import BotDetail from "@/pages/bot-detail";
 import DashboardLayout from "@/pages/dashboard-layout";
+import TermsOfService from "@/pages/terms-of-service";
+import PrivacyPolicy from "@/pages/privacy-policy";
+import RiskDisclaimer from "@/pages/risk-disclaimer";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -16,6 +19,11 @@ function Router() {
 
   return (
     <Switch>
+      {/* Legal pages - accessible to everyone */}
+      <Route path="/terms-of-service" component={TermsOfService} />
+      <Route path="/privacy-policy" component={PrivacyPolicy} />
+      <Route path="/risk-disclaimer" component={RiskDisclaimer} />
+      
       {isLoading || !isAuthenticated ? (
         <>
           <Route path="/marketplace" component={Marketplace} />

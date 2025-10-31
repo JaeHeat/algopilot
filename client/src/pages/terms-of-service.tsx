@@ -1,6 +1,7 @@
 import { Link } from "wouter";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Footer } from "@/components/footer";
 
 export default function TermsOfService() {
   return (
@@ -224,6 +225,7 @@ export default function TermsOfService() {
           </div>
         </div>
       </div>
+      <Footer />
     </div>
   );
 }

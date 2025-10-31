@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { ArrowLeft, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Footer } from "@/components/footer";
 
 export default function RiskDisclaimer() {
   return (
@@ -318,6 +319,7 @@ export default function RiskDisclaimer() {
           </section>
         </div>
       </div>
+      <Footer />
     </div>
   );
 }
