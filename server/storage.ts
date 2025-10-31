@@ -90,6 +90,7 @@ export interface IStorage {
   createPosition(position: InsertPosition): Promise<Position>;
   getOpenPositions(subscriptionId: string): Promise<Position[]>;
   getAllUserPositions(userId: string): Promise<Array<Position & { bot: Bot }>>;
+  getPositionById(positionId: string): Promise<Position | undefined>;
   getPositionBySubscriptionAndSymbol(subscriptionId: string, symbol: string): Promise<Position | undefined>;
   updatePosition(id: string, updates: Partial<Position>): Promise<Position | undefined>;
   closePosition(id: string, closePrice: string, pnl: string): Promise<Position | undefined>;
@@ -663,6 +664,15 @@ export class DbStorage implements IStorage {
       ...row.positions,
       bot: row.bots,
     }));
+  }
+
+  async getPositionById(positionId: string): Promise<Position | undefined> {
+    const result = await db
+      .select()
+      .from(positions)
+      .where(eq(positions.id, positionId))
+      .limit(1);
+    return result[0];
   }
 
   async getPositionBySubscriptionAndSymbol(subscriptionId: string, symbol: string): Promise<Position | undefined> {

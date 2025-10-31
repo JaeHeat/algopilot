@@ -987,6 +987,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/positions/:positionId/close", async (req, res) => {
+    if (!req.user?.id) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const { positionId } = req.params;
+    const { closePrice } = req.body;
+
+    if (!closePrice || isNaN(parseFloat(closePrice))) {
+      return res.status(400).json({ message: "Valid close price is required" });
+    }
+
+    try {
+      const position = await storage.getPositionById(positionId);
+      
+      if (!position) {
+        return res.status(404).json({ message: "Position not found" });
+      }
+
+      const subscription = await storage.getSubscriptionById(position.subscriptionId);
+      if (!subscription || subscription.userId !== req.user.id) {
+        return res.status(403).json({ message: "Unauthorized to close this position" });
+      }
+
+      if (position.status !== 'open') {
+        return res.status(400).json({ message: "Position is already closed" });
+      }
+
+      const price = parseFloat(closePrice);
+      const positionQty = parseFloat(position.quantity);
+      const entryPrice = parseFloat(position.entryPrice);
+      const fees = (price * positionQty * 0.001);
+
+      let pnl: number;
+      if (position.positionType === 'long') {
+        pnl = ((price - entryPrice) * positionQty) - fees;
+      } else {
+        pnl = ((entryPrice - price) * positionQty) - fees;
+      }
+
+      const positionValue = price * positionQty;
+
+      const trade = await storage.createTrade({
+        subscriptionId: subscription.id,
+        botId: position.botId,
+        symbol: position.symbol,
+        side: position.positionType === 'long' ? 'sell' : 'buy',
+        quantity: positionQty.toFixed(8),
+        price: price.toFixed(2),
+        exchange: 'mock',
+        status: 'filled',
+        fees: fees.toFixed(2),
+        pnl: pnl.toFixed(2),
+      });
+
+      await storage.closePosition(
+        position.id,
+        price.toFixed(2),
+        pnl.toFixed(2)
+      );
+
+      const currentBalance = parseFloat(subscription.currentBalance);
+      const currentPnl = parseFloat(subscription.totalPnl);
+      const newBalance = (currentBalance + positionValue - fees).toFixed(2);
+      const newPnl = (currentPnl + pnl).toFixed(2);
+
+      await storage.updateSubscriptionBalance(
+        subscription.id,
+        newBalance,
+        newPnl
+      );
+
+      console.log(`[Manual Close] Position ${positionId} closed manually at $${price}, PnL: $${pnl.toFixed(2)}`);
+
+      res.json({ 
+        success: true, 
+        message: "Position closed successfully",
+        trade,
+        pnl: pnl.toFixed(2)
+      });
+    } catch (error) {
+      console.error("Error closing position:", error);
+      res.status(500).json({ message: "Failed to close position" });
+    }
+  });
+
   app.post("/api/webhooks/:botId/:secret", async (req, res) => {
     const { botId, secret } = req.params;
     const payload = req.body;
