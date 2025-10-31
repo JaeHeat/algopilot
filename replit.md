@@ -58,6 +58,27 @@ The platform includes a comprehensive email notification system with professiona
 2. 🔄 Domain verification in progress for algo-pilot.com
 3. Optional: Add RESEND_FROM_EMAIL to customize sender address
 
+## User Onboarding System
+A comprehensive first-time user experience system helps new users understand and successfully use AlgoPilot:
+
+**Components:**
+- **Welcome Modal**: 3-step interactive introduction covering platform features, how it works, and important risk information
+- **Onboarding Checklist**: Dashboard widget showing progress on 5 key setup milestones
+- **Getting Started Guide**: Comprehensive documentation page with step-by-step instructions
+
+**Automated Progress Tracking:**
+- Welcome tour completion
+- Marketplace browsing
+- Bot subscription
+- Settings configuration
+- Dashboard exploration
+
+**Technical Implementation:**
+- Database: `user_onboarding` table tracks milestone completion per user
+- API: Authenticated endpoints for fetching and updating onboarding progress
+- Frontend: Automatic tracking via useEffect hooks, no manual user action required
+- Smart triggers: Progress updates based on user navigation and actions
+
 ## Launch Readiness Checklist
 - [x] Core trading functionality (webhook integration, position management)
 - [x] Payment processing (Stripe subscriptions)
@@ -65,6 +86,6 @@ The platform includes a comprehensive email notification system with professiona
 - [x] Real-time price fetching with 5-source fallback
 - [x] Email notification system (fully operational with RESEND_API_KEY)
 - [x] Legal pages (Terms of Service, Privacy Policy, Risk Disclaimer)
-- [ ] User onboarding flow and documentation
+- [x] User onboarding flow and documentation
 - [ ] Performance testing and optimization
 - [ ] Security audit of webhook endpoints
