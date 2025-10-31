@@ -993,30 +993,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const normalizedSymbol = symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
       
-      const response = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${normalizedSymbol}`);
-      
-      if (!response.ok) {
-        if (response.status === 400) {
-          return res.status(404).json({ 
-            message: "Symbol not found on Binance",
-            symbol: normalizedSymbol 
+      // Try Binance first
+      try {
+        const binanceResponse = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${normalizedSymbol}`);
+        
+        if (binanceResponse.ok) {
+          const data = await binanceResponse.json() as { symbol: string; price: string };
+          return res.json({ 
+            symbol: data.symbol,
+            price: parseFloat(data.price).toFixed(2),
+            source: 'binance',
+            timestamp: new Date().toISOString()
           });
         }
-        throw new Error(`Binance API error: ${response.status}`);
+        
+        console.log(`Binance API returned ${binanceResponse.status} for ${normalizedSymbol}, trying CoinGecko fallback`);
+      } catch (binanceError) {
+        console.log(`Binance API error for ${normalizedSymbol}, trying CoinGecko fallback:`, binanceError);
       }
       
-      const data = await response.json() as { symbol: string; price: string };
+      // Fallback to CoinGecko
+      // Convert symbol format: BTCUSDT -> bitcoin, ETHUSDT -> ethereum
+      const coinGeckoMap: Record<string, string> = {
+        'BTCUSDT': 'bitcoin',
+        'ETHUSDT': 'ethereum',
+        'BNBUSDT': 'binancecoin',
+        'ADAUSDT': 'cardano',
+        'SOLUSDT': 'solana',
+        'XRPUSDT': 'ripple',
+        'DOTUSDT': 'polkadot',
+        'DOGEUSDT': 'dogecoin',
+        'AVAXUSDT': 'avalanche-2',
+        'MATICUSDT': 'matic-network',
+      };
+      
+      const coinGeckoId = coinGeckoMap[normalizedSymbol];
+      
+      if (!coinGeckoId) {
+        return res.status(404).json({ 
+          message: "Symbol not supported. Please enter price manually.",
+          symbol: normalizedSymbol 
+        });
+      }
+      
+      const coinGeckoResponse = await fetch(
+        `https://api.coingecko.com/api/v3/simple/price?ids=${coinGeckoId}&vs_currencies=usd`
+      );
+      
+      if (!coinGeckoResponse.ok) {
+        throw new Error(`CoinGecko API error: ${coinGeckoResponse.status}`);
+      }
+      
+      const coinGeckoData = await coinGeckoResponse.json() as Record<string, { usd: number }>;
+      const price = coinGeckoData[coinGeckoId]?.usd;
+      
+      if (!price) {
+        throw new Error("Price not found in CoinGecko response");
+      }
       
       res.json({ 
-        symbol: data.symbol,
-        price: parseFloat(data.price).toFixed(2),
-        source: 'binance',
+        symbol: normalizedSymbol,
+        price: price.toFixed(2),
+        source: 'coingecko',
         timestamp: new Date().toISOString()
       });
     } catch (error) {
-      console.error("Error fetching crypto price:", error);
+      console.error("Error fetching crypto price from all sources:", error);
       res.status(500).json({ 
-        message: "Failed to fetch price from Binance",
+        message: "Failed to fetch price. Please enter manually.",
         error: error instanceof Error ? error.message : "Unknown error"
       });
     }

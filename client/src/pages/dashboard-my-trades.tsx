@@ -40,6 +40,7 @@ export default function DashboardMyTrades() {
   const [selectedPosition, setSelectedPosition] = useState<any>(null);
   const [closePrice, setClosePrice] = useState("");
   const [fetchingPrice, setFetchingPrice] = useState(false);
+  const [priceSource, setPriceSource] = useState<string | null>(null);
   const { toast } = useToast();
 
   const closePositionMutation = useMutation({
@@ -72,6 +73,7 @@ export default function DashboardMyTrades() {
   const handleOpenCloseDialog = async (position: any) => {
     setSelectedPosition(position);
     setClosePrice(position.currentPrice);
+    setPriceSource(null);
     setCloseDialogOpen(true);
     setFetchingPrice(true);
 
@@ -80,12 +82,15 @@ export default function DashboardMyTrades() {
       if (response.ok) {
         const data = await response.json();
         setClosePrice(data.price);
-        console.log(`Fetched real-time price for ${position.symbol}: $${data.price} from Binance`);
+        setPriceSource(data.source);
+        console.log(`Fetched real-time price for ${position.symbol}: $${data.price} from ${data.source}`);
       } else {
         console.warn(`Could not fetch real-time price for ${position.symbol}, using current price`);
+        setPriceSource('manual');
       }
     } catch (error) {
       console.error("Error fetching real-time price:", error);
+      setPriceSource('manual');
     } finally {
       setFetchingPrice(false);
     }
@@ -561,9 +566,15 @@ export default function DashboardMyTrades() {
               />
               <p className="text-xs text-muted-foreground">
                 {fetchingPrice ? (
-                  <span className="text-primary">Fetching real-time price from Binance...</span>
+                  <span className="text-primary">Fetching real-time price...</span>
+                ) : priceSource === 'binance' ? (
+                  "Real-time market price from Binance"
+                ) : priceSource === 'coingecko' ? (
+                  "Real-time market price from CoinGecko"
+                ) : priceSource === 'manual' ? (
+                  "Could not fetch price - please enter manually"
                 ) : (
-                  "Real-time market price auto-filled from Binance"
+                  "Enter current market price"
                 )}
               </p>
             </div>
