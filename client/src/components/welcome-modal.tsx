@@ -8,15 +8,17 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { CheckCircle2, TrendingUp, Bot, Settings, AlertTriangle } from "lucide-react";
 
 interface WelcomeModalProps {
   open: boolean;
-  onClose: () => void;
+  onClose: (dontShowAgain?: boolean) => void;
 }
 
 export function WelcomeModal({ open, onClose }: WelcomeModalProps) {
   const [currentStep, setCurrentStep] = useState(0);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
 
   const steps = [
     {
@@ -173,7 +175,7 @@ export function WelcomeModal({ open, onClose }: WelcomeModalProps) {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
-      onClose();
+      onClose(dontShowAgain);
     }
   };
 
@@ -183,17 +185,41 @@ export function WelcomeModal({ open, onClose }: WelcomeModalProps) {
     }
   };
 
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      onClose(false);
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-2xl" data-testid="dialog-welcome">
         <DialogHeader>
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <CurrentIcon className="h-6 w-6 text-primary" />
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                <CurrentIcon className="h-6 w-6 text-primary" />
+              </div>
+              <DialogTitle className="text-xl" data-testid="text-welcome-title">
+                {steps[currentStep].title}
+              </DialogTitle>
             </div>
-            <DialogTitle className="text-xl" data-testid="text-welcome-title">
-              {steps[currentStep].title}
-            </DialogTitle>
+            {currentStep === steps.length - 1 && (
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="dont-show"
+                  checked={dontShowAgain}
+                  onCheckedChange={(checked) => setDontShowAgain(checked === true)}
+                  data-testid="checkbox-dont-show-again"
+                />
+                <label
+                  htmlFor="dont-show"
+                  className="text-sm text-muted-foreground cursor-pointer select-none"
+                >
+                  Don't show again
+                </label>
+              </div>
+            )}
           </div>
           <DialogDescription className="sr-only">
             Welcome to AlgoPilot onboarding

@@ -95,9 +95,9 @@ export default function DashboardOverview() {
     }
   }, [subscriptions, onboarding]);
 
-  const handleWelcomeClose = () => {
+  const handleWelcomeClose = (dontShowAgain?: boolean) => {
     setShowWelcomeModal(false);
-    if (onboarding && !onboarding.hasCompletedWelcome) {
+    if (onboarding && !onboarding.hasCompletedWelcome && dontShowAgain) {
       updateOnboardingMutation.mutate({ hasCompletedWelcome: true });
     }
   };
