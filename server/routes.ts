@@ -325,6 +325,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const priceAmount = Math.round(parseFloat(bot.monthlyPrice) * 100);
       
+      // Handle free bots (no payment required)
+      if (priceAmount === 0) {
+        // Create subscription directly without payment
+        const newSubscription = await storage.createSubscription({
+          userId,
+          botId: bot.id,
+          status: 'active',
+          stripeSubscriptionId: null,
+          riskPercentage: 1,
+          capitalAllocated: "1000",
+          capitalAllocatedType: "amount",
+          currentBalance: "1000",
+          totalPnl: "0",
+          maxDrawdown: "10",
+          maxPositionsPerSymbol: 1,
+          notificationPrefs: {
+            newTrade: true,
+            drawdownBreach: true,
+            weeklySummary: true,
+            monthlySummary: true,
+          },
+        });
+        
+        return res.json({
+          subscriptionId: newSubscription.id,
+          isFree: true,
+          amount: "0",
+        });
+      }
+      
       // Create or get a product for this bot
       const product = await stripe.products.create({
         name: `${bot.name} Trading Bot Subscription`,

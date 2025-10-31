@@ -41,12 +41,30 @@ export function SubscribeDialog({ bot, open, onOpenChange }: SubscribeDialogProp
       const res = await apiRequest("POST", "/api/create-subscription-payment", { botId: bot.id });
       return await res.json();
     },
-    onSuccess: (data: { clientSecret: string; subscriptionId: string }) => {
-      setClientSecret(data.clientSecret);
-      setStripeSubscriptionId(data.subscriptionId);
-      setPaymentDialogOpen(true);
-      onOpenChange(false);
-      setIsProcessing(false);
+    onSuccess: (data: { clientSecret?: string; subscriptionId: string; isFree?: boolean }) => {
+      // Handle free subscriptions
+      if (data.isFree) {
+        queryClient.invalidateQueries({ queryKey: ["/api/subscriptions"] });
+        toast({
+          title: "Subscription Created!",
+          description: `You're now subscribed to ${bot.name}. Configure your settings to start trading.`,
+        });
+        onOpenChange(false);
+        setIsProcessing(false);
+        setTimeout(() => {
+          setLocation(`/dashboard?openSettings=${data.subscriptionId}`);
+        }, 500);
+        return;
+      }
+      
+      // Handle paid subscriptions
+      if (data.clientSecret) {
+        setClientSecret(data.clientSecret);
+        setStripeSubscriptionId(data.subscriptionId);
+        setPaymentDialogOpen(true);
+        onOpenChange(false);
+        setIsProcessing(false);
+      }
     },
     onError: (error: Error) => {
       setIsProcessing(false);
