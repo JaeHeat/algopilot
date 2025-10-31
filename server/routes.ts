@@ -26,11 +26,12 @@ const webhookPayloadSchema = z.object({
 );
 
 const onboardingProgressSchema = z.object({
-  welcomeTourCompleted: z.boolean().optional(),
-  marketplaceBrowsed: z.boolean().optional(),
-  botSubscribed: z.boolean().optional(),
-  settingsConfigured: z.boolean().optional(),
-  dashboardExplored: z.boolean().optional(),
+  hasCompletedWelcome: z.boolean().optional(),
+  hasViewedMarketplace: z.boolean().optional(),
+  hasSubscribedToBot: z.boolean().optional(),
+  hasConfiguredSettings: z.boolean().optional(),
+  hasViewedDashboard: z.boolean().optional(),
+  hasDismissedChecklist: z.boolean().optional(),
 });
 
 function generateWebhookSecret(): string {
@@ -105,6 +106,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error completing onboarding:", error);
       res.status(500).json({ message: "Failed to complete onboarding" });
+    }
+  });
+
+  app.post("/api/onboarding/dismiss", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const dismissed = await storage.updateOnboardingProgress(userId, { hasDismissedChecklist: true });
+      res.json(dismissed);
+    } catch (error) {
+      console.error("Error dismissing onboarding checklist:", error);
+      res.status(500).json({ message: "Failed to dismiss onboarding checklist" });
     }
   });
 
