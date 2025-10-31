@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertBotSchema, insertSubscriptionSchema, insertExchangeConnectionSchema, updateSubscriptionSettingsSchema, insertCreatorPostSchema, insertPostCommentSchema, insertPostReactionSchema } from "@shared/schema";
+import { insertBotSchema, insertSubscriptionSchema, insertExchangeConnectionSchema, updateSubscriptionSettingsSchema, insertCreatorPostSchema, insertPostCommentSchema, insertPostReactionSchema, insertCreatorApplicationSchema } from "@shared/schema";
 import { z } from "zod";
 import Stripe from "stripe";
 import { randomBytes } from "crypto";
@@ -236,6 +236,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error regenerating webhook:", error);
       res.status(500).json({ message: "Failed to regenerate webhook" });
+    }
+  });
+
+  app.get("/api/marketplace/featured", async (req, res) => {
+    try {
+      const featured = await storage.getCurrentFeaturedPlacement();
+      res.json(featured || null);
+    } catch (error) {
+      console.error("Error fetching featured placement:", error);
+      res.status(500).json({ message: "Failed to fetch featured placement" });
+    }
+  });
+
+  app.get("/api/marketplace/top-performers", async (req, res) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 5;
+      const topPerformers = await storage.getTopPerformersLast7Days(limit);
+      res.json(topPerformers);
+    } catch (error) {
+      console.error("Error fetching top performers:", error);
+      res.status(500).json({ message: "Failed to fetch top performers" });
+    }
+  });
+
+  app.post("/api/creator/apply", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const existingApplication = await storage.getCreatorApplication(userId);
+      if (existingApplication) {
+        return res.status(400).json({ 
+          message: "You have already submitted a creator application",
+          application: existingApplication
+        });
+      }
+      
+      const validatedApplication = insertCreatorApplicationSchema.parse({
+        ...req.body,
+        userId,
+      });
+      
+      const application = await storage.createCreatorApplication(validatedApplication);
+      res.json(application);
+    } catch (error) {
+      console.error("Error creating creator application:", error);
+      res.status(400).json({ message: "Failed to create creator application" });
+    }
+  });
+
+  app.get("/api/creator/application/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const application = await storage.getCreatorApplication(userId);
+      res.json(application || null);
+    } catch (error) {
+      console.error("Error fetching application status:", error);
+      res.status(500).json({ message: "Failed to fetch application status" });
     }
   });
 

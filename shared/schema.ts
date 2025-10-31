@@ -230,6 +230,41 @@ export const userOnboarding = pgTable("user_onboarding", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+export const creatorApplications = pgTable("creator_applications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique().references(() => users.id),
+  status: text("status").notNull().default("pending"),
+  tradingExperience: text("trading_experience").notNull(),
+  strategyDescription: text("strategy_description").notNull(),
+  performanceProof: text("performance_proof"),
+  rejectionReason: text("rejection_reason"),
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_creator_applications_status").on(table.status),
+  index("idx_creator_applications_user_id").on(table.userId),
+]);
+
+export const featuredPlacements = pgTable("featured_placements", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  botId: varchar("bot_id").notNull().references(() => bots.id),
+  placementType: text("placement_type").notNull().default("hero"),
+  paymentAmount: decimal("payment_amount", { precision: 10, scale: 2 }).notNull(),
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  status: text("status").notNull().default("scheduled"),
+  impressions: integer("impressions").notNull().default(0),
+  clicks: integer("clicks").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_featured_placements_dates").on(table.startDate, table.endDate),
+  index("idx_featured_placements_bot_id").on(table.botId),
+  index("idx_featured_placements_status").on(table.status),
+]);
+
 export const insertBotSchema = createInsertSchema(bots).omit({ id: true, createdAt: true });
 export const insertBotPerformanceSchema = createInsertSchema(botPerformance).omit({ id: true, updatedAt: true });
 export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({ id: true, startedAt: true, cancelledAt: true }).extend({
@@ -247,6 +282,8 @@ export const insertWebhookEventLogSchema = createInsertSchema(webhookEventLogs).
 export const insertTradeSchema = createInsertSchema(trades).omit({ id: true, executedAt: true });
 export const insertPositionSchema = createInsertSchema(positions).omit({ id: true, openedAt: true, closedAt: true });
 export const insertUserOnboardingSchema = createInsertSchema(userOnboarding).omit({ id: true, createdAt: true, updatedAt: true, completedAt: true });
+export const insertCreatorApplicationSchema = createInsertSchema(creatorApplications).omit({ id: true, createdAt: true, updatedAt: true, reviewedAt: true });
+export const insertFeaturedPlacementSchema = createInsertSchema(featuredPlacements).omit({ id: true, createdAt: true });
 
 export const updateSubscriptionSettingsSchema = z.object({
   capitalAllocated: z.number().positive().optional(),
@@ -305,3 +342,7 @@ export type InsertPosition = z.infer<typeof insertPositionSchema>;
 export type Position = typeof positions.$inferSelect;
 export type InsertUserOnboarding = z.infer<typeof insertUserOnboardingSchema>;
 export type UserOnboarding = typeof userOnboarding.$inferSelect;
+export type InsertCreatorApplication = z.infer<typeof insertCreatorApplicationSchema>;
+export type CreatorApplication = typeof creatorApplications.$inferSelect;
+export type InsertFeaturedPlacement = z.infer<typeof insertFeaturedPlacementSchema>;
+export type FeaturedPlacement = typeof featuredPlacements.$inferSelect;

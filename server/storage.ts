@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents, creatorPosts, postComments, postReactions, botWebhooks, webhookEventLogs, trades, positions, userOnboarding } from "@shared/schema";
+import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents, creatorPosts, postComments, postReactions, botWebhooks, webhookEventLogs, trades, positions, userOnboarding, creatorApplications, featuredPlacements } from "@shared/schema";
 import type { 
   User, UpsertUser, 
   Bot, InsertBot,
@@ -17,7 +17,9 @@ import type {
   WebhookEventLog, InsertWebhookEventLog,
   Trade, InsertTrade,
   Position, InsertPosition,
-  UserOnboarding, InsertUserOnboarding
+  UserOnboarding, InsertUserOnboarding,
+  CreatorApplication, InsertCreatorApplication,
+  FeaturedPlacement, InsertFeaturedPlacement
 } from "@shared/schema";
 import { eq, and, desc, or, isNull, gt } from "drizzle-orm";
 import memoizee from "memoizee";
@@ -105,6 +107,14 @@ export interface IStorage {
   createUserOnboarding(userId: string): Promise<UserOnboarding>;
   updateOnboardingProgress(userId: string, updates: Partial<InsertUserOnboarding>): Promise<UserOnboarding | undefined>;
   completeOnboarding(userId: string): Promise<UserOnboarding | undefined>;
+  
+  createCreatorApplication(application: InsertCreatorApplication): Promise<CreatorApplication>;
+  getCreatorApplication(userId: string): Promise<CreatorApplication | undefined>;
+  updateCreatorApplicationStatus(userId: string, status: string, rejectionReason?: string, reviewedBy?: string): Promise<CreatorApplication | undefined>;
+  
+  createFeaturedPlacement(placement: InsertFeaturedPlacement): Promise<FeaturedPlacement>;
+  getCurrentFeaturedPlacement(): Promise<(FeaturedPlacement & { bot: Bot & { performance: BotPerformance | null } }) | undefined>;
+  getTopPerformersLast7Days(limit?: number): Promise<Array<Bot & { performance: BotPerformance | null; sevenDayRoi: number }>>;
 }
 
 export class DbStorage implements IStorage {
@@ -843,6 +853,97 @@ export class DbStorage implements IStorage {
       .where(eq(userOnboarding.userId, userId))
       .returning();
     return result[0];
+  }
+
+  async createCreatorApplication(application: InsertCreatorApplication): Promise<CreatorApplication> {
+    const result = await db
+      .insert(creatorApplications)
+      .values(application)
+      .returning();
+    return result[0];
+  }
+
+  async getCreatorApplication(userId: string): Promise<CreatorApplication | undefined> {
+    const result = await db
+      .select()
+      .from(creatorApplications)
+      .where(eq(creatorApplications.userId, userId))
+      .limit(1);
+    return result[0];
+  }
+
+  async updateCreatorApplicationStatus(
+    userId: string,
+    status: string,
+    rejectionReason?: string,
+    reviewedBy?: string
+  ): Promise<CreatorApplication | undefined> {
+    const result = await db
+      .update(creatorApplications)
+      .set({
+        status,
+        rejectionReason,
+        reviewedBy,
+        reviewedAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(creatorApplications.userId, userId))
+      .returning();
+    return result[0];
+  }
+
+  async createFeaturedPlacement(placement: InsertFeaturedPlacement): Promise<FeaturedPlacement> {
+    const result = await db
+      .insert(featuredPlacements)
+      .values(placement)
+      .returning();
+    return result[0];
+  }
+
+  async getCurrentFeaturedPlacement(): Promise<(FeaturedPlacement & { bot: Bot & { performance: BotPerformance | null } }) | undefined> {
+    const now = new Date();
+    const result = await db
+      .select()
+      .from(featuredPlacements)
+      .leftJoin(bots, eq(featuredPlacements.botId, bots.id))
+      .leftJoin(botPerformance, eq(bots.id, botPerformance.botId))
+      .where(
+        and(
+          eq(featuredPlacements.status, 'active'),
+          gt(featuredPlacements.endDate, now)
+        )
+      )
+      .orderBy(desc(featuredPlacements.startDate))
+      .limit(1);
+
+    if (!result[0] || !result[0].bots) return undefined;
+
+    return {
+      ...result[0].featured_placements,
+      bot: {
+        ...result[0].bots,
+        performance: result[0].bot_performance,
+      },
+    };
+  }
+
+  async getTopPerformersLast7Days(limit: number = 5): Promise<Array<Bot & { performance: BotPerformance | null; sevenDayRoi: number }>> {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const result = await db
+      .select()
+      .from(bots)
+      .leftJoin(botPerformance, eq(bots.id, botPerformance.botId))
+      .where(eq(bots.isActive, true))
+      .orderBy(desc(botPerformance.totalRoi))
+      .limit(limit);
+
+    return result.map((row, index) => ({
+      ...row.bots,
+      performance: row.bot_performance,
+      sevenDayRoi: row.bot_performance?.totalRoi ? parseFloat(row.bot_performance.totalRoi.toString()) : 0,
+    }));
   }
 }
 
