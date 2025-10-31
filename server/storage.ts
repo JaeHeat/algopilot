@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents, creatorPosts, postComments, postReactions, botWebhooks, webhookEventLogs, trades, positions, userOnboarding, creatorApplications, featuredPlacements, botEvaluations } from "@shared/schema";
+import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents, creatorPosts, postComments, postReactions, botWebhooks, webhookEventLogs, trades, positions, userOnboarding, creatorApplications, featuredPlacements, botEvaluations, payouts } from "@shared/schema";
 import type { 
   User, UpsertUser, 
   Bot, InsertBot,
@@ -20,7 +20,8 @@ import type {
   UserOnboarding, InsertUserOnboarding,
   CreatorApplication, InsertCreatorApplication,
   FeaturedPlacement, InsertFeaturedPlacement,
-  BotEvaluation, InsertBotEvaluation
+  BotEvaluation, InsertBotEvaluation,
+  Payout, InsertPayout
 } from "@shared/schema";
 import { eq, and, desc, or, isNull, gt, sql, count } from "drizzle-orm";
 import memoizee from "memoizee";
@@ -131,6 +132,17 @@ export interface IStorage {
   }>;
   getRecentUsers(limit?: number): Promise<Array<User & { subscriptionCount: number }>>;
   getPendingCreatorApplications(): Promise<Array<CreatorApplication & { user: User }>>;
+  
+  getCreatorEarnings(creatorId: string): Promise<{
+    totalEarnings: string;
+    totalPayouts: string;
+    pendingBalance: string;
+  }>;
+  createPayoutRequest(payout: InsertPayout): Promise<Payout>;
+  getCreatorPayouts(creatorId: string): Promise<Payout[]>;
+  getPendingPayouts(): Promise<Array<Payout & { creator: User }>>;
+  approvePayoutRequest(payoutId: string, adminId: string): Promise<Payout | undefined>;
+  rejectPayoutRequest(payoutId: string, adminId: string, reason: string): Promise<Payout | undefined>;
 }
 
 export class DbStorage implements IStorage {
@@ -1194,6 +1206,108 @@ export class DbStorage implements IStorage {
       ...row.creator_applications,
       user: row.users,
     }));
+  }
+
+  async getCreatorEarnings(creatorId: string): Promise<{
+    totalEarnings: string;
+    totalPayouts: string;
+    pendingBalance: string;
+  }> {
+    // Calculate total earnings (75% of all active subscriptions to creator's bots)
+    const earningsResult = await db
+      .select({
+        total: sql<string>`COALESCE(SUM(${bots.monthlyPrice} * 0.75), 0)`,
+      })
+      .from(subscriptions)
+      .innerJoin(bots, eq(subscriptions.botId, bots.id))
+      .where(and(
+        eq(bots.creatorId, creatorId),
+        eq(subscriptions.status, 'active')
+      ));
+    const totalEarnings = parseFloat(earningsResult[0]?.total || '0').toFixed(2);
+
+    // Calculate total payouts (sum of all completed/processing payouts)
+    const payoutsResult = await db
+      .select({
+        total: sql<string>`COALESCE(SUM(${payouts.amount}), 0)`,
+      })
+      .from(payouts)
+      .where(and(
+        eq(payouts.creatorId, creatorId),
+        or(
+          eq(payouts.status, 'completed'),
+          eq(payouts.status, 'processing')
+        )
+      ));
+    const totalPayouts = parseFloat(payoutsResult[0]?.total || '0').toFixed(2);
+
+    // Calculate pending balance
+    const pendingBalance = (parseFloat(totalEarnings) - parseFloat(totalPayouts)).toFixed(2);
+
+    return {
+      totalEarnings,
+      totalPayouts,
+      pendingBalance,
+    };
+  }
+
+  async createPayoutRequest(payout: InsertPayout): Promise<Payout> {
+    const result = await db
+      .insert(payouts)
+      .values(payout)
+      .returning();
+    return result[0];
+  }
+
+  async getCreatorPayouts(creatorId: string): Promise<Payout[]> {
+    return await db
+      .select()
+      .from(payouts)
+      .where(eq(payouts.creatorId, creatorId))
+      .orderBy(desc(payouts.requestedAt));
+  }
+
+  async getPendingPayouts(): Promise<Array<Payout & { creator: User }>> {
+    const result = await db
+      .select()
+      .from(payouts)
+      .innerJoin(users, eq(payouts.creatorId, users.id))
+      .where(eq(payouts.status, 'pending'))
+      .orderBy(desc(payouts.requestedAt));
+
+    return result.map(row => ({
+      ...row.payouts,
+      creator: row.users,
+    }));
+  }
+
+  async approvePayoutRequest(payoutId: string, adminId: string): Promise<Payout | undefined> {
+    const result = await db
+      .update(payouts)
+      .set({
+        status: 'processing',
+        reviewedBy: adminId,
+        reviewedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(payouts.id, payoutId))
+      .returning();
+    return result[0];
+  }
+
+  async rejectPayoutRequest(payoutId: string, adminId: string, reason: string): Promise<Payout | undefined> {
+    const result = await db
+      .update(payouts)
+      .set({
+        status: 'rejected',
+        reviewedBy: adminId,
+        reviewedAt: new Date(),
+        rejectionReason: reason,
+        updatedAt: new Date(),
+      })
+      .where(eq(payouts.id, payoutId))
+      .returning();
+    return result[0];
   }
 }
 
