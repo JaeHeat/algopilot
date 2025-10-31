@@ -38,7 +38,7 @@ const adminItems = [
 
 const creatorItems = [
   { title: "Manage Bots", icon: Webhook, url: "/dashboard/creator" },
-  { title: "Earnings", icon: DollarSign, url: "/dashboard/creator/earnings" },
+  { title: "Earnings", icon: DollarSign, url: "/dashboard/earnings" },
 ];
 
 export function AppSidebar() {

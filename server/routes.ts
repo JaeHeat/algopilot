@@ -277,6 +277,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/creator/earnings", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || user.role !== 'creator') {
+        return res.status(403).json({ message: "Forbidden: Creator access required" });
+      }
+      
       const earnings = await storage.getCreatorEarnings(userId);
       res.json(earnings);
     } catch (error) {
@@ -288,6 +294,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/creator/payouts", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || user.role !== 'creator') {
+        return res.status(403).json({ message: "Forbidden: Creator access required" });
+      }
+      
       const payouts = await storage.getCreatorPayouts(userId);
       res.json(payouts);
     } catch (error) {
@@ -299,6 +311,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/creator/payouts", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || user.role !== 'creator') {
+        return res.status(403).json({ message: "Forbidden: Creator access required" });
+      }
+      
       const { amount, paymentMethod, paymentDetails } = req.body;
 
       // Validate amount
