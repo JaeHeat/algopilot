@@ -30,7 +30,14 @@ app.use((req, res, next) => {
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+      let performanceFlag = "";
+      if (duration > 500) {
+        performanceFlag = " ⚠️  SLOW";
+      } else if (duration > 200) {
+        performanceFlag = " ⚡";
+      }
+      
+      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms${performanceFlag}`;
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
@@ -40,6 +47,10 @@ app.use((req, res, next) => {
       }
 
       log(logLine);
+      
+      if (duration > 500) {
+        log(`Performance warning: ${req.method} ${path} took ${duration}ms`);
+      }
     }
   });
 
