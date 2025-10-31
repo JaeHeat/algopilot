@@ -392,43 +392,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/bots/:botId/evaluation", isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const bot = await storage.getBotById(req.params.botId);
-      
-      if (!bot) {
-        return res.status(404).json({ message: "Bot not found" });
-      }
-      
-      if (bot.creatorId !== userId) {
-        return res.status(403).json({ message: "Forbidden: Only bot creators can update evaluations" });
-      }
-
-      // Validate that only progress fields can be updated (security: prevent tampering with requirements/status)
-      const validatedUpdates = updateBotEvaluationProgressSchema.parse(req.body);
-
-      const evaluation = await storage.updateBotEvaluation(
-        req.params.botId,
-        validatedUpdates
-      );
-
-      if (!evaluation) {
-        return res.status(404).json({ message: "Evaluation not found" });
-      }
-
-      // Automatically check if evaluation passed or failed based on updated progress
-      const statusCheck = await storage.checkAndUpdateEvaluationStatus(req.params.botId);
-
-      res.json({ evaluation, statusCheck });
-    } catch (error) {
-      console.error("Error updating evaluation:", error);
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid update data", errors: error.errors });
-      }
-      res.status(500).json({ message: "Failed to update evaluation" });
-    }
-  });
+  // NOTE: Evaluation progress is now automatically updated via webhook trade execution
+  // This endpoint is removed to prevent metric spoofing by creators
 
   app.get("/api/marketplace/featured", async (req, res) => {
     try {
@@ -1774,6 +1739,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               // Check for drawdown breach
               const initialCapital = parseFloat(subscription.capitalAllocated);
+              
+              // Update bot evaluation if in progress (server-derived metrics from actual trades)
+              await storage.updateEvaluationFromTrade(
+                botId,
+                pnl,
+                parseFloat(newBalance),
+                initialCapital
+              );
               const maxDrawdownPercent = parseFloat(subscription.maxDrawdown);
               const currentDrawdown = ((initialCapital - parseFloat(newBalance)) / initialCapital) * 100;
               
@@ -1913,6 +1886,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               // Check for drawdown breach
               const initialCapital = parseFloat(subscription.capitalAllocated);
+              
+              // Update bot evaluation if in progress (server-derived metrics from actual trades)
+              await storage.updateEvaluationFromTrade(
+                botId,
+                pnl,
+                parseFloat(newBalance),
+                initialCapital
+              );
               const maxDrawdownPercent = parseFloat(subscription.maxDrawdown);
               const currentDrawdown = ((initialCapital - parseFloat(newBalance)) / initialCapital) * 100;
               

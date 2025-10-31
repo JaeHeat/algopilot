@@ -120,6 +120,7 @@ export interface IStorage {
   getBotEvaluation(botId: string): Promise<BotEvaluation | undefined>;
   createBotEvaluation(evaluation: InsertBotEvaluation): Promise<BotEvaluation>;
   updateBotEvaluation(botId: string, updates: Partial<BotEvaluation>): Promise<BotEvaluation | undefined>;
+  updateEvaluationFromTrade(botId: string, pnl: number, newBalance: number, initialCapital: number): Promise<void>;
   checkAndUpdateEvaluationStatus(botId: string): Promise<{ status: string; passed: boolean; reason?: string }>;
 }
 
@@ -976,6 +977,41 @@ export class DbStorage implements IStorage {
       .where(eq(botEvaluations.botId, botId))
       .returning();
     return result[0];
+  }
+
+  async updateEvaluationFromTrade(botId: string, pnl: number, newBalance: number, initialCapital: number): Promise<void> {
+    const evaluation = await this.getBotEvaluation(botId);
+    
+    // Only update if bot is currently in evaluation
+    if (!evaluation || evaluation.status !== 'in_progress') {
+      return;
+    }
+
+    // Increment trade count
+    const newTradeCount = evaluation.currentTrades + 1;
+    
+    // Update total P&L
+    const currentPnl = parseFloat(evaluation.currentPnl.toString());
+    const newPnl = currentPnl + pnl;
+    const newPnlPercent = (newPnl / initialCapital) * 100;
+    
+    // Calculate drawdown
+    const drawdown = ((initialCapital - newBalance) / initialCapital) * 100;
+    const currentMaxDrawdown = parseFloat(evaluation.currentDrawdownPercent.toString());
+    const newMaxDrawdown = Math.max(currentMaxDrawdown, drawdown);
+
+    // Update evaluation metrics
+    await this.updateBotEvaluation(botId, {
+      currentTrades: newTradeCount,
+      currentPnl: newPnl.toFixed(2),
+      currentPnlPercent: newPnlPercent.toFixed(2),
+      currentDrawdownPercent: newMaxDrawdown.toFixed(2),
+    });
+
+    console.log(`[Evaluation] Bot ${botId} progress: ${newTradeCount} trades, ${newPnlPercent.toFixed(2)}% P&L, ${newMaxDrawdown.toFixed(2)}% max drawdown`);
+
+    // Check if evaluation passed or failed
+    await this.checkAndUpdateEvaluationStatus(botId);
   }
 
   async checkAndUpdateEvaluationStatus(botId: string): Promise<{ status: string; passed: boolean; reason?: string }> {
