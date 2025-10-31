@@ -18,24 +18,18 @@ export function Footer() {
             <h3 className="font-semibold text-lg mb-3">Legal</h3>
             <ul className="space-y-2">
               <li>
-                <Link href="/terms-of-service">
-                  <a className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-terms">
-                    Terms of Service
-                  </a>
+                <Link href="/terms-of-service" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-terms">
+                  Terms of Service
                 </Link>
               </li>
               <li>
-                <Link href="/privacy-policy">
-                  <a className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-privacy">
-                    Privacy Policy
-                  </a>
+                <Link href="/privacy-policy" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-privacy">
+                  Privacy Policy
                 </Link>
               </li>
               <li>
-                <Link href="/risk-disclaimer">
-                  <a className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-risk">
-                    Risk Disclaimer
-                  </a>
+                <Link href="/risk-disclaimer" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-risk">
+                  Risk Disclaimer
                 </Link>
               </li>
             </ul>
