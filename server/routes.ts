@@ -989,7 +989,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Helper function to fetch price from multiple sources with cascading fallback
   async function fetchCryptoPrice(symbol: string): Promise<{ price: number; source: string } | null> {
-    const normalizedSymbol = symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    // Normalize TradingView symbols: Strip .P suffix (perpetual futures) and convert to standard pairs
+    let cleanSymbol = symbol.toUpperCase()
+      .replace('.P', '')  // Remove perpetual futures suffix
+      .replace(/[^A-Z0-9]/g, '');
+    
+    // Convert USD pairs to USDT (most APIs use USDT)
+    if (cleanSymbol.endsWith('USD') && !cleanSymbol.endsWith('USDT')) {
+      cleanSymbol = cleanSymbol.replace('USD', 'USDT');
+    }
+    
+    const normalizedSymbol = cleanSymbol;
+    console.log(`Normalizing symbol: ${symbol} → ${normalizedSymbol}`);
     
     // 1. Try Binance (fastest, most accurate)
     try {
