@@ -108,6 +108,106 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/marketplace/featured", async (req, res) => {
+    try {
+      const featuredPlacement = await storage.getCurrentFeaturedPlacement();
+      res.json(featuredPlacement || null);
+    } catch (error) {
+      console.error("Error fetching featured placement:", error);
+      res.status(500).json({ message: "Failed to fetch featured placement" });
+    }
+  });
+
+  app.get("/api/marketplace/top-performers", async (req, res) => {
+    try {
+      const topPerformers = await storage.getTopPerformersLast7Days(5);
+      res.json(topPerformers);
+    } catch (error) {
+      console.error("Error fetching top performers:", error);
+      res.status(500).json({ message: "Failed to fetch top performers" });
+    }
+  });
+
+  app.post("/api/creator-applications", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const existingApplication = await storage.getCreatorApplication(userId);
+      if (existingApplication) {
+        return res.status(400).json({ message: "You have already submitted a creator application" });
+      }
+      
+      const validationResult = insertCreatorApplicationSchema.safeParse({
+        ...req.body,
+        userId,
+      });
+      
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          message: "Invalid application data",
+          errors: validationResult.error.errors 
+        });
+      }
+      
+      const application = await storage.createCreatorApplication(validationResult.data);
+      res.json(application);
+    } catch (error) {
+      console.error("Error creating creator application:", error);
+      res.status(500).json({ message: "Failed to create creator application" });
+    }
+  });
+
+  app.get("/api/creator-applications", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const application = await storage.getCreatorApplication(userId);
+      res.json(application || null);
+    } catch (error) {
+      console.error("Error fetching creator application:", error);
+      res.status(500).json({ message: "Failed to fetch creator application" });
+    }
+  });
+
+  app.patch("/api/creator-applications/:userId/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const adminUserId = req.user.claims.sub;
+      
+      const adminUser = await storage.getUser(adminUserId);
+      if (!adminUser || adminUser.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden: Admin access required" });
+      }
+      
+      const { userId } = req.params;
+      const { status, rejectionReason } = req.body;
+      
+      if (!status || !['approved', 'rejected'].includes(status)) {
+        return res.status(400).json({ message: "Status must be 'approved' or 'rejected'" });
+      }
+      
+      if (status === 'rejected' && !rejectionReason) {
+        return res.status(400).json({ message: "Rejection reason is required when rejecting an application" });
+      }
+      
+      const sanitizedReason = rejectionReason ? rejectionReason.substring(0, 500).trim() : undefined;
+      
+      const updatedApplication = await storage.updateCreatorApplicationStatus(
+        userId,
+        status,
+        sanitizedReason,
+        adminUserId
+      );
+      
+      if (!updatedApplication) {
+        return res.status(404).json({ message: "Creator application not found" });
+      }
+      
+      res.json(updatedApplication);
+    } catch (error) {
+      console.error("Error updating creator application status:", error);
+      res.status(500).json({ message: "Failed to update creator application status" });
+    }
+  });
+
   app.get("/api/bots", async (req, res) => {
     try {
       const bots = await storage.getAllBots();
