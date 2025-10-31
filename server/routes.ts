@@ -273,6 +273,142 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Creator Payout Routes
+  app.get("/api/creator/earnings", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const earnings = await storage.getCreatorEarnings(userId);
+      res.json(earnings);
+    } catch (error) {
+      console.error("Error fetching creator earnings:", error);
+      res.status(500).json({ message: "Failed to fetch earnings" });
+    }
+  });
+
+  app.get("/api/creator/payouts", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const payouts = await storage.getCreatorPayouts(userId);
+      res.json(payouts);
+    } catch (error) {
+      console.error("Error fetching creator payouts:", error);
+      res.status(500).json({ message: "Failed to fetch payouts" });
+    }
+  });
+
+  app.post("/api/creator/payouts", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { amount, paymentMethod, paymentDetails } = req.body;
+
+      // Validate amount
+      const amountNum = parseFloat(amount);
+      if (!amount || isNaN(amountNum) || amountNum <= 0) {
+        return res.status(400).json({ message: "Invalid amount" });
+      }
+
+      // Check minimum payout threshold ($50)
+      if (amountNum < 50) {
+        return res.status(400).json({ message: "Minimum payout amount is $50" });
+      }
+
+      // Get creator earnings to verify available balance
+      const earnings = await storage.getCreatorEarnings(userId);
+      const pendingBalance = parseFloat(earnings.pendingBalance);
+
+      if (amountNum > pendingBalance) {
+        return res.status(400).json({ 
+          message: "Insufficient balance",
+          pendingBalance: earnings.pendingBalance 
+        });
+      }
+
+      // Create payout request
+      const payout = await storage.createPayoutRequest({
+        creatorId: userId,
+        amount: amountNum.toFixed(2),
+        status: 'pending',
+        paymentMethod: paymentMethod || null,
+        paymentDetails: paymentDetails || null,
+      });
+
+      res.json(payout);
+    } catch (error) {
+      console.error("Error creating payout request:", error);
+      res.status(500).json({ message: "Failed to create payout request" });
+    }
+  });
+
+  // Admin Payout Routes
+  app.get("/api/admin/payouts/pending", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden: Admin access required" });
+      }
+      
+      const pendingPayouts = await storage.getPendingPayouts();
+      res.json(pendingPayouts);
+    } catch (error) {
+      console.error("Error fetching pending payouts:", error);
+      res.status(500).json({ message: "Failed to fetch pending payouts" });
+    }
+  });
+
+  app.post("/api/admin/payouts/:id/approve", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden: Admin access required" });
+      }
+
+      const payoutId = req.params.id;
+      const payout = await storage.approvePayoutRequest(payoutId, userId);
+
+      if (!payout) {
+        return res.status(404).json({ message: "Payout not found" });
+      }
+
+      res.json(payout);
+    } catch (error) {
+      console.error("Error approving payout:", error);
+      res.status(500).json({ message: "Failed to approve payout" });
+    }
+  });
+
+  app.post("/api/admin/payouts/:id/reject", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || user.role !== 'admin') {
+        return res.status(403).json({ message: "Forbidden: Admin access required" });
+      }
+
+      const payoutId = req.params.id;
+      const { reason } = req.body;
+
+      if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
+        return res.status(400).json({ message: "Rejection reason is required" });
+      }
+
+      const payout = await storage.rejectPayoutRequest(payoutId, userId, reason.trim());
+
+      if (!payout) {
+        return res.status(404).json({ message: "Payout not found" });
+      }
+
+      res.json(payout);
+    } catch (error) {
+      console.error("Error rejecting payout:", error);
+      res.status(500).json({ message: "Failed to reject payout" });
+    }
+  });
+
   app.get("/api/bots", async (req, res) => {
     try {
       const bots = await storage.getAllBots();
