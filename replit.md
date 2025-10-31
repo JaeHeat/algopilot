@@ -15,11 +15,12 @@ The platform is built with a modern web stack: React with TypeScript, Wouter for
 - Design inspiration draws from platforms like Coinbase, Stripe, and Robinhood.
 - **Navigation System**: Context-aware AlgoPilot logo navigation (landing page for guests, dashboard for authenticated users).
 - **Marketplace Access**: Public marketplace browsing without authentication, with header navigation and sign-in prompts for subscription features.
+- **Marketplace Design**: App Store-inspired layout with featured banner placement (paid), filters, 7-day top performers leaderboard with ranking badges, and all bots grid.
 
 **Technical Implementations & Feature Specifications:**
 - **Authentication**: Secure user authentication via Replit Auth.
 - **Bot Marketplace & Detail Pages**: Allows browsing, filtering, and subscribing to bots, displaying performance charts, trade logs, strategy descriptions, and creator profiles. Public marketplace access allows unauthenticated browsing with sign-in prompts for subscriptions.
-- **Monetization Strategy**: Hybrid model combining platform access tiers (Free $0/month with 2 bot subscriptions, Starter $29/month with 5 bot subscriptions, Pro $99/month with unlimited bot subscriptions) plus 20% marketplace commission on bot creator subscriptions (creators earn 80%). More competitive than competitors like 3Commas ($29-99) and Cryptohopper ($29-129), with bot creators setting their own pricing typically ranging $5-50/month.
+- **Monetization Strategy**: Simple pay-per-bot marketplace model inspired by Gumroad/Etsy. Platform access is FREE for traders. Bot creators set their own subscription prices (typically $5-50/month), earn 75% of revenue, with platform taking a 25% commission. Additional revenue from paid featured marketplace placements. Free creator application with review/approval process. More competitive and transparent than 3Commas ($29-99 platform fees) and Cryptohopper ($29-129 platform fees).
 - **Payment & Subscription Management**: Secure Stripe integration for recurring subscriptions with granular settings for capital allocation, risk limits, and notifications.
 - **User & Creator Dashboards**: Centralized views for active subscriptions, portfolio metrics, bot management, and trade signal monitoring.
 - **Exchange Integration**: Connection to multiple crypto exchanges for managing mock USDT balances and future live trading.
@@ -28,6 +29,8 @@ The platform is built with a modern web stack: React with TypeScript, Wouter for
 - **Trade Execution & P&L Tracking**: Automated trade execution, comprehensive P&L tracking, position sizing, and fee calculation. The system tracks positions (open and close form one trade) and provides P&L summaries.
 - **Notification System**: Comprehensive email notifications for trade alerts, drawdown warnings, and P&L summaries using Resend.
 - **User Onboarding System**: A multi-component system (Welcome Modal, Onboarding Checklist, Getting Started Guide) guides new users, with automated progress tracking.
+- **Creator Application System**: Gated creator program with free application, review/approval workflow, and status tracking (pending, approved, rejected).
+- **Featured Placements**: Paid featured banner slots in marketplace for creators to promote their bots, tracked with impressions/clicks analytics.
 
 **System Design Choices:**
 - **Security-first Approach**: Emphasizes ownership validation, data redaction, protected routes, and extensive server-side validation, including robust Stripe payment validation.

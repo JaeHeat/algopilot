@@ -4,43 +4,34 @@ import { Card } from "@/components/ui/card";
 
 const plans = [
   {
-    name: "Free",
-    price: "$0",
-    description: "Start trading with limited access",
+    name: "For Traders",
+    price: "Free",
+    description: "Pay only for the bots you subscribe to",
     features: [
+      "Free platform access",
       "Browse all trading bots",
-      "Subscribe to 2 free bots",
-      "Basic performance metrics",
-      "1 exchange connection",
-      "Community support",
+      "Subscribe to any bots you like",
+      "Bot creators set prices ($5-50/month typical)",
+      "Advanced performance metrics",
+      "Unlimited exchange connections",
       "$10,000 mock trading capital",
-    ],
-  },
-  {
-    name: "Starter",
-    price: "$29",
-    description: "For active traders",
-    features: [
-      "Subscribe to unlimited bots",
-      "Advanced analytics & charts",
-      "Up to 3 exchange connections",
-      "Priority email support",
-      "Custom risk settings",
-      "Trade history export",
+      "Email support",
     ],
     popular: true,
   },
   {
-    name: "Pro",
-    price: "$99",
-    description: "For professionals & bot creators",
+    name: "For Creators",
+    price: "Free to Apply",
+    description: "Monetize your trading strategies",
     features: [
-      "Everything in Starter",
-      "Create and monetize your own bots",
-      "80% revenue share on bot sales",
-      "Unlimited exchange connections",
-      "API access for automation",
-      "24/7 priority support",
+      "Free creator account",
+      "List unlimited trading bots",
+      "Set your own monthly pricing",
+      "Earn 75% of subscription revenue",
+      "Automated payouts",
+      "TradingView webhook integration",
+      "Performance analytics dashboard",
+      "Priority creator support",
     ],
   },
 ];
@@ -52,14 +43,14 @@ export function LandingPricing() {
         <div className="text-center space-y-4 mb-12">
           <h2 className="text-3xl md:text-4xl font-bold">Simple, Transparent Pricing</h2>
           <p className="text-xl text-muted-foreground">
-            Platform access + marketplace bot subscriptions
+            Pay only for the bots you use
           </p>
           <p className="text-sm text-muted-foreground max-w-2xl mx-auto">
-            Pay for platform access, then subscribe to individual bots in the marketplace. Bot creators set their own prices (typically $5-50/month). We take a 20% commission to keep your costs low.
+            No platform fees, no subscription tiers. Subscribe to individual trading bots in the marketplace. Bot creators set their own prices (typically $5-50/month). We take a 25% commission to keep the platform running and continuously improving.
           </p>
         </div>
         
-        <div className="grid md:grid-cols-3 gap-8">
+        <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
           {plans.map((plan, i) => (
             <Card 
               key={i} 
@@ -68,23 +59,22 @@ export function LandingPricing() {
               {plan.popular && (
                 <div className="mb-4">
                   <span className="bg-primary text-primary-foreground text-xs font-semibold px-3 py-1 rounded-full">
-                    Most Popular
+                    Most Common
                   </span>
                 </div>
               )}
               <h3 className="text-2xl font-bold mb-2">{plan.name}</h3>
               <div className="mb-2">
                 <span className="text-4xl font-bold">{plan.price}</span>
-                {plan.price !== "Custom" && <span className="text-muted-foreground">/month</span>}
               </div>
               <p className="text-muted-foreground mb-6">{plan.description}</p>
               <Button 
                 className="w-full mb-6" 
                 variant={plan.popular ? "default" : "outline"}
                 asChild
-                data-testid={`button-${plan.name.toLowerCase()}-plan`}
+                data-testid={`button-${plan.name.toLowerCase().replace(/\s+/g, '-')}-plan`}
               >
-                <a href="/api/login">Get Started</a>
+                <a href="/api/login">{plan.name === "For Creators" ? "Apply to Create" : "Start Trading"}</a>
               </Button>
               <ul className="space-y-3">
                 {plan.features.map((feature, j) => (
@@ -96,6 +86,12 @@ export function LandingPricing() {
               </ul>
             </Card>
           ))}
+        </div>
+
+        <div className="mt-12 text-center">
+          <p className="text-sm text-muted-foreground max-w-3xl mx-auto">
+            <strong>Revenue Model:</strong> Traders pay bot subscription fees directly. Bot creators keep 75% of their subscription revenue, and AlgoPilot takes a 25% commission. Featured marketplace placements offer an additional monetization opportunity for creators.
+          </p>
         </div>
       </div>
     </div>
