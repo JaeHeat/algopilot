@@ -1,18 +1,21 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { MetricCard } from "@/components/metric-card";
 import { PerformanceChart } from "@/components/performance-chart";
 import { TradeTable } from "@/components/trade-table";
 import { SubscriptionCard } from "@/components/subscription-card";
 import { SubscriptionSettingsDialog } from "@/components/subscription-settings-dialog";
+import { WelcomeModal } from "@/components/welcome-modal";
+import { OnboardingChecklist } from "@/components/onboarding-checklist";
 import { DollarSign, TrendingUp, Bot, Target } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import type { Subscription, Bot as BotType, BotPerformance } from "@shared/schema";
+import type { Subscription, Bot as BotType, BotPerformance, UserOnboarding } from "@shared/schema";
 import { useEffect, useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { useLocation } from "wouter";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 type SubscriptionWithBot = Subscription & { bot: BotType; performance: BotPerformance | null };
 
@@ -25,11 +28,40 @@ export default function DashboardOverview() {
   const [selectedSubscription, setSelectedSubscription] = useState<SubscriptionWithBot | null>(null);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [selectedTimeframe, setSelectedTimeframe] = useState<Timeframe>('1m');
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
 
   const { data: subscriptions, isLoading, error } = useQuery<SubscriptionWithBot[]>({
     queryKey: ["/api/subscriptions"],
     enabled: isAuthenticated,
     retry: false,
+  });
+
+  const { data: onboarding } = useQuery<UserOnboarding>({
+    queryKey: ["/api/onboarding"],
+    enabled: isAuthenticated,
+  });
+
+  const updateOnboardingMutation = useMutation({
+    mutationFn: async (updates: Partial<UserOnboarding>) => {
+      return await apiRequest("/api/onboarding/progress", {
+        method: "POST",
+        body: JSON.stringify(updates),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding"] });
+    },
+  });
+
+  const completeOnboardingMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("/api/onboarding/complete", {
+        method: "POST",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding"] });
+    },
   });
 
   useEffect(() => {
@@ -44,6 +76,35 @@ export default function DashboardOverview() {
       }, 500);
     }
   }, [error, toast]);
+
+  useEffect(() => {
+    if (onboarding && !onboarding.hasCompletedWelcome && !showWelcomeModal) {
+      setShowWelcomeModal(true);
+    }
+  }, [onboarding]);
+
+  useEffect(() => {
+    if (onboarding && !onboarding.hasViewedDashboard) {
+      updateOnboardingMutation.mutate({ hasViewedDashboard: true });
+    }
+  }, [onboarding]);
+
+  useEffect(() => {
+    if (subscriptions && subscriptions.length > 0 && onboarding && !onboarding.hasSubscribedToBot) {
+      updateOnboardingMutation.mutate({ hasSubscribedToBot: true });
+    }
+  }, [subscriptions, onboarding]);
+
+  const handleWelcomeClose = () => {
+    setShowWelcomeModal(false);
+    if (onboarding && !onboarding.hasCompletedWelcome) {
+      updateOnboardingMutation.mutate({ hasCompletedWelcome: true });
+    }
+  };
+
+  const handleDismissChecklist = () => {
+    completeOnboardingMutation.mutate();
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -148,6 +209,15 @@ export default function DashboardOverview() {
   
   return (
     <div className="space-y-6">
+      <WelcomeModal open={showWelcomeModal} onClose={handleWelcomeClose} />
+      
+      {onboarding && !onboarding.completedAt && (
+        <OnboardingChecklist 
+          onboarding={onboarding} 
+          onDismiss={handleDismissChecklist}
+        />
+      )}
+      
       <div>
         <h1 className="text-3xl font-bold mb-2">Portfolio Overview</h1>
         <p className="text-muted-foreground">Track your trading performance and active bots</p>

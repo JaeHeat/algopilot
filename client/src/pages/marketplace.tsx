@@ -1,15 +1,18 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { BotCard } from "@/components/bot-card";
 import { SubscribeDialog } from "@/components/subscribe-dialog";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
-import type { Bot, BotPerformance } from "@shared/schema";
+import type { Bot, BotPerformance, UserOnboarding } from "@shared/schema";
+import { useAuth } from "@/hooks/useAuth";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 type BotWithPerformance = Bot & { performance: BotPerformance | null };
 
 export default function Marketplace() {
+  const { isAuthenticated } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [strategyFilter, setStrategyFilter] = useState("all");
   const [riskFilter, setRiskFilter] = useState("all");
@@ -20,6 +23,29 @@ export default function Marketplace() {
   const { data: bots, isLoading } = useQuery<BotWithPerformance[]>({
     queryKey: ["/api/bots"],
   });
+
+  const { data: onboarding } = useQuery<UserOnboarding>({
+    queryKey: ["/api/onboarding"],
+    enabled: isAuthenticated,
+  });
+
+  const updateOnboardingMutation = useMutation({
+    mutationFn: async (updates: Partial<UserOnboarding>) => {
+      return await apiRequest("/api/onboarding/progress", {
+        method: "POST",
+        body: JSON.stringify(updates),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding"] });
+    },
+  });
+
+  useEffect(() => {
+    if (isAuthenticated && onboarding && !onboarding.hasViewedMarketplace) {
+      updateOnboardingMutation.mutate({ hasViewedMarketplace: true });
+    }
+  }, [isAuthenticated, onboarding]);
 
   const filteredAndSortedBots = bots
     ?.filter((bot) => {
