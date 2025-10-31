@@ -272,11 +272,13 @@ export const botEvaluations = pgTable("bot_evaluations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   botId: varchar("bot_id").notNull().unique().references(() => bots.id),
   status: text("status").notNull().default("in_progress"),
-  requiredTrades: integer("required_trades").notNull().default(10),
-  requiredProfitPercent: decimal("required_profit_percent", { precision: 10, scale: 2 }).notNull().default("5.00"),
+  requiredTrades: integer("required_trades").notNull().default(15),
+  requiredProfitPercent: decimal("required_profit_percent", { precision: 10, scale: 2 }).notNull().default("8.00"),
+  requiredMaxDrawdownPercent: decimal("required_max_drawdown_percent", { precision: 10, scale: 2 }).notNull().default("12.00"),
   currentTrades: integer("current_trades").notNull().default(0),
   currentPnl: decimal("current_pnl", { precision: 15, scale: 2 }).notNull().default("0.00"),
   currentPnlPercent: decimal("current_pnl_percent", { precision: 10, scale: 2 }).notNull().default("0.00"),
+  currentDrawdownPercent: decimal("current_drawdown_percent", { precision: 10, scale: 2 }).notNull().default("0.00"),
   startedAt: timestamp("started_at").notNull().defaultNow(),
   completedAt: timestamp("completed_at"),
   evaluationNotes: text("evaluation_notes"),
@@ -307,6 +309,13 @@ export const insertUserOnboardingSchema = createInsertSchema(userOnboarding).omi
 export const insertCreatorApplicationSchema = createInsertSchema(creatorApplications).omit({ id: true, createdAt: true, updatedAt: true, reviewedAt: true });
 export const insertFeaturedPlacementSchema = createInsertSchema(featuredPlacements).omit({ id: true, createdAt: true });
 export const insertBotEvaluationSchema = createInsertSchema(botEvaluations).omit({ id: true, createdAt: true, updatedAt: true, startedAt: true, completedAt: true });
+
+export const updateBotEvaluationProgressSchema = z.object({
+  currentTrades: z.number().int().nonnegative().optional(),
+  currentPnl: z.string().optional(),
+  currentPnlPercent: z.string().optional(),
+  currentDrawdownPercent: z.string().optional(),
+});
 
 export const updateSubscriptionSettingsSchema = z.object({
   capitalAllocated: z.number().positive().optional(),

@@ -216,15 +216,11 @@ export default function Marketplace() {
             </div>
 
             {filteredAndSortedBots.map((bot, index) => (
-              <div
-                key={bot.id}
-                className="grid md:grid-cols-[60px_80px_1fr_120px_120px_120px_120px_140px] gap-4 items-center px-4 py-4 rounded-lg border border-border/50 hover-elevate active-elevate-2 cursor-pointer transition-all"
-                onClick={() => {
-                  setSelectedBot(bot);
-                  setSubscribeDialogOpen(true);
-                }}
-                data-testid={`row-bot-${index + 1}`}
-              >
+              <Link href={`/bots/${bot.id}`} key={bot.id}>
+                <div
+                  className="grid md:grid-cols-[60px_80px_1fr_120px_120px_120px_120px_140px] gap-4 items-center px-4 py-4 rounded-lg border border-border/50 hover-elevate active-elevate-2 cursor-pointer transition-all"
+                  data-testid={`row-bot-${index + 1}`}
+                >
                 <div className="flex items-center justify-center">
                   {getRankIcon(index)}
                 </div>
@@ -322,16 +318,18 @@ export default function Marketplace() {
                   <Button 
                     size="sm"
                     onClick={(e) => {
+                      e.preventDefault();
                       e.stopPropagation();
                       setSelectedBot(bot);
                       setSubscribeDialogOpen(true);
                     }}
                     data-testid={`button-subscribe-${index + 1}`}
                   >
-                    View
+                    Subscribe
                   </Button>
                 </div>
               </div>
+              </Link>
             ))}
           </div>
         )}

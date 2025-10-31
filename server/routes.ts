@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertBotSchema, insertSubscriptionSchema, insertExchangeConnectionSchema, updateSubscriptionSettingsSchema, insertCreatorPostSchema, insertPostCommentSchema, insertPostReactionSchema, insertCreatorApplicationSchema } from "@shared/schema";
+import { insertBotSchema, insertSubscriptionSchema, insertExchangeConnectionSchema, updateSubscriptionSettingsSchema, insertCreatorPostSchema, insertPostCommentSchema, insertPostReactionSchema, insertCreatorApplicationSchema, updateBotEvaluationProgressSchema } from "@shared/schema";
 import { z } from "zod";
 import Stripe from "stripe";
 import { randomBytes } from "crypto";
@@ -336,6 +336,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error regenerating webhook:", error);
       res.status(500).json({ message: "Failed to regenerate webhook" });
+    }
+  });
+
+  // Bot Evaluation Routes
+  app.post("/api/bots/:botId/evaluation/start", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const bot = await storage.getBotById(req.params.botId);
+      
+      if (!bot) {
+        return res.status(404).json({ message: "Bot not found" });
+      }
+      
+      if (bot.creatorId !== userId) {
+        return res.status(403).json({ message: "Forbidden: Only bot creators can start evaluations" });
+      }
+
+      const existingEvaluation = await storage.getBotEvaluation(req.params.botId);
+      if (existingEvaluation) {
+        return res.status(400).json({ 
+          message: "Evaluation already exists for this bot",
+          evaluation: existingEvaluation 
+        });
+      }
+
+      const evaluation = await storage.createBotEvaluation({
+        botId: req.params.botId,
+      });
+
+      await storage.updateBot(req.params.botId, {
+        evaluationStatus: 'in_progress',
+        isActive: false,
+      });
+
+      res.json(evaluation);
+    } catch (error) {
+      console.error("Error starting evaluation:", error);
+      res.status(500).json({ message: "Failed to start evaluation" });
+    }
+  });
+
+  app.get("/api/bots/:botId/evaluation", async (req, res) => {
+    try {
+      const evaluation = await storage.getBotEvaluation(req.params.botId);
+      
+      if (!evaluation) {
+        return res.status(404).json({ message: "No evaluation found for this bot" });
+      }
+
+      res.json(evaluation);
+    } catch (error) {
+      console.error("Error fetching evaluation:", error);
+      res.status(500).json({ message: "Failed to fetch evaluation" });
+    }
+  });
+
+  app.patch("/api/bots/:botId/evaluation", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const bot = await storage.getBotById(req.params.botId);
+      
+      if (!bot) {
+        return res.status(404).json({ message: "Bot not found" });
+      }
+      
+      if (bot.creatorId !== userId) {
+        return res.status(403).json({ message: "Forbidden: Only bot creators can update evaluations" });
+      }
+
+      // Validate that only progress fields can be updated (security: prevent tampering with requirements/status)
+      const validatedUpdates = updateBotEvaluationProgressSchema.parse(req.body);
+
+      const evaluation = await storage.updateBotEvaluation(
+        req.params.botId,
+        validatedUpdates
+      );
+
+      if (!evaluation) {
+        return res.status(404).json({ message: "Evaluation not found" });
+      }
+
+      // Automatically check if evaluation passed or failed based on updated progress
+      const statusCheck = await storage.checkAndUpdateEvaluationStatus(req.params.botId);
+
+      res.json({ evaluation, statusCheck });
+    } catch (error) {
+      console.error("Error updating evaluation:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid update data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to update evaluation" });
     }
   });
 

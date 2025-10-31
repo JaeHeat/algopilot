@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents, creatorPosts, postComments, postReactions, botWebhooks, webhookEventLogs, trades, positions, userOnboarding, creatorApplications, featuredPlacements } from "@shared/schema";
+import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents, creatorPosts, postComments, postReactions, botWebhooks, webhookEventLogs, trades, positions, userOnboarding, creatorApplications, featuredPlacements, botEvaluations } from "@shared/schema";
 import type { 
   User, UpsertUser, 
   Bot, InsertBot,
@@ -19,7 +19,8 @@ import type {
   Position, InsertPosition,
   UserOnboarding, InsertUserOnboarding,
   CreatorApplication, InsertCreatorApplication,
-  FeaturedPlacement, InsertFeaturedPlacement
+  FeaturedPlacement, InsertFeaturedPlacement,
+  BotEvaluation, InsertBotEvaluation
 } from "@shared/schema";
 import { eq, and, desc, or, isNull, gt } from "drizzle-orm";
 import memoizee from "memoizee";
@@ -115,6 +116,11 @@ export interface IStorage {
   createFeaturedPlacement(placement: InsertFeaturedPlacement): Promise<FeaturedPlacement>;
   getCurrentFeaturedPlacement(): Promise<(FeaturedPlacement & { bot: Bot & { performance: BotPerformance | null } }) | undefined>;
   getTopPerformersLast7Days(limit?: number): Promise<Array<Bot & { performance: BotPerformance | null; sevenDayRoi: number }>>;
+  
+  getBotEvaluation(botId: string): Promise<BotEvaluation | undefined>;
+  createBotEvaluation(evaluation: InsertBotEvaluation): Promise<BotEvaluation>;
+  updateBotEvaluation(botId: string, updates: Partial<BotEvaluation>): Promise<BotEvaluation | undefined>;
+  checkAndUpdateEvaluationStatus(botId: string): Promise<{ status: string; passed: boolean; reason?: string }>;
 }
 
 export class DbStorage implements IStorage {
@@ -944,6 +950,103 @@ export class DbStorage implements IStorage {
       performance: row.bot_performance,
       sevenDayRoi: row.bot_performance?.totalRoi ? parseFloat(row.bot_performance.totalRoi.toString()) : 0,
     }));
+  }
+
+  async getBotEvaluation(botId: string): Promise<BotEvaluation | undefined> {
+    const result = await db
+      .select()
+      .from(botEvaluations)
+      .where(eq(botEvaluations.botId, botId))
+      .limit(1);
+    return result[0];
+  }
+
+  async createBotEvaluation(evaluation: InsertBotEvaluation): Promise<BotEvaluation> {
+    const result = await db
+      .insert(botEvaluations)
+      .values(evaluation)
+      .returning();
+    return result[0];
+  }
+
+  async updateBotEvaluation(botId: string, updates: Partial<BotEvaluation>): Promise<BotEvaluation | undefined> {
+    const result = await db
+      .update(botEvaluations)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(botEvaluations.botId, botId))
+      .returning();
+    return result[0];
+  }
+
+  async checkAndUpdateEvaluationStatus(botId: string): Promise<{ status: string; passed: boolean; reason?: string }> {
+    const evaluation = await this.getBotEvaluation(botId);
+    
+    if (!evaluation || evaluation.status !== 'in_progress') {
+      return { status: evaluation?.status || 'not_found', passed: false, reason: 'Evaluation not in progress' };
+    }
+
+    const currentTrades = evaluation.currentTrades;
+    const currentPnlPercent = parseFloat(evaluation.currentPnlPercent.toString());
+    const currentDrawdown = parseFloat(evaluation.currentDrawdownPercent.toString());
+    
+    const requiredTrades = evaluation.requiredTrades;
+    const requiredProfit = parseFloat(evaluation.requiredProfitPercent.toString());
+    const maxDrawdown = parseFloat(evaluation.requiredMaxDrawdownPercent.toString());
+
+    // Check if failed drawdown rule
+    if (currentDrawdown > maxDrawdown) {
+      await this.updateBotEvaluation(botId, {
+        status: 'failed',
+        completedAt: new Date(),
+        evaluationNotes: `Failed: Exceeded maximum drawdown of ${maxDrawdown}% (current: ${currentDrawdown.toFixed(2)}%)`
+      });
+      
+      // Update bot evaluation status
+      await db
+        .update(bots)
+        .set({ evaluationStatus: 'failed' })
+        .where(eq(bots.id, botId));
+
+      return {
+        status: 'failed',
+        passed: false,
+        reason: `Exceeded maximum drawdown of ${maxDrawdown}% (current: ${currentDrawdown.toFixed(2)}%)`
+      };
+    }
+
+    // Check if passed evaluation
+    if (currentTrades >= requiredTrades && currentPnlPercent >= requiredProfit) {
+      await this.updateBotEvaluation(botId, {
+        status: 'passed',
+        completedAt: new Date(),
+        evaluationNotes: `Passed: ${currentTrades} trades, ${currentPnlPercent.toFixed(2)}% profit, ${currentDrawdown.toFixed(2)}% max drawdown`
+      });
+      
+      // Update bot evaluation status and activate bot
+      await db
+        .update(bots)
+        .set({ 
+          evaluationStatus: 'passed',
+          isActive: true
+        })
+        .where(eq(bots.id, botId));
+
+      // Invalidate cache
+      this.getAllBots.clear();
+
+      return {
+        status: 'passed',
+        passed: true,
+        reason: `Passed with ${currentTrades} trades and ${currentPnlPercent.toFixed(2)}% profit`
+      };
+    }
+
+    // Still in progress
+    return {
+      status: 'in_progress',
+      passed: false,
+      reason: `Progress: ${currentTrades}/${requiredTrades} trades, ${currentPnlPercent.toFixed(2)}%/${requiredProfit}% profit`
+    };
   }
 }
 
