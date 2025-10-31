@@ -43,10 +43,7 @@ export default function DashboardOverview() {
 
   const updateOnboardingMutation = useMutation({
     mutationFn: async (updates: Partial<UserOnboarding>) => {
-      return await apiRequest("/api/onboarding/progress", {
-        method: "POST",
-        body: JSON.stringify(updates),
-      });
+      return await apiRequest("POST", "/api/onboarding/progress", updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/onboarding"] });
@@ -55,9 +52,7 @@ export default function DashboardOverview() {
 
   const completeOnboardingMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("/api/onboarding/complete", {
-        method: "POST",
-      });
+      return await apiRequest("POST", "/api/onboarding/complete");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/onboarding"] });
