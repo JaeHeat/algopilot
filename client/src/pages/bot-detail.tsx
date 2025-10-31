@@ -465,7 +465,7 @@ export default function BotDetail() {
                         </p>
                       </div>
                     )}
-                    <Link href="/dashboard">
+                    <Link href="/dashboard/my-bots">
                       <Button className="w-full" variant="outline" data-testid="button-manage-subscription">
                         Manage Subscription
                       </Button>
