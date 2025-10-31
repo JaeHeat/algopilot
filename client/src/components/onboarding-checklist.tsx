@@ -2,8 +2,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
-import { CheckCircle2, Circle, ArrowRight, Sparkles } from "lucide-react";
+import { CheckCircle2, Circle, ArrowRight, Sparkles, X } from "lucide-react";
 import type { UserOnboarding } from "@shared/schema";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface OnboardingChecklistProps {
   onboarding: UserOnboarding | null;
@@ -11,7 +14,36 @@ interface OnboardingChecklistProps {
 }
 
 export function OnboardingChecklist({ onboarding, onDismiss }: OnboardingChecklistProps) {
-  if (!onboarding || onboarding.completedAt) {
+  const { toast } = useToast();
+  
+  const dismissPermanentlyMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("/api/onboarding/dismiss", {
+        method: "POST",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/onboarding"] });
+      toast({
+        title: "Checklist hidden",
+        description: "You won't see this checklist again. You can always view the Getting Started guide from the menu.",
+      });
+      onDismiss?.();
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to save your preference. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDismissPermanently = () => {
+    dismissPermanentlyMutation.mutate();
+  };
+
+  if (!onboarding || onboarding.completedAt || onboarding.hasDismissedChecklist) {
     return null;
   }
 
@@ -152,16 +184,28 @@ export function OnboardingChecklist({ onboarding, onDismiss }: OnboardingCheckli
               View Getting Started Guide
             </Button>
           </Link>
-          {completedCount === totalSteps && (
+          <div className="flex items-center gap-2">
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
-              onClick={onDismiss}
-              data-testid="button-complete-onboarding"
+              onClick={handleDismissPermanently}
+              disabled={dismissPermanentlyMutation.isPending}
+              data-testid="button-dont-show-again"
             >
-              Mark as Complete
+              <X className="h-4 w-4 mr-1" />
+              Don't show again
             </Button>
-          )}
+            {completedCount === totalSteps && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onDismiss}
+                data-testid="button-complete-onboarding"
+              >
+                Mark as Complete
+              </Button>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>

@@ -228,6 +228,7 @@ export const userOnboarding = pgTable("user_onboarding", {
   hasSubscribedToBot: boolean("has_subscribed_to_bot").notNull().default(false),
   hasConfiguredSettings: boolean("has_configured_settings").notNull().default(false),
   hasViewedDashboard: boolean("has_viewed_dashboard").notNull().default(false),
+  hasDismissedChecklist: boolean("has_dismissed_checklist").notNull().default(false),
   completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
