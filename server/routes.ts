@@ -987,6 +987,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/crypto/price/:symbol", async (req, res) => {
+    const { symbol } = req.params;
+    
+    try {
+      const normalizedSymbol = symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      
+      const response = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${normalizedSymbol}`);
+      
+      if (!response.ok) {
+        if (response.status === 400) {
+          return res.status(404).json({ 
+            message: "Symbol not found on Binance",
+            symbol: normalizedSymbol 
+          });
+        }
+        throw new Error(`Binance API error: ${response.status}`);
+      }
+      
+      const data = await response.json() as { symbol: string; price: string };
+      
+      res.json({ 
+        symbol: data.symbol,
+        price: parseFloat(data.price).toFixed(2),
+        source: 'binance',
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Error fetching crypto price:", error);
+      res.status(500).json({ 
+        message: "Failed to fetch price from Binance",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   app.post("/api/positions/:positionId/close", async (req, res) => {
     if (!req.user?.claims?.sub) {
       return res.status(401).json({ message: "Unauthorized" });
