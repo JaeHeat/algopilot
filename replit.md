@@ -13,10 +13,13 @@ The platform is built with a modern web stack: React with TypeScript, Wouter for
 - Uses a professional fintech blue as the primary color.
 - Employs Inter for body text and Space Grotesk for headings.
 - Design inspiration draws from platforms like Coinbase, Stripe, and Robinhood.
+- **Navigation System**: Context-aware AlgoPilot logo navigation (landing page for guests, dashboard for authenticated users).
+- **Marketplace Access**: Public marketplace browsing without authentication, with header navigation and sign-in prompts for subscription features.
 
 **Technical Implementations & Feature Specifications:**
 - **Authentication**: Secure user authentication via Replit Auth.
-- **Bot Marketplace & Detail Pages**: Allows browsing, filtering, and subscribing to bots, displaying performance charts, trade logs, strategy descriptions, and creator profiles.
+- **Bot Marketplace & Detail Pages**: Allows browsing, filtering, and subscribing to bots, displaying performance charts, trade logs, strategy descriptions, and creator profiles. Public marketplace access allows unauthenticated browsing with sign-in prompts for subscriptions.
+- **Monetization Strategy**: Hybrid model combining platform access tiers (Free $0/month with 2 bot subscriptions, Starter $29/month with 5 bot subscriptions, Pro $99/month with unlimited bot subscriptions) plus 20% marketplace commission on bot creator subscriptions (creators earn 80%). More competitive than competitors like 3Commas ($29-99) and Cryptohopper ($29-129), with bot creators setting their own pricing typically ranging $5-50/month.
 - **Payment & Subscription Management**: Secure Stripe integration for recurring subscriptions with granular settings for capital allocation, risk limits, and notifications.
 - **User & Creator Dashboards**: Centralized views for active subscriptions, portfolio metrics, bot management, and trade signal monitoring.
 - **Exchange Integration**: Connection to multiple crypto exchanges for managing mock USDT balances and future live trading.
@@ -41,5 +44,5 @@ The platform is built with a modern web stack: React with TypeScript, Wouter for
 - **Charting Library**: Chart.js / React-Chartjs-2
 - **UI Components**: Shadcn UI
 - **Styling**: Tailwind CSS
-- **API Integrations**: Binance, Coinbase, Bybit, KuCoin (mock integrations currently in place)
+- **API Integrations**: Binance, Bybit, OKX, Kraken, Bitfinex (mock integrations currently in place, all selected for leverage trading support)
 - **Email Service**: Resend (configured and active)
