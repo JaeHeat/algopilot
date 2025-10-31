@@ -10,7 +10,7 @@ function getResendClient() {
   return {
     client: new Resend(apiKey),
     // Use a default from email or configure this in environment
-    fromEmail: process.env.RESEND_FROM_EMAIL || 'AlgoPilot <notifications@algopilot.app>'
+    fromEmail: process.env.RESEND_FROM_EMAIL || 'AlgoPilot <notifications@algo-pilot.com>'
   };
 }
 

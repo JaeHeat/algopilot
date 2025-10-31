@@ -51,14 +51,12 @@ The platform includes a comprehensive email notification system with professiona
 - **Drawdown Warnings**: Sent when subscriptions exceed max drawdown limits and are auto-paused
 - **P&L Summaries**: Daily/weekly performance summaries with bot-by-bot breakdown
 
-**Status**: Email service implementation complete (`server/services/email.ts`). Ready for production use once RESEND_API_KEY secret is configured. The service uses Resend for transactional emails with responsive HTML templates.
+**Status**: Email service fully configured and active with RESEND_API_KEY. Uses Resend for transactional emails with responsive HTML templates. Default from email: `notifications@algo-pilot.com`
 
-**Setup Instructions for Production**:
-1. Sign up for Resend at https://resend.com
-2. Create a Resend API key
-3. Add RESEND_API_KEY to environment secrets
-4. Verify sending domain in Resend dashboard
-5. Update `fromEmail` in email service configuration
+**Production Setup**:
+1. ✅ Resend API key configured (RESEND_API_KEY in environment secrets)
+2. 🔄 Domain verification in progress for algo-pilot.com
+3. Optional: Add RESEND_FROM_EMAIL to customize sender address
 
 ## Launch Readiness Checklist
 - [x] Core trading functionality (webhook integration, position management)
