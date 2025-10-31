@@ -89,6 +89,7 @@ export interface IStorage {
   
   createPosition(position: InsertPosition): Promise<Position>;
   getOpenPositions(subscriptionId: string): Promise<Position[]>;
+  getAllSubscriptionPositions(subscriptionId: string): Promise<Position[]>;
   getAllUserPositions(userId: string): Promise<Array<Position & { bot: Bot }>>;
   getPositionById(positionId: string): Promise<Position | undefined>;
   getPositionBySubscriptionAndSymbol(subscriptionId: string, symbol: string): Promise<Position | undefined>;
@@ -647,6 +648,15 @@ export class DbStorage implements IStorage {
           eq(positions.status, 'open')
         )
       )
+      .orderBy(desc(positions.openedAt));
+    return result;
+  }
+
+  async getAllSubscriptionPositions(subscriptionId: string): Promise<Position[]> {
+    const result = await db
+      .select()
+      .from(positions)
+      .where(eq(positions.subscriptionId, subscriptionId))
       .orderBy(desc(positions.openedAt));
     return result;
   }

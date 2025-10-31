@@ -785,16 +785,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Forbidden: You can only view your own subscription PnL" });
       }
       
-      const trades = await storage.getSubscriptionTrades(req.params.id, 1000);
-      const positions = await storage.getOpenPositions(req.params.id);
+      // Get all positions (both open and closed) for this subscription
+      const allPositions = await storage.getAllSubscriptionPositions(req.params.id);
+      const closedPositions = allPositions.filter(p => p.status === 'closed');
+      const openPositions = allPositions.filter(p => p.status === 'open');
       
       const realizedPnl = parseFloat(subscription.totalPnl);
-      const unrealizedPnl = positions.reduce((sum, pos) => sum + parseFloat(pos.unrealizedPnl), 0);
+      const unrealizedPnl = openPositions.reduce((sum, pos) => sum + parseFloat(pos.unrealizedPnl), 0);
       const totalPnl = realizedPnl + unrealizedPnl;
       
-      const winningTrades = trades.filter(t => t.pnl && parseFloat(t.pnl) > 0).length;
-      const losingTrades = trades.filter(t => t.pnl && parseFloat(t.pnl) < 0).length;
-      const totalClosedTrades = winningTrades + losingTrades;
+      // Count positions as trades: 1 position = 1 trade
+      const winningTrades = closedPositions.filter(p => parseFloat(p.unrealizedPnl) > 0).length;
+      const losingTrades = closedPositions.filter(p => parseFloat(p.unrealizedPnl) < 0).length;
+      const totalClosedTrades = closedPositions.length;
       const winRate = totalClosedTrades > 0 ? (winningTrades / totalClosedTrades) * 100 : 0;
       
       res.json({
@@ -803,11 +806,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         realizedPnl: realizedPnl.toFixed(2),
         unrealizedPnl: unrealizedPnl.toFixed(2),
         totalPnl: totalPnl.toFixed(2),
-        totalTrades: trades.length,
+        totalTrades: allPositions.length,
         winningTrades,
         losingTrades,
         winRate: winRate.toFixed(2),
-        openPositions: positions.length,
+        openPositions: openPositions.length,
       });
     } catch (error) {
       console.error("Error fetching subscription PnL:", error);
