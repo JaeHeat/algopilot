@@ -582,10 +582,16 @@ export default function DashboardMyTrades() {
                   <span className="text-primary">Fetching real-time price...</span>
                 ) : priceSource === 'binance' ? (
                   "✓ Real-time market price from Binance (read-only)"
+                ) : priceSource === 'kraken' ? (
+                  "✓ Real-time market price from Kraken (read-only)"
+                ) : priceSource === 'coinbase' ? (
+                  "✓ Real-time market price from Coinbase (read-only)"
                 ) : priceSource === 'coingecko' ? (
                   "✓ Real-time market price from CoinGecko (read-only)"
+                ) : priceSource === 'cryptocompare' ? (
+                  "✓ Real-time market price from CryptoCompare (read-only)"
                 ) : (
-                  "Market price will be auto-fetched"
+                  "Market price will be auto-fetched from multiple sources"
                 )}
               </p>
             </div>

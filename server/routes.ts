@@ -987,33 +987,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/crypto/price/:symbol", async (req, res) => {
-    const { symbol } = req.params;
+  // Helper function to fetch price from multiple sources with cascading fallback
+  async function fetchCryptoPrice(symbol: string): Promise<{ price: number; source: string } | null> {
+    const normalizedSymbol = symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
     
+    // 1. Try Binance (fastest, most accurate)
     try {
-      const normalizedSymbol = symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
-      
-      // Try Binance first
-      try {
-        const binanceResponse = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${normalizedSymbol}`);
-        
-        if (binanceResponse.ok) {
-          const data = await binanceResponse.json() as { symbol: string; price: string };
-          return res.json({ 
-            symbol: data.symbol,
-            price: parseFloat(data.price).toFixed(2),
-            source: 'binance',
-            timestamp: new Date().toISOString()
-          });
-        }
-        
-        console.log(`Binance API returned ${binanceResponse.status} for ${normalizedSymbol}, trying CoinGecko fallback`);
-      } catch (binanceError) {
-        console.log(`Binance API error for ${normalizedSymbol}, trying CoinGecko fallback:`, binanceError);
+      const binanceResponse = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${normalizedSymbol}`);
+      if (binanceResponse.ok) {
+        const data = await binanceResponse.json() as { symbol: string; price: string };
+        console.log(`✓ Price fetched from Binance: $${data.price}`);
+        return { price: parseFloat(data.price), source: 'binance' };
       }
+      console.log(`Binance failed (${binanceResponse.status}), trying next source...`);
+    } catch (error) {
+      console.log(`Binance error, trying next source...`);
+    }
+
+    // 2. Try Kraken (no geo-restrictions)
+    try {
+      const krakenMap: Record<string, string> = {
+        'BTCUSDT': 'XXBTZUSD',
+        'ETHUSDT': 'XETHZUSD',
+        'SOLUSDT': 'SOLUSD',
+        'ADAUSDT': 'ADAUSD',
+        'XRPUSDT': 'XXRPZUSD',
+        'DOTUSDT': 'DOTUSD',
+        'MATICUSDT': 'MATICUSD',
+        'AVAXUSDT': 'AVAXUSD',
+      };
       
-      // Fallback to CoinGecko
-      // Convert symbol format: BTCUSDT -> bitcoin, ETHUSDT -> ethereum
+      const krakenPair = krakenMap[normalizedSymbol];
+      if (krakenPair) {
+        const krakenResponse = await fetch(`https://api.kraken.com/0/public/Ticker?pair=${krakenPair}`);
+        if (krakenResponse.ok) {
+          const krakenData = await krakenResponse.json() as { result: Record<string, { c: [string] }> };
+          const pairData = krakenData.result?.[Object.keys(krakenData.result)[0]];
+          if (pairData?.c?.[0]) {
+            const price = parseFloat(pairData.c[0]);
+            console.log(`✓ Price fetched from Kraken: $${price}`);
+            return { price, source: 'kraken' };
+          }
+        }
+      }
+      console.log(`Kraken failed, trying next source...`);
+    } catch (error) {
+      console.log(`Kraken error, trying next source...`);
+    }
+
+    // 3. Try Coinbase (very reliable)
+    try {
+      const coinbaseMap: Record<string, string> = {
+        'BTCUSDT': 'BTC-USD',
+        'ETHUSDT': 'ETH-USD',
+        'SOLUSDT': 'SOL-USD',
+        'ADAUSDT': 'ADA-USD',
+        'DOGEUSDT': 'DOGE-USD',
+        'AVAXUSDT': 'AVAX-USD',
+        'MATICUSDT': 'MATIC-USD',
+      };
+      
+      const coinbasePair = coinbaseMap[normalizedSymbol];
+      if (coinbasePair) {
+        const coinbaseResponse = await fetch(`https://api.coinbase.com/v2/prices/${coinbasePair}/spot`);
+        if (coinbaseResponse.ok) {
+          const coinbaseData = await coinbaseResponse.json() as { data: { amount: string } };
+          if (coinbaseData.data?.amount) {
+            const price = parseFloat(coinbaseData.data.amount);
+            console.log(`✓ Price fetched from Coinbase: $${price}`);
+            return { price, source: 'coinbase' };
+          }
+        }
+      }
+      console.log(`Coinbase failed, trying next source...`);
+    } catch (error) {
+      console.log(`Coinbase error, trying next source...`);
+    }
+
+    // 4. Try CoinGecko (comprehensive coverage)
+    try {
       const coinGeckoMap: Record<string, string> = {
         'BTCUSDT': 'bitcoin',
         'ETHUSDT': 'ethereum',
@@ -1028,39 +1080,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       const coinGeckoId = coinGeckoMap[normalizedSymbol];
+      if (coinGeckoId) {
+        const coinGeckoResponse = await fetch(
+          `https://api.coingecko.com/api/v3/simple/price?ids=${coinGeckoId}&vs_currencies=usd`
+        );
+        if (coinGeckoResponse.ok) {
+          const coinGeckoData = await coinGeckoResponse.json() as Record<string, { usd: number }>;
+          const price = coinGeckoData[coinGeckoId]?.usd;
+          if (price) {
+            console.log(`✓ Price fetched from CoinGecko: $${price}`);
+            return { price, source: 'coingecko' };
+          }
+        }
+      }
+      console.log(`CoinGecko failed, trying next source...`);
+    } catch (error) {
+      console.log(`CoinGecko error, trying next source...`);
+    }
+
+    // 5. Try CryptoCompare (last resort)
+    try {
+      const cryptoCompareSymbol = normalizedSymbol.replace('USDT', '');
+      const cryptoCompareResponse = await fetch(
+        `https://min-api.cryptocompare.com/data/price?fsym=${cryptoCompareSymbol}&tsyms=USD`
+      );
+      if (cryptoCompareResponse.ok) {
+        const cryptoCompareData = await cryptoCompareResponse.json() as { USD?: number };
+        if (cryptoCompareData.USD) {
+          console.log(`✓ Price fetched from CryptoCompare: $${cryptoCompareData.USD}`);
+          return { price: cryptoCompareData.USD, source: 'cryptocompare' };
+        }
+      }
+      console.log(`CryptoCompare failed`);
+    } catch (error) {
+      console.log(`CryptoCompare error`);
+    }
+
+    return null;
+  }
+
+  app.get("/api/crypto/price/:symbol", async (req, res) => {
+    const { symbol } = req.params;
+    
+    try {
+      const result = await fetchCryptoPrice(symbol);
       
-      if (!coinGeckoId) {
-        return res.status(404).json({ 
-          message: "Symbol not supported. Please enter price manually.",
-          symbol: normalizedSymbol 
+      if (result) {
+        return res.json({ 
+          symbol: symbol.toUpperCase(),
+          price: result.price.toFixed(2),
+          source: result.source,
+          timestamp: new Date().toISOString()
         });
       }
       
-      const coinGeckoResponse = await fetch(
-        `https://api.coingecko.com/api/v3/simple/price?ids=${coinGeckoId}&vs_currencies=usd`
-      );
-      
-      if (!coinGeckoResponse.ok) {
-        throw new Error(`CoinGecko API error: ${coinGeckoResponse.status}`);
-      }
-      
-      const coinGeckoData = await coinGeckoResponse.json() as Record<string, { usd: number }>;
-      const price = coinGeckoData[coinGeckoId]?.usd;
-      
-      if (!price) {
-        throw new Error("Price not found in CoinGecko response");
-      }
-      
-      res.json({ 
-        symbol: normalizedSymbol,
-        price: price.toFixed(2),
-        source: 'coingecko',
-        timestamp: new Date().toISOString()
+      console.error(`❌ All price sources failed for ${symbol}`);
+      return res.status(503).json({ 
+        message: "Unable to fetch price from any source. Please try again in a moment.",
+        symbol: symbol.toUpperCase()
       });
     } catch (error) {
-      console.error("Error fetching crypto price from all sources:", error);
+      console.error("Error in price endpoint:", error);
       res.status(500).json({ 
-        message: "Failed to fetch price. Please enter manually.",
+        message: "Failed to fetch price.",
         error: error instanceof Error ? error.message : "Unknown error"
       });
     }
@@ -1096,67 +1178,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Server-side price validation: Verify the close price against real-time market data
-      const normalizedSymbol = position.symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
-      let currentMarketPrice: number | null = null;
-
-      // Try Binance first
-      try {
-        const binanceResponse = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${normalizedSymbol}`);
-        if (binanceResponse.ok) {
-          const data = await binanceResponse.json() as { symbol: string; price: string };
-          currentMarketPrice = parseFloat(data.price);
-        }
-      } catch (binanceError) {
-        console.log(`Price validation - Binance failed for ${normalizedSymbol}, trying CoinGecko`);
-      }
-
-      // Fallback to CoinGecko if Binance failed
-      if (!currentMarketPrice) {
-        const coinGeckoMap: Record<string, string> = {
-          'BTCUSDT': 'bitcoin',
-          'ETHUSDT': 'ethereum',
-          'BNBUSDT': 'binancecoin',
-          'ADAUSDT': 'cardano',
-          'SOLUSDT': 'solana',
-          'XRPUSDT': 'ripple',
-          'DOTUSDT': 'polkadot',
-          'DOGEUSDT': 'dogecoin',
-          'AVAXUSDT': 'avalanche-2',
-          'MATICUSDT': 'matic-network',
-        };
-
-        const coinGeckoId = coinGeckoMap[normalizedSymbol];
-        if (coinGeckoId) {
-          try {
-            const coinGeckoResponse = await fetch(
-              `https://api.coingecko.com/api/v3/simple/price?ids=${coinGeckoId}&vs_currencies=usd`
-            );
-            if (coinGeckoResponse.ok) {
-              const coinGeckoData = await coinGeckoResponse.json() as Record<string, { usd: number }>;
-              currentMarketPrice = coinGeckoData[coinGeckoId]?.usd || null;
-            }
-          } catch (coinGeckoError) {
-            console.log(`Price validation - CoinGecko failed for ${normalizedSymbol}`);
-          }
-        }
-      }
-
-      // Validate the submitted price is within reasonable range of current market price (5% tolerance)
-      if (currentMarketPrice) {
+      const priceResult = await fetchCryptoPrice(position.symbol);
+      
+      if (priceResult) {
         const submittedPrice = parseFloat(closePrice);
+        const currentMarketPrice = priceResult.price;
         const priceDeviation = Math.abs((submittedPrice - currentMarketPrice) / currentMarketPrice);
         
         if (priceDeviation > 0.05) {
-          console.warn(`⚠️ Price validation failed: Submitted $${submittedPrice}, Market $${currentMarketPrice}, Deviation ${(priceDeviation * 100).toFixed(2)}%`);
+          console.warn(`⚠️ Price validation failed: Submitted $${submittedPrice}, Market $${currentMarketPrice} (${priceResult.source}), Deviation ${(priceDeviation * 100).toFixed(2)}%`);
           return res.status(400).json({ 
             message: "Submitted price deviates too much from current market price. Please refresh and try again.",
-            currentMarketPrice: currentMarketPrice.toFixed(2)
+            currentMarketPrice: currentMarketPrice.toFixed(2),
+            source: priceResult.source
           });
         }
         
-        console.log(`✓ Price validated: Submitted $${submittedPrice}, Market $${currentMarketPrice}, Deviation ${(priceDeviation * 100).toFixed(2)}%`);
+        console.log(`✓ Price validated: Submitted $${submittedPrice}, Market $${currentMarketPrice} (${priceResult.source}), Deviation ${(priceDeviation * 100).toFixed(2)}%`);
       } else {
-        console.warn(`⚠️ Could not validate price for ${normalizedSymbol} - proceeding without validation`);
+        console.warn(`⚠️ Could not validate price for ${position.symbol} - all sources failed, proceeding without validation`);
       }
 
       const price = parseFloat(closePrice);
