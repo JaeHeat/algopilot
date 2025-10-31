@@ -48,8 +48,8 @@ export default function DashboardLayout() {
                 <Route path="/dashboard/my-trades" component={DashboardMyTrades} />
                 <Route path="/dashboard/marketplace" component={DashboardMarketplace} />
                 <Route path="/dashboard/settings" component={DashboardSettings} />
-                <Route path="/dashboard/creator" component={DashboardCreator} />
                 <Route path="/dashboard/creator/earnings" component={DashboardCreatorEarnings} />
+                <Route path="/dashboard/creator" component={DashboardCreator} />
                 <Route path="/dashboard/admin" component={DashboardAdmin} />
                 <Route path="/bot/:id" component={BotDetail} />
                 <Route component={NotFound} />

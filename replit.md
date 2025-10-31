@@ -38,10 +38,19 @@ The platform is built with a modern web stack: React with TypeScript, Wouter for
   - Filters out scammers and unprofitable bots
   - Builds platform trust and credibility
 - **Featured Placements**: Paid featured banner slots in marketplace for creators to promote their bots, tracked with impressions/clicks analytics.
+- **Creator Payout System**: Complete payout management system for creator earnings with:
+  - Automatic earnings calculation (75% of subscription revenue)
+  - Creator earnings dashboard showing total earnings, pending balance, and payout history
+  - Payout request functionality with minimum $50 threshold
+  - Admin review and approval workflow with validated rejection reasons
+  - Payout status tracking (pending, approved, processing, completed, rejected)
+  - Form-based admin interface replacing prompt-based approvals for better UX and audit trail
+  - Ready for Stripe Connect integration for automated payouts
 - **Admin Panel**: Comprehensive platform management dashboard for administrators with:
   - Real-time platform statistics (total users, active bots, platform revenue, pending approvals)
   - Recent users list with subscription counts
   - Creator application review and approval workflow
+  - Pending payout requests management with approve/reject actions
   - Role-based access control (admin role required)
   - Integration with live database metrics via protected API endpoints
   - Note: Admin users must be manually created in production by updating the user's role to 'admin' in the database
