@@ -33,13 +33,16 @@ export const bots = pgTable("bots", {
   strategy: text("strategy").notNull(),
   riskLevel: text("risk_level").notNull(),
   monthlyPrice: decimal("monthly_price", { precision: 10, scale: 2 }).notNull(),
+  iconUrl: text("icon_url"),
   creatorId: varchar("creator_id").notNull().references(() => users.id),
   isVerified: boolean("is_verified").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
+  evaluationStatus: text("evaluation_status").notNull().default("not_started"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
   index("idx_bots_creator_id").on(table.creatorId),
   index("idx_bots_is_active").on(table.isActive),
+  index("idx_bots_evaluation_status").on(table.evaluationStatus),
 ]);
 
 export const botPerformance = pgTable("bot_performance", {
@@ -265,6 +268,25 @@ export const featuredPlacements = pgTable("featured_placements", {
   index("idx_featured_placements_status").on(table.status),
 ]);
 
+export const botEvaluations = pgTable("bot_evaluations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  botId: varchar("bot_id").notNull().unique().references(() => bots.id),
+  status: text("status").notNull().default("in_progress"),
+  requiredTrades: integer("required_trades").notNull().default(10),
+  requiredProfitPercent: decimal("required_profit_percent", { precision: 10, scale: 2 }).notNull().default("5.00"),
+  currentTrades: integer("current_trades").notNull().default(0),
+  currentPnl: decimal("current_pnl", { precision: 15, scale: 2 }).notNull().default("0.00"),
+  currentPnlPercent: decimal("current_pnl_percent", { precision: 10, scale: 2 }).notNull().default("0.00"),
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+  evaluationNotes: text("evaluation_notes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_bot_evaluations_status").on(table.status),
+  index("idx_bot_evaluations_bot_id").on(table.botId),
+]);
+
 export const insertBotSchema = createInsertSchema(bots).omit({ id: true, createdAt: true });
 export const insertBotPerformanceSchema = createInsertSchema(botPerformance).omit({ id: true, updatedAt: true });
 export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({ id: true, startedAt: true, cancelledAt: true }).extend({
@@ -284,6 +306,7 @@ export const insertPositionSchema = createInsertSchema(positions).omit({ id: tru
 export const insertUserOnboardingSchema = createInsertSchema(userOnboarding).omit({ id: true, createdAt: true, updatedAt: true, completedAt: true });
 export const insertCreatorApplicationSchema = createInsertSchema(creatorApplications).omit({ id: true, createdAt: true, updatedAt: true, reviewedAt: true });
 export const insertFeaturedPlacementSchema = createInsertSchema(featuredPlacements).omit({ id: true, createdAt: true });
+export const insertBotEvaluationSchema = createInsertSchema(botEvaluations).omit({ id: true, createdAt: true, updatedAt: true, startedAt: true, completedAt: true });
 
 export const updateSubscriptionSettingsSchema = z.object({
   capitalAllocated: z.number().positive().optional(),
@@ -346,3 +369,5 @@ export type InsertCreatorApplication = z.infer<typeof insertCreatorApplicationSc
 export type CreatorApplication = typeof creatorApplications.$inferSelect;
 export type InsertFeaturedPlacement = z.infer<typeof insertFeaturedPlacementSchema>;
 export type FeaturedPlacement = typeof featuredPlacements.$inferSelect;
+export type InsertBotEvaluation = z.infer<typeof insertBotEvaluationSchema>;
+export type BotEvaluation = typeof botEvaluations.$inferSelect;
