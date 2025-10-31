@@ -165,30 +165,40 @@ export class DbStorage implements IStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
-    // Check if user already exists
+    // Check if user already exists by email or id
     const userId = userData.id;
-    const existingUser = userId ? await this.getUser(userId) : undefined;
+    const existingUserById = userId ? await this.getUser(userId) : undefined;
+    const existingUserByEmail = userData.email ? await this.getUserByEmail(userData.email) : undefined;
+    const existingUser = existingUserById || existingUserByEmail;
     const isNewUser = !existingUser;
+    
+    // If there's an existing user by email but with a different ID, use the existing user's ID
+    const finalUserId = existingUser?.id || userId;
+    const finalUserData = { ...userData, id: finalUserId };
     
     const result = await db
       .insert(users)
-      .values(userData)
+      .values(finalUserData)
       .onConflictDoUpdate({
         target: users.id,
         set: {
-          ...userData,
+          email: finalUserData.email,
+          firstName: finalUserData.firstName,
+          lastName: finalUserData.lastName,
+          profileImageUrl: finalUserData.profileImageUrl,
+          role: finalUserData.role,
           updatedAt: new Date(),
         },
       })
       .returning();
     
     // Create default exchange connection for new users
-    if (isNewUser && userId) {
+    if (isNewUser && finalUserId) {
       await db.insert(exchangeConnections).values({
-        userId: userId,
+        userId: finalUserId,
         exchange: "Mock Exchange",
-        apiKey: `mock_${userId.substring(0, 8)}`,
-        apiSecret: `secret_${userId.substring(0, 8)}`,
+        apiKey: `mock_${finalUserId.substring(0, 8)}`,
+        apiSecret: `secret_${finalUserId.substring(0, 8)}`,
         balance: "10000.00", // $10,000 starting balance for testing
         isActive: true,
       });
