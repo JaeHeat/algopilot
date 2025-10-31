@@ -37,7 +37,10 @@ export const bots = pgTable("bots", {
   isVerified: boolean("is_verified").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("idx_bots_creator_id").on(table.creatorId),
+  index("idx_bots_is_active").on(table.isActive),
+]);
 
 export const botPerformance = pgTable("bot_performance", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -49,7 +52,9 @@ export const botPerformance = pgTable("bot_performance", {
   totalTrades: integer("total_trades").notNull(),
   subscribers: integer("subscribers").notNull().default(0),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("idx_bot_performance_bot_id").on(table.botId),
+]);
 
 export const subscriptions = pgTable("subscriptions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -70,7 +75,12 @@ export const subscriptions = pgTable("subscriptions", {
   startedAt: timestamp("started_at").notNull().defaultNow(),
   cancelledAt: timestamp("cancelled_at"),
   subscriptionEndsAt: timestamp("subscription_ends_at"),
-});
+}, (table) => [
+  index("idx_subscriptions_user_id").on(table.userId),
+  index("idx_subscriptions_bot_id").on(table.botId),
+  index("idx_subscriptions_status").on(table.status),
+  index("idx_subscriptions_started_at").on(table.startedAt),
+]);
 
 export const exchangeConnections = pgTable("exchange_connections", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -169,7 +179,10 @@ export const webhookEventLogs = pgTable("webhook_event_logs", {
   status: text("status").notNull(),
   error: text("error"),
   processedAt: timestamp("processed_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("idx_webhook_event_logs_bot_id").on(table.botId),
+  index("idx_webhook_event_logs_processed_at").on(table.processedAt),
+]);
 
 export const trades = pgTable("trades", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -184,7 +197,11 @@ export const trades = pgTable("trades", {
   fees: decimal("fees", { precision: 10, scale: 2 }).notNull().default("0.00"),
   pnl: decimal("pnl", { precision: 15, scale: 2 }),
   executedAt: timestamp("executed_at").notNull().defaultNow(),
-});
+}, (table) => [
+  index("idx_trades_subscription_id").on(table.subscriptionId),
+  index("idx_trades_bot_id").on(table.botId),
+  index("idx_trades_executed_at").on(table.executedAt),
+]);
 
 export const positions = pgTable("positions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -199,7 +216,11 @@ export const positions = pgTable("positions", {
   status: text("status").notNull().default("open"),
   openedAt: timestamp("opened_at").notNull().defaultNow(),
   closedAt: timestamp("closed_at"),
-});
+}, (table) => [
+  index("idx_positions_subscription_id").on(table.subscriptionId),
+  index("idx_positions_status").on(table.status),
+  index("idx_positions_opened_at").on(table.openedAt),
+]);
 
 export const userOnboarding = pgTable("user_onboarding", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
