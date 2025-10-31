@@ -841,34 +841,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/user/analytics", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const trades = await storage.getAllUserTrades(userId, 1000);
       const positions = await storage.getAllUserPositions(userId);
       
-      const closedTrades = trades.filter(t => t.pnl !== null);
-      const winningTrades = closedTrades.filter(t => parseFloat(t.pnl!) > 0);
-      const losingTrades = closedTrades.filter(t => parseFloat(t.pnl!) < 0);
+      // Count positions as trades: 1 position (open or closed) = 1 trade
+      const closedPositions = positions.filter(p => p.status === 'closed');
+      const openPositions = positions.filter(p => p.status === 'open');
       
-      const totalPnl = closedTrades.reduce((sum, t) => sum + parseFloat(t.pnl!), 0);
-      const unrealizedPnl = positions.filter(p => p.status === 'open').reduce((sum, p) => sum + parseFloat(p.unrealizedPnl), 0);
+      // For closed positions, unrealizedPnl contains the final realized P&L
+      const winningTrades = closedPositions.filter(p => parseFloat(p.unrealizedPnl) > 0);
+      const losingTrades = closedPositions.filter(p => parseFloat(p.unrealizedPnl) < 0);
       
-      const winRate = closedTrades.length > 0 ? (winningTrades.length / closedTrades.length) * 100 : 0;
+      const totalPnl = closedPositions.reduce((sum, p) => sum + parseFloat(p.unrealizedPnl), 0);
+      const unrealizedPnl = openPositions.reduce((sum, p) => sum + parseFloat(p.unrealizedPnl), 0);
       
-      const bestTrade = closedTrades.length > 0 
-        ? closedTrades.reduce((best, t) => parseFloat(t.pnl!) > parseFloat(best.pnl!) ? t : best)
+      const winRate = closedPositions.length > 0 ? (winningTrades.length / closedPositions.length) * 100 : 0;
+      
+      const bestTrade = closedPositions.length > 0 
+        ? closedPositions.reduce((best, p) => parseFloat(p.unrealizedPnl) > parseFloat(best.unrealizedPnl) ? p : best)
         : null;
       
-      const worstTrade = closedTrades.length > 0
-        ? closedTrades.reduce((worst, t) => parseFloat(t.pnl!) < parseFloat(worst.pnl!) ? t : worst)
+      const worstTrade = closedPositions.length > 0
+        ? closedPositions.reduce((worst, p) => parseFloat(p.unrealizedPnl) < parseFloat(worst.unrealizedPnl) ? p : worst)
         : null;
       
       const profitFactor = losingTrades.length > 0
-        ? Math.abs(winningTrades.reduce((sum, t) => sum + parseFloat(t.pnl!), 0) / losingTrades.reduce((sum, t) => sum + parseFloat(t.pnl!), 0))
+        ? Math.abs(winningTrades.reduce((sum, p) => sum + parseFloat(p.unrealizedPnl), 0) / losingTrades.reduce((sum, p) => sum + parseFloat(p.unrealizedPnl), 0))
         : winningTrades.length > 0 ? 999 : 0;
       
       res.json({
-        totalTrades: trades.length,
-        closedTrades: closedTrades.length,
-        openPositions: positions.filter(p => p.status === 'open').length,
+        totalTrades: positions.length,
+        closedTrades: closedPositions.length,
+        openPositions: openPositions.length,
         totalPnl: totalPnl.toFixed(2),
         unrealizedPnl: unrealizedPnl.toFixed(2),
         combinedPnl: (totalPnl + unrealizedPnl).toFixed(2),
@@ -878,13 +881,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         profitFactor: profitFactor.toFixed(2),
         bestTrade: bestTrade ? {
           symbol: bestTrade.symbol,
-          pnl: parseFloat(bestTrade.pnl!).toFixed(2),
-          date: bestTrade.executedAt,
+          pnl: parseFloat(bestTrade.unrealizedPnl).toFixed(2),
+          date: bestTrade.closedAt || bestTrade.openedAt,
         } : null,
         worstTrade: worstTrade ? {
           symbol: worstTrade.symbol,
-          pnl: parseFloat(worstTrade.pnl!).toFixed(2),
-          date: worstTrade.executedAt,
+          pnl: parseFloat(worstTrade.unrealizedPnl).toFixed(2),
+          date: worstTrade.closedAt || worstTrade.openedAt,
         } : null,
       });
     } catch (error) {
@@ -1159,11 +1162,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/positions/:positionId/close", async (req, res) => {
-    if (!req.user?.claims?.sub) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
+  app.post("/api/positions/:positionId/close", isAuthenticated, async (req: any, res) => {
     const userId = req.user.claims.sub;
     const { positionId } = req.params;
     const { closePrice } = req.body;
