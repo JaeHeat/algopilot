@@ -15,7 +15,7 @@ The platform is built with a modern web stack: React with TypeScript, Wouter for
 - Design inspiration draws from platforms like Coinbase, Stripe, and Robinhood.
 - **Navigation System**: Context-aware AlgoPilot logo navigation (landing page for guests, dashboard for authenticated users).
 - **Marketplace Access**: Public marketplace browsing without authentication, with header navigation and sign-in prompts for subscription features.
-- **Marketplace Design**: App Store-inspired layout with featured banner placement (paid), filters, 7-day top performers leaderboard with ranking badges, and all bots grid.
+- **Marketplace Design**: Steam-inspired clean table layout with ranked list, bot icons, key metrics in columns (ROI, Win Rate, Sharpe, Subscribers), sticky filters, and easy-to-scan rows. Much simpler and cleaner than previous card grid design.
 
 **Technical Implementations & Feature Specifications:**
 - **Authentication**: Secure user authentication via Replit Auth.
@@ -30,6 +30,13 @@ The platform is built with a modern web stack: React with TypeScript, Wouter for
 - **Notification System**: Comprehensive email notifications for trade alerts, drawdown warnings, and P&L summaries using Resend.
 - **User Onboarding System**: A multi-component system (Welcome Modal, Onboarding Checklist, Getting Started Guide) guides new users, with automated progress tracking.
 - **Creator Application System**: Gated creator program with free application, review/approval workflow, and status tracking (pending, approved, rejected).
+- **Performance-Based Bot Evaluation**: Similar to prop firm evaluations, bots must pass performance requirements before going live:
+  - Connect bot via webhook and start trading
+  - Reach minimum trade count (default: 10 trades)
+  - Achieve profitability threshold (default: 5% profit)
+  - Prevents lucky single-trade approvals
+  - Filters out scammers and unprofitable bots
+  - Builds platform trust and credibility
 - **Featured Placements**: Paid featured banner slots in marketplace for creators to promote their bots, tracked with impressions/clicks analytics.
 
 **System Design Choices:**
