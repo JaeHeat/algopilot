@@ -61,6 +61,7 @@ export const subscriptions = pgTable("subscriptions", {
   capitalAllocatedType: text("capital_allocated_type").notNull().default("amount"),
   riskPercentage: integer("risk_percentage").notNull().default(2),
   maxDrawdown: decimal("max_drawdown", { precision: 5, scale: 2 }).notNull().default("10.00"),
+  maxPositionsPerSymbol: integer("max_positions_per_symbol").notNull().default(1),
   isPaused: boolean("is_paused").notNull().default(false),
   pauseReason: text("pause_reason"),
   notificationPrefs: jsonb("notification_prefs").notNull().default(sql`'{"newTrade":true,"drawdownBreach":true,"weeklySummary":true,"monthlySummary":true}'::jsonb`),
