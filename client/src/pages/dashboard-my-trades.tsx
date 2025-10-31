@@ -39,6 +39,7 @@ export default function DashboardMyTrades() {
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [selectedPosition, setSelectedPosition] = useState<any>(null);
   const [closePrice, setClosePrice] = useState("");
+  const [fetchingPrice, setFetchingPrice] = useState(false);
   const { toast } = useToast();
 
   const closePositionMutation = useMutation({
@@ -68,10 +69,26 @@ export default function DashboardMyTrades() {
     },
   });
 
-  const handleOpenCloseDialog = (position: any) => {
+  const handleOpenCloseDialog = async (position: any) => {
     setSelectedPosition(position);
     setClosePrice(position.currentPrice);
     setCloseDialogOpen(true);
+    setFetchingPrice(true);
+
+    try {
+      const response = await fetch(`/api/crypto/price/${position.symbol}`);
+      if (response.ok) {
+        const data = await response.json();
+        setClosePrice(data.price);
+        console.log(`Fetched real-time price for ${position.symbol}: $${data.price} from Binance`);
+      } else {
+        console.warn(`Could not fetch real-time price for ${position.symbol}, using current price`);
+      }
+    } catch (error) {
+      console.error("Error fetching real-time price:", error);
+    } finally {
+      setFetchingPrice(false);
+    }
   };
 
   const handleClosePosition = () => {
@@ -539,10 +556,15 @@ export default function DashboardMyTrades() {
                 placeholder="Enter current market price"
                 value={closePrice}
                 onChange={(e) => setClosePrice(e.target.value)}
+                disabled={fetchingPrice}
                 data-testid="input-close-price"
               />
               <p className="text-xs text-muted-foreground">
-                Enter the current market price to calculate your final P&L
+                {fetchingPrice ? (
+                  <span className="text-primary">Fetching real-time price from Binance...</span>
+                ) : (
+                  "Real-time market price auto-filled from Binance"
+                )}
               </p>
             </div>
           </div>
