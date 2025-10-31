@@ -20,6 +20,7 @@ import type {
   UserOnboarding, InsertUserOnboarding
 } from "@shared/schema";
 import { eq, and, desc, or, isNull, gt } from "drizzle-orm";
+import memoizee from "memoizee";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -107,6 +108,26 @@ export interface IStorage {
 }
 
 export class DbStorage implements IStorage {
+  private _getAllBotsUncached = async (): Promise<Array<Bot & { performance: BotPerformance | null }>> => {
+    const result = await db
+      .select()
+      .from(bots)
+      .leftJoin(botPerformance, eq(bots.id, botPerformance.botId))
+      .where(eq(bots.isActive, true))
+      .orderBy(desc(bots.createdAt));
+    
+    return result.map(row => ({
+      ...row.bots,
+      performance: row.bot_performance,
+    }));
+  };
+
+  getAllBots = memoizee(this._getAllBotsUncached, {
+    promise: true,
+    maxAge: 60000,
+    preFetch: 0.8,
+  });
+
   async getUser(id: string): Promise<User | undefined> {
     const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
     return result[0];
@@ -159,20 +180,6 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async getAllBots(): Promise<Array<Bot & { performance: BotPerformance | null }>> {
-    const result = await db
-      .select()
-      .from(bots)
-      .leftJoin(botPerformance, eq(bots.id, botPerformance.botId))
-      .where(eq(bots.isActive, true))
-      .orderBy(desc(bots.createdAt));
-    
-    return result.map(row => ({
-      ...row.bots,
-      performance: row.bot_performance,
-    }));
-  }
-
   async getBotById(id: string): Promise<(Bot & { creator: User }) | undefined> {
     const result = await db
       .select()
@@ -191,36 +198,50 @@ export class DbStorage implements IStorage {
 
   async createBot(bot: InsertBot): Promise<Bot> {
     const result = await db.insert(bots).values(bot).returning();
+    this.getAllBots.clear();
     return result[0];
   }
 
   async updateBot(id: string, bot: Partial<InsertBot>): Promise<Bot | undefined> {
     const result = await db.update(bots).set(bot).where(eq(bots.id, id)).returning();
+    this.getAllBots.clear();
     return result[0];
   }
 
-  async getBotPerformance(botId: string): Promise<BotPerformance | undefined> {
+  private _getBotPerformanceUncached = async (botId: string): Promise<BotPerformance | undefined> => {
     const result = await db.select().from(botPerformance).where(eq(botPerformance.botId, botId)).limit(1);
     return result[0];
-  }
+  };
+
+  getBotPerformance = memoizee(this._getBotPerformanceUncached, {
+    promise: true,
+    maxAge: 45000,
+    preFetch: 0.8,
+  });
 
   async upsertBotPerformance(performance: InsertBotPerformance): Promise<BotPerformance> {
-    const existing = await this.getBotPerformance(performance.botId);
+    const result = await db.select().from(botPerformance).where(eq(botPerformance.botId, performance.botId)).limit(1);
+    const existing = result[0];
     
+    let updated: BotPerformance;
     if (existing) {
-      const result = await db
+      const updateResult = await db
         .update(botPerformance)
         .set({ ...performance, updatedAt: new Date() })
         .where(eq(botPerformance.botId, performance.botId))
         .returning();
-      return result[0];
+      updated = updateResult[0];
     } else {
-      const result = await db.insert(botPerformance).values(performance).returning();
-      return result[0];
+      const insertResult = await db.insert(botPerformance).values(performance).returning();
+      updated = insertResult[0];
     }
+    
+    this.getBotPerformance.delete(performance.botId);
+    this.getAllBots.clear();
+    return updated;
   }
 
-  async getUserSubscriptions(userId: string): Promise<Array<Subscription & { bot: Bot; performance: BotPerformance | null }>> {
+  private _getUserSubscriptionsUncached = async (userId: string): Promise<Array<Subscription & { bot: Bot; performance: BotPerformance | null }>> => {
     const now = new Date();
     const result = await db
       .select()
@@ -241,7 +262,13 @@ export class DbStorage implements IStorage {
       bot: row.bots,
       performance: row.bot_performance,
     }));
-  }
+  };
+
+  getUserSubscriptions = memoizee(this._getUserSubscriptionsUncached, {
+    promise: true,
+    maxAge: 30000,
+    preFetch: 0.8,
+  });
 
   async getSubscription(userId: string, botId: string): Promise<Subscription | undefined> {
     const now = new Date();
@@ -267,6 +294,7 @@ export class DbStorage implements IStorage {
 
   async createSubscription(subscription: InsertSubscription): Promise<Subscription> {
     const result = await db.insert(subscriptions).values(subscription).returning();
+    this.getUserSubscriptions.delete(subscription.userId);
     return result[0];
   }
 
@@ -284,6 +312,10 @@ export class DbStorage implements IStorage {
       .set(updateData)
       .where(eq(subscriptions.id, id))
       .returning();
+    
+    if (result[0]) {
+      this.getUserSubscriptions.delete(result[0].userId);
+    }
     return result[0];
   }
 
@@ -293,6 +325,10 @@ export class DbStorage implements IStorage {
       .set({ isPaused: true, pauseReason: reason })
       .where(eq(subscriptions.id, id))
       .returning();
+    
+    if (result[0]) {
+      this.getUserSubscriptions.delete(result[0].userId);
+    }
     return result[0];
   }
 
@@ -302,6 +338,10 @@ export class DbStorage implements IStorage {
       .set({ isPaused: false, pauseReason: null })
       .where(eq(subscriptions.id, id))
       .returning();
+    
+    if (result[0]) {
+      this.getUserSubscriptions.delete(result[0].userId);
+    }
     return result[0];
   }
 
@@ -314,6 +354,10 @@ export class DbStorage implements IStorage {
       })
       .where(eq(subscriptions.id, id))
       .returning();
+    
+    if (result[0]) {
+      this.getUserSubscriptions.delete(result[0].userId);
+    }
     return result[0];
   }
 
@@ -329,6 +373,10 @@ export class DbStorage implements IStorage {
       })
       .where(eq(subscriptions.id, id))
       .returning();
+    
+    if (result[0]) {
+      this.getUserSubscriptions.delete(result[0].userId);
+    }
     return result[0];
   }
 
@@ -738,6 +786,10 @@ export class DbStorage implements IStorage {
       })
       .where(eq(subscriptions.id, id))
       .returning();
+    
+    if (result[0]) {
+      this.getUserSubscriptions.delete(result[0].userId);
+    }
     return result[0];
   }
 
