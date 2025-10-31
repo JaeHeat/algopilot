@@ -22,7 +22,7 @@ import type {
   FeaturedPlacement, InsertFeaturedPlacement,
   BotEvaluation, InsertBotEvaluation
 } from "@shared/schema";
-import { eq, and, desc, or, isNull, gt } from "drizzle-orm";
+import { eq, and, desc, or, isNull, gt, sql, count } from "drizzle-orm";
 import memoizee from "memoizee";
 
 export interface IStorage {
@@ -122,6 +122,15 @@ export interface IStorage {
   updateBotEvaluation(botId: string, updates: Partial<BotEvaluation>): Promise<BotEvaluation | undefined>;
   updateEvaluationFromTrade(botId: string, pnl: number, newBalance: number, initialCapital: number): Promise<void>;
   checkAndUpdateEvaluationStatus(botId: string): Promise<{ status: string; passed: boolean; reason?: string }>;
+  
+  getAdminStats(): Promise<{
+    totalUsers: number;
+    activeBots: number;
+    platformRevenue: string;
+    pendingApprovals: number;
+  }>;
+  getRecentUsers(limit?: number): Promise<Array<User & { subscriptionCount: number }>>;
+  getPendingCreatorApplications(): Promise<Array<CreatorApplication & { user: User }>>;
 }
 
 export class DbStorage implements IStorage {
@@ -1083,6 +1092,98 @@ export class DbStorage implements IStorage {
       passed: false,
       reason: `Progress: ${currentTrades}/${requiredTrades} trades, ${currentPnlPercent.toFixed(2)}%/${requiredProfit}% profit`
     };
+  }
+
+  async getAdminStats(): Promise<{
+    totalUsers: number;
+    activeBots: number;
+    platformRevenue: string;
+    pendingApprovals: number;
+  }> {
+    // Count total users
+    const userCountResult = await db
+      .select({ count: count() })
+      .from(users);
+    const totalUsers = userCountResult[0]?.count || 0;
+
+    // Count active bots
+    const botCountResult = await db
+      .select({ count: count() })
+      .from(bots)
+      .where(eq(bots.isActive, true));
+    const activeBots = botCountResult[0]?.count || 0;
+
+    // Calculate platform revenue (25% of all subscription monthly prices)
+    const revenueResult = await db
+      .select({
+        total: sql<string>`COALESCE(SUM(${bots.monthlyPrice} * 0.25), 0)`,
+      })
+      .from(subscriptions)
+      .innerJoin(bots, eq(subscriptions.botId, bots.id))
+      .where(eq(subscriptions.status, 'active'));
+    const platformRevenue = parseFloat(revenueResult[0]?.total || '0').toFixed(2);
+
+    // Count pending creator applications
+    const pendingAppResult = await db
+      .select({ count: count() })
+      .from(creatorApplications)
+      .where(eq(creatorApplications.status, 'pending'));
+    const pendingApprovals = pendingAppResult[0]?.count || 0;
+
+    return {
+      totalUsers,
+      activeBots,
+      platformRevenue,
+      pendingApprovals,
+    };
+  }
+
+  async getRecentUsers(limit: number = 10): Promise<Array<User & { subscriptionCount: number }>> {
+    const result = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        profileImageUrl: users.profileImageUrl,
+        role: users.role,
+        stripeCustomerId: users.stripeCustomerId,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt,
+        subscriptionCount: sql<number>`COUNT(DISTINCT ${subscriptions.id})`,
+      })
+      .from(users)
+      .leftJoin(subscriptions, eq(users.id, subscriptions.userId))
+      .groupBy(users.id)
+      .orderBy(desc(users.createdAt))
+      .limit(limit);
+
+    return result.map(row => ({
+      id: row.id,
+      email: row.email,
+      firstName: row.firstName,
+      lastName: row.lastName,
+      profileImageUrl: row.profileImageUrl,
+      role: row.role,
+      stripeCustomerId: row.stripeCustomerId,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      subscriptionCount: row.subscriptionCount,
+    }));
+  }
+
+  async getPendingCreatorApplications(): Promise<Array<CreatorApplication & { user: User }>> {
+    const result = await db
+      .select()
+      .from(creatorApplications)
+      .innerJoin(users, eq(creatorApplications.userId, users.id))
+      .where(eq(creatorApplications.status, 'pending'))
+      .orderBy(desc(creatorApplications.createdAt));
+
+    return result.map(row => ({
+      ...row.creator_applications,
+      user: row.users,
+    }));
   }
 }
 
