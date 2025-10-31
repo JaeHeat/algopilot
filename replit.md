@@ -38,6 +38,13 @@ The platform is built with a modern web stack: React with TypeScript, Wouter for
   - Filters out scammers and unprofitable bots
   - Builds platform trust and credibility
 - **Featured Placements**: Paid featured banner slots in marketplace for creators to promote their bots, tracked with impressions/clicks analytics.
+- **Admin Panel**: Comprehensive platform management dashboard for administrators with:
+  - Real-time platform statistics (total users, active bots, platform revenue, pending approvals)
+  - Recent users list with subscription counts
+  - Creator application review and approval workflow
+  - Role-based access control (admin role required)
+  - Integration with live database metrics via protected API endpoints
+  - Note: Admin users must be manually created in production by updating the user's role to 'admin' in the database
 
 **System Design Choices:**
 - **Security-first Approach**: Emphasizes ownership validation, data redaction, protected routes, and extensive server-side validation, including robust Stripe payment validation.
