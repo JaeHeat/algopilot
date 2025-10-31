@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents, creatorPosts, postComments, postReactions, botWebhooks, webhookEventLogs, trades, positions } from "@shared/schema";
+import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents, creatorPosts, postComments, postReactions, botWebhooks, webhookEventLogs, trades, positions, userOnboarding } from "@shared/schema";
 import type { 
   User, UpsertUser, 
   Bot, InsertBot,
@@ -16,7 +16,8 @@ import type {
   BotWebhook, InsertBotWebhook,
   WebhookEventLog, InsertWebhookEventLog,
   Trade, InsertTrade,
-  Position, InsertPosition
+  Position, InsertPosition,
+  UserOnboarding, InsertUserOnboarding
 } from "@shared/schema";
 import { eq, and, desc, or, isNull, gt } from "drizzle-orm";
 
@@ -98,6 +99,11 @@ export interface IStorage {
   
   updateSubscriptionBalance(id: string, balance: string, pnl: string): Promise<Subscription | undefined>;
   getActiveSubscriptionsByBot(botId: string): Promise<Subscription[]>;
+  
+  getUserOnboarding(userId: string): Promise<UserOnboarding | undefined>;
+  createUserOnboarding(userId: string): Promise<UserOnboarding>;
+  updateOnboardingProgress(userId: string, updates: Partial<InsertUserOnboarding>): Promise<UserOnboarding | undefined>;
+  completeOnboarding(userId: string): Promise<UserOnboarding | undefined>;
 }
 
 export class DbStorage implements IStorage {
@@ -747,6 +753,44 @@ export class DbStorage implements IStorage {
         )
       );
     return result;
+  }
+
+  async getUserOnboarding(userId: string): Promise<UserOnboarding | undefined> {
+    const result = await db
+      .select()
+      .from(userOnboarding)
+      .where(eq(userOnboarding.userId, userId))
+      .limit(1);
+    return result[0];
+  }
+
+  async createUserOnboarding(userId: string): Promise<UserOnboarding> {
+    const result = await db
+      .insert(userOnboarding)
+      .values({ userId })
+      .returning();
+    return result[0];
+  }
+
+  async updateOnboardingProgress(userId: string, updates: Partial<InsertUserOnboarding>): Promise<UserOnboarding | undefined> {
+    const result = await db
+      .update(userOnboarding)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(userOnboarding.userId, userId))
+      .returning();
+    return result[0];
+  }
+
+  async completeOnboarding(userId: string): Promise<UserOnboarding | undefined> {
+    const result = await db
+      .update(userOnboarding)
+      .set({ 
+        completedAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(userOnboarding.userId, userId))
+      .returning();
+    return result[0];
   }
 }
 

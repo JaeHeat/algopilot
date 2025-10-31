@@ -12,6 +12,7 @@ import DashboardLayout from "@/pages/dashboard-layout";
 import TermsOfService from "@/pages/terms-of-service";
 import PrivacyPolicy from "@/pages/privacy-policy";
 import RiskDisclaimer from "@/pages/risk-disclaimer";
+import GettingStarted from "@/pages/getting-started";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -19,10 +20,11 @@ function Router() {
 
   return (
     <Switch>
-      {/* Legal pages - accessible to everyone */}
+      {/* Legal and help pages - accessible to everyone */}
       <Route path="/terms-of-service" component={TermsOfService} />
       <Route path="/privacy-policy" component={PrivacyPolicy} />
       <Route path="/risk-disclaimer" component={RiskDisclaimer} />
+      <Route path="/getting-started" component={GettingStarted} />
       
       {isLoading || !isAuthenticated ? (
         <>

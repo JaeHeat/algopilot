@@ -31,6 +31,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/onboarding", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      let onboarding = await storage.getUserOnboarding(userId);
+      
+      if (!onboarding) {
+        onboarding = await storage.createUserOnboarding(userId);
+      }
+      
+      res.json(onboarding);
+    } catch (error) {
+      console.error("Error fetching onboarding:", error);
+      res.status(500).json({ message: "Failed to fetch onboarding status" });
+    }
+  });
+
+  app.post("/api/onboarding/progress", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const updates = req.body;
+      
+      let onboarding = await storage.getUserOnboarding(userId);
+      if (!onboarding) {
+        onboarding = await storage.createUserOnboarding(userId);
+      }
+      
+      const updated = await storage.updateOnboardingProgress(userId, updates);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating onboarding progress:", error);
+      res.status(500).json({ message: "Failed to update onboarding progress" });
+    }
+  });
+
+  app.post("/api/onboarding/complete", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const completed = await storage.completeOnboarding(userId);
+      res.json(completed);
+    } catch (error) {
+      console.error("Error completing onboarding:", error);
+      res.status(500).json({ message: "Failed to complete onboarding" });
+    }
+  });
+
   app.get("/api/bots", async (req, res) => {
     try {
       const bots = await storage.getAllBots();
