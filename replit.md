@@ -24,8 +24,9 @@ The platform utilizes a modern web stack: React with TypeScript, Wouter for rout
 - **Exchange Integration**: Connection to multiple crypto exchanges for managing mock USDT balances and future live trading.
 - **Social Features**: Creator posts with comment and reaction systems.
 - **Creator Dashboard**: Enables bot creators to manage bots, view webhook URLs, monitor trade signal activity, and create new bots.
-- **TradingView Integration**: Webhook-based integration for receiving trade signals from TradingView alerts for execution.
-- **Trade Execution & P&L Tracking**: Automated trade execution based on webhook signals across active subscriptions, with comprehensive P&L tracking, position sizing, and fee calculation. The system records trades and positions, updates balances, and provides P&L summaries with win/loss statistics.
+- **TradingView Integration**: Webhook-based integration for receiving trade signals from TradingView alerts for execution. Supports TradingView perpetual futures symbols (e.g., BTCUSD.P, ETHUSD.P) with automatic normalization to standard exchange formats (BTCUSDT, ETHUSDT).
+- **Multi-Source Real-Time Price Fetching**: 5-source cascading fallback system prevents users from being locked in positions. Tries Binance → Kraken → Coinbase → CoinGecko → CryptoCompare sequentially until one succeeds. UI displays which API provided the price for transparency. Server-side validation enforces 5% tolerance against real-time market prices to prevent P&L manipulation.
+- **Trade Execution & P&L Tracking**: Automated trade execution based on webhook signals across active subscriptions, with comprehensive P&L tracking, position sizing, and fee calculation. The system records trades and positions, updates balances, and provides P&L summaries with win/loss statistics. Analytics count positions (not individual trade records): 1 open + 1 close = 1 complete trade.
 
 **System Design Choices:**
 - **Security-first Approach**: All operations require ownership validation. Exchange API responses redact sensitive information. Protected routes enforce authentication. Server-side validation is implemented for all critical actions, including a robust Stripe payment validation process to prevent fraudulent subscriptions.
