@@ -8,6 +8,31 @@ import Stripe from "stripe";
 import { randomBytes } from "crypto";
 import { notifyTradeExecuted, notifyDrawdownBreach } from "./services/notifications";
 
+const webhookPayloadSchema = z.object({
+  symbol: z.string().min(1).max(20).regex(/^[A-Z0-9.]+$/, "Symbol must be alphanumeric with optional dots"),
+  action: z.string().optional(),
+  side: z.string().optional(),
+  price: z.string().or(z.number()).refine(
+    (val) => {
+      const num = typeof val === 'string' ? parseFloat(val) : val;
+      return !isNaN(num) && num > 0 && num < 10000000;
+    },
+    { message: "Price must be a valid positive number less than 10M" }
+  ),
+  time: z.string().optional(),
+}).refine(
+  (data) => data.action || data.side,
+  { message: "Either 'action' or 'side' field is required" }
+);
+
+const onboardingProgressSchema = z.object({
+  welcomeTourCompleted: z.boolean().optional(),
+  marketplaceBrowsed: z.boolean().optional(),
+  botSubscribed: z.boolean().optional(),
+  settingsConfigured: z.boolean().optional(),
+  dashboardExplored: z.boolean().optional(),
+});
+
 function generateWebhookSecret(): string {
   return randomBytes(32).toString('hex');
 }
@@ -50,14 +75,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/onboarding/progress", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const updates = req.body;
+      const validationResult = onboardingProgressSchema.safeParse(req.body);
+      
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          message: "Invalid onboarding progress data",
+          errors: validationResult.error.errors 
+        });
+      }
       
       let onboarding = await storage.getUserOnboarding(userId);
       if (!onboarding) {
         onboarding = await storage.createUserOnboarding(userId);
       }
       
-      const updated = await storage.updateOnboardingProgress(userId, updates);
+      const updated = await storage.updateOnboardingProgress(userId, validationResult.data);
       res.json(updated);
     } catch (error) {
       console.error("Error updating onboarding progress:", error);
@@ -1368,6 +1400,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateWebhookLastReceived(botId);
       await storage.resetWebhookFailureCount(botId);
       
+      const validationResult = webhookPayloadSchema.safeParse(payload);
+      
+      if (!validationResult.success) {
+        await storage.logWebhookEvent({
+          botId,
+          payload,
+          headers: headers as any,
+          status: 'rejected',
+          error: `Invalid payload: ${validationResult.error.message}`,
+        });
+        return res.status(400).json({ 
+          message: "Invalid webhook payload",
+          errors: validationResult.error.errors 
+        });
+      }
+      
       await storage.logWebhookEvent({
         botId,
         payload,
@@ -1375,24 +1423,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'success',
       });
       
-      const symbol = payload.symbol as string;
-      const action = (payload.action || payload.side) as string;
-      const price = parseFloat(payload.price as string);
+      const validatedPayload = validationResult.data;
+      const symbol = validatedPayload.symbol.toUpperCase();
+      const action = (validatedPayload.action || validatedPayload.side)!.toLowerCase();
+      const price = typeof validatedPayload.price === 'string' 
+        ? parseFloat(validatedPayload.price) 
+        : validatedPayload.price;
       
       console.log(`[Webhook] Received trade signal for bot ${botId}:`, {
         symbol,
         action,
         price,
-        time: payload.time || new Date().toISOString(),
+        time: validatedPayload.time || new Date().toISOString(),
       });
-      
-      if (!symbol || !action || !price) {
-        return res.json({ 
-          success: true, 
-          message: "Webhook logged but missing required fields for trade execution",
-          executed: 0
-        });
-      }
       
       const activeSubscriptions = await storage.getActiveSubscriptionsByBot(botId);
       let executedTrades = 0;
