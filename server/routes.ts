@@ -1095,6 +1095,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Position is already closed" });
       }
 
+      // Server-side price validation: Verify the close price against real-time market data
+      const normalizedSymbol = position.symbol.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      let currentMarketPrice: number | null = null;
+
+      // Try Binance first
+      try {
+        const binanceResponse = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${normalizedSymbol}`);
+        if (binanceResponse.ok) {
+          const data = await binanceResponse.json() as { symbol: string; price: string };
+          currentMarketPrice = parseFloat(data.price);
+        }
+      } catch (binanceError) {
+        console.log(`Price validation - Binance failed for ${normalizedSymbol}, trying CoinGecko`);
+      }
+
+      // Fallback to CoinGecko if Binance failed
+      if (!currentMarketPrice) {
+        const coinGeckoMap: Record<string, string> = {
+          'BTCUSDT': 'bitcoin',
+          'ETHUSDT': 'ethereum',
+          'BNBUSDT': 'binancecoin',
+          'ADAUSDT': 'cardano',
+          'SOLUSDT': 'solana',
+          'XRPUSDT': 'ripple',
+          'DOTUSDT': 'polkadot',
+          'DOGEUSDT': 'dogecoin',
+          'AVAXUSDT': 'avalanche-2',
+          'MATICUSDT': 'matic-network',
+        };
+
+        const coinGeckoId = coinGeckoMap[normalizedSymbol];
+        if (coinGeckoId) {
+          try {
+            const coinGeckoResponse = await fetch(
+              `https://api.coingecko.com/api/v3/simple/price?ids=${coinGeckoId}&vs_currencies=usd`
+            );
+            if (coinGeckoResponse.ok) {
+              const coinGeckoData = await coinGeckoResponse.json() as Record<string, { usd: number }>;
+              currentMarketPrice = coinGeckoData[coinGeckoId]?.usd || null;
+            }
+          } catch (coinGeckoError) {
+            console.log(`Price validation - CoinGecko failed for ${normalizedSymbol}`);
+          }
+        }
+      }
+
+      // Validate the submitted price is within reasonable range of current market price (5% tolerance)
+      if (currentMarketPrice) {
+        const submittedPrice = parseFloat(closePrice);
+        const priceDeviation = Math.abs((submittedPrice - currentMarketPrice) / currentMarketPrice);
+        
+        if (priceDeviation > 0.05) {
+          console.warn(`⚠️ Price validation failed: Submitted $${submittedPrice}, Market $${currentMarketPrice}, Deviation ${(priceDeviation * 100).toFixed(2)}%`);
+          return res.status(400).json({ 
+            message: "Submitted price deviates too much from current market price. Please refresh and try again.",
+            currentMarketPrice: currentMarketPrice.toFixed(2)
+          });
+        }
+        
+        console.log(`✓ Price validated: Submitted $${submittedPrice}, Market $${currentMarketPrice}, Deviation ${(priceDeviation * 100).toFixed(2)}%`);
+      } else {
+        console.warn(`⚠️ Could not validate price for ${normalizedSymbol} - proceeding without validation`);
+      }
+
       const price = parseFloat(closePrice);
       const positionQty = parseFloat(position.quantity);
       const entryPrice = parseFloat(position.entryPrice);

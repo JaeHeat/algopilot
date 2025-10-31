@@ -72,7 +72,7 @@ export default function DashboardMyTrades() {
 
   const handleOpenCloseDialog = async (position: any) => {
     setSelectedPosition(position);
-    setClosePrice(position.currentPrice);
+    setClosePrice("");
     setPriceSource(null);
     setCloseDialogOpen(true);
     setFetchingPrice(true);
@@ -85,12 +85,24 @@ export default function DashboardMyTrades() {
         setPriceSource(data.source);
         console.log(`Fetched real-time price for ${position.symbol}: $${data.price} from ${data.source}`);
       } else {
-        console.warn(`Could not fetch real-time price for ${position.symbol}, using current price`);
-        setPriceSource('manual');
+        console.error(`Failed to fetch price for ${position.symbol}`);
+        setPriceSource('failed');
+        toast({
+          title: "Price Fetch Failed",
+          description: "Unable to get current market price. Please try again.",
+          variant: "destructive",
+        });
+        setCloseDialogOpen(false);
       }
     } catch (error) {
       console.error("Error fetching real-time price:", error);
-      setPriceSource('manual');
+      setPriceSource('failed');
+      toast({
+        title: "Price Fetch Failed",
+        description: "Unable to get current market price. Please try again.",
+        variant: "destructive",
+      });
+      setCloseDialogOpen(false);
     } finally {
       setFetchingPrice(false);
     }
@@ -558,23 +570,22 @@ export default function DashboardMyTrades() {
                 id="close-price"
                 type="number"
                 step="0.01"
-                placeholder="Enter current market price"
+                placeholder="Fetching real-time price..."
                 value={closePrice}
-                onChange={(e) => setClosePrice(e.target.value)}
+                readOnly
                 disabled={fetchingPrice}
+                className="bg-muted cursor-not-allowed"
                 data-testid="input-close-price"
               />
               <p className="text-xs text-muted-foreground">
                 {fetchingPrice ? (
                   <span className="text-primary">Fetching real-time price...</span>
                 ) : priceSource === 'binance' ? (
-                  "Real-time market price from Binance"
+                  "✓ Real-time market price from Binance (read-only)"
                 ) : priceSource === 'coingecko' ? (
-                  "Real-time market price from CoinGecko"
-                ) : priceSource === 'manual' ? (
-                  "Could not fetch price - please enter manually"
+                  "✓ Real-time market price from CoinGecko (read-only)"
                 ) : (
-                  "Enter current market price"
+                  "Market price will be auto-fetched"
                 )}
               </p>
             </div>
