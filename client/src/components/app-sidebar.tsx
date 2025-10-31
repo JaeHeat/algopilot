@@ -8,6 +8,7 @@ import {
   TrendingUp,
   Webhook,
   LineChart,
+  DollarSign,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -37,6 +38,7 @@ const adminItems = [
 
 const creatorItems = [
   { title: "Manage Bots", icon: Webhook, url: "/dashboard/creator" },
+  { title: "Earnings", icon: DollarSign, url: "/dashboard/creator/earnings" },
 ];
 
 export function AppSidebar() {
