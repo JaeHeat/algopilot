@@ -76,10 +76,8 @@ export const subscriptions = pgTable("subscriptions", {
   cancelledAt: timestamp("cancelled_at"),
   subscriptionEndsAt: timestamp("subscription_ends_at"),
 }, (table) => [
-  index("idx_subscriptions_user_id").on(table.userId),
+  index("idx_subscriptions_user_status_started").on(table.userId, table.status, table.startedAt.desc()),
   index("idx_subscriptions_bot_id").on(table.botId),
-  index("idx_subscriptions_status").on(table.status),
-  index("idx_subscriptions_started_at").on(table.startedAt),
 ]);
 
 export const exchangeConnections = pgTable("exchange_connections", {
@@ -198,9 +196,8 @@ export const trades = pgTable("trades", {
   pnl: decimal("pnl", { precision: 15, scale: 2 }),
   executedAt: timestamp("executed_at").notNull().defaultNow(),
 }, (table) => [
-  index("idx_trades_subscription_id").on(table.subscriptionId),
-  index("idx_trades_bot_id").on(table.botId),
-  index("idx_trades_executed_at").on(table.executedAt),
+  index("idx_trades_subscription_executed").on(table.subscriptionId, table.executedAt.desc()),
+  index("idx_trades_bot_executed").on(table.botId, table.executedAt.desc()),
 ]);
 
 export const positions = pgTable("positions", {
@@ -217,9 +214,7 @@ export const positions = pgTable("positions", {
   openedAt: timestamp("opened_at").notNull().defaultNow(),
   closedAt: timestamp("closed_at"),
 }, (table) => [
-  index("idx_positions_subscription_id").on(table.subscriptionId),
-  index("idx_positions_status").on(table.status),
-  index("idx_positions_opened_at").on(table.openedAt),
+  index("idx_positions_subscription_status_opened").on(table.subscriptionId, table.status, table.openedAt.desc()),
 ]);
 
 export const userOnboarding = pgTable("user_onboarding", {
