@@ -18,9 +18,7 @@ export function OnboardingChecklist({ onboarding, onDismiss }: OnboardingCheckli
   
   const dismissPermanentlyMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("/api/onboarding/dismiss", {
-        method: "POST",
-      });
+      await apiRequest("POST", "/api/onboarding/dismiss");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/onboarding"] });
