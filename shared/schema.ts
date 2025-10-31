@@ -201,6 +201,19 @@ export const positions = pgTable("positions", {
   closedAt: timestamp("closed_at"),
 });
 
+export const userOnboarding = pgTable("user_onboarding", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique().references(() => users.id),
+  hasCompletedWelcome: boolean("has_completed_welcome").notNull().default(false),
+  hasViewedMarketplace: boolean("has_viewed_marketplace").notNull().default(false),
+  hasSubscribedToBot: boolean("has_subscribed_to_bot").notNull().default(false),
+  hasConfiguredSettings: boolean("has_configured_settings").notNull().default(false),
+  hasViewedDashboard: boolean("has_viewed_dashboard").notNull().default(false),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const insertBotSchema = createInsertSchema(bots).omit({ id: true, createdAt: true });
 export const insertBotPerformanceSchema = createInsertSchema(botPerformance).omit({ id: true, updatedAt: true });
 export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({ id: true, startedAt: true, cancelledAt: true }).extend({
@@ -217,6 +230,7 @@ export const insertBotWebhookSchema = createInsertSchema(botWebhooks).omit({ id:
 export const insertWebhookEventLogSchema = createInsertSchema(webhookEventLogs).omit({ id: true, processedAt: true });
 export const insertTradeSchema = createInsertSchema(trades).omit({ id: true, executedAt: true });
 export const insertPositionSchema = createInsertSchema(positions).omit({ id: true, openedAt: true, closedAt: true });
+export const insertUserOnboardingSchema = createInsertSchema(userOnboarding).omit({ id: true, createdAt: true, updatedAt: true, completedAt: true });
 
 export const updateSubscriptionSettingsSchema = z.object({
   capitalAllocated: z.number().positive().optional(),
@@ -273,3 +287,5 @@ export type InsertTrade = z.infer<typeof insertTradeSchema>;
 export type Trade = typeof trades.$inferSelect;
 export type InsertPosition = z.infer<typeof insertPositionSchema>;
 export type Position = typeof positions.$inferSelect;
+export type InsertUserOnboarding = z.infer<typeof insertUserOnboardingSchema>;
+export type UserOnboarding = typeof userOnboarding.$inferSelect;
