@@ -6,39 +6,41 @@ const plans = [
   {
     name: "Free",
     price: "$0",
-    description: "Perfect for exploring the platform",
+    description: "Start trading with limited access",
     features: [
-      "Access to 5 free bots",
+      "Browse all trading bots",
+      "Subscribe to 2 free bots",
       "Basic performance metrics",
       "1 exchange connection",
       "Community support",
+      "$10,000 mock trading capital",
     ],
   },
   {
-    name: "Pro",
-    price: "$49",
-    description: "For serious traders",
+    name: "Starter",
+    price: "$29",
+    description: "For active traders",
     features: [
-      "Unlimited bot subscriptions",
-      "Advanced analytics & metrics",
-      "3 exchange connections",
-      "Priority support",
-      "Custom risk management",
-      "API access",
+      "Subscribe to unlimited bots",
+      "Advanced analytics & charts",
+      "Up to 3 exchange connections",
+      "Priority email support",
+      "Custom risk settings",
+      "Trade history export",
     ],
     popular: true,
   },
   {
-    name: "Enterprise",
-    price: "Custom",
-    description: "For institutions and creators",
+    name: "Pro",
+    price: "$99",
+    description: "For professionals & bot creators",
     features: [
-      "Everything in Pro",
-      "White-label solutions",
-      "Dedicated account manager",
-      "Custom integrations",
-      "Revenue sharing program",
-      "SLA guarantee",
+      "Everything in Starter",
+      "Create and monetize your own bots",
+      "80% revenue share on bot sales",
+      "Unlimited exchange connections",
+      "API access for automation",
+      "24/7 priority support",
     ],
   },
 ];
@@ -47,10 +49,13 @@ export function LandingPricing() {
   return (
     <div className="py-20 bg-muted/30">
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
-        <div className="text-center space-y-4 mb-16">
+        <div className="text-center space-y-4 mb-12">
           <h2 className="text-3xl md:text-4xl font-bold">Simple, Transparent Pricing</h2>
           <p className="text-xl text-muted-foreground">
-            Choose the plan that fits your trading goals
+            Platform access + marketplace bot subscriptions
+          </p>
+          <p className="text-sm text-muted-foreground max-w-2xl mx-auto">
+            Pay for platform access, then subscribe to individual bots in the marketplace. Bot creators set their own prices (typically $5-50/month). We take a 20% commission to keep your costs low.
           </p>
         </div>
         
@@ -76,9 +81,10 @@ export function LandingPricing() {
               <Button 
                 className="w-full mb-6" 
                 variant={plan.popular ? "default" : "outline"}
+                asChild
                 data-testid={`button-${plan.name.toLowerCase()}-plan`}
               >
-                {plan.price === "Custom" ? "Contact Sales" : "Get Started"}
+                <a href="/api/login">Get Started</a>
               </Button>
               <ul className="space-y-3">
                 {plan.features.map((feature, j) => (

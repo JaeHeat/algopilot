@@ -57,10 +57,12 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="flex items-center gap-2 px-4 py-3">
-            <TrendingUp className="h-5 w-5 text-primary" />
-            <span className="font-bold text-base">AlgoPilot</span>
-          </SidebarGroupLabel>
+          <Link href="/dashboard">
+            <SidebarGroupLabel className="flex items-center gap-2 px-4 py-3 hover-elevate rounded-md cursor-pointer" data-testid="link-dashboard-home">
+              <TrendingUp className="h-5 w-5 text-primary" />
+              <span className="font-bold text-base">AlgoPilot</span>
+            </SidebarGroupLabel>
+          </Link>
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => {

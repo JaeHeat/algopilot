@@ -4,10 +4,12 @@ import { SubscribeDialog } from "@/components/subscribe-dialog";
 import { useState, useEffect } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Search, TrendingUp, ArrowLeft } from "lucide-react";
 import type { Bot, BotPerformance, UserOnboarding } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { Link } from "wouter";
 
 type BotWithPerformance = Bot & { performance: BotPerformance | null };
 
@@ -31,10 +33,7 @@ export default function Marketplace() {
 
   const updateOnboardingMutation = useMutation({
     mutationFn: async (updates: Partial<UserOnboarding>) => {
-      return await apiRequest("/api/onboarding/progress", {
-        method: "POST",
-        body: JSON.stringify(updates),
-      });
+      return await apiRequest("POST", "/api/onboarding/progress", updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/onboarding"] });
@@ -87,13 +86,35 @@ export default function Marketplace() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Bot Marketplace</h1>
-        <p className="text-muted-foreground">
-          Discover and subscribe to the best trading algorithms
-        </p>
-      </div>
+    <div className="min-h-screen">
+      {!isAuthenticated && (
+        <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border">
+          <div className="max-w-7xl mx-auto px-6 lg:px-8 h-16 flex items-center justify-between">
+            <Link href="/" className="flex items-center gap-2 hover-elevate rounded-lg px-2 -ml-2" data-testid="link-home">
+              <TrendingUp className="h-6 w-6 text-primary" />
+              <span className="font-bold text-xl">AlgoPilot</span>
+            </Link>
+            <Button asChild data-testid="button-sign-in">
+              <a href="/api/login">Sign In</a>
+            </Button>
+          </div>
+        </header>
+      )}
+      <div className={!isAuthenticated ? "pt-24 px-8 pb-8" : "p-8"}>
+        <div className="mb-8">
+          {!isAuthenticated && (
+            <Link href="/">
+              <Button variant="ghost" size="sm" className="mb-4" data-testid="button-back-to-home">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Home
+              </Button>
+            </Link>
+          )}
+          <h1 className="text-3xl font-bold mb-2">Bot Marketplace</h1>
+          <p className="text-muted-foreground">
+            Discover and subscribe to the best trading algorithms
+          </p>
+        </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div className="relative">
@@ -168,13 +189,14 @@ export default function Marketplace() {
         </div>
       )}
 
-      {selectedBot && (
-        <SubscribeDialog
-          bot={selectedBot}
-          open={subscribeDialogOpen}
-          onOpenChange={setSubscribeDialogOpen}
-        />
-      )}
+        {selectedBot && (
+          <SubscribeDialog
+            bot={selectedBot}
+            open={subscribeDialogOpen}
+            onOpenChange={setSubscribeDialogOpen}
+          />
+        )}
+      </div>
     </div>
   );
 }
