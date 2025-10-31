@@ -8,8 +8,8 @@ async function safelyCallEmailService<T>(
   try {
     await serviceFn();
   } catch (error: any) {
-    if (error.message?.includes('Resend not connected') || error.message?.includes('REPLIT_CONNECTORS_HOSTNAME')) {
-      console.log(`[Notifications] ${serviceName} skipped - Resend not configured. Configure Resend connector to enable email notifications.`);
+    if (error.message?.includes('RESEND_API_KEY not found')) {
+      console.log(`[Notifications] ${serviceName} skipped - RESEND_API_KEY not configured. Add RESEND_API_KEY to environment secrets to enable email notifications.`);
     } else {
       console.error(`[Notifications] ${serviceName} failed:`, error);
     }
