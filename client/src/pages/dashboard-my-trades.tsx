@@ -1,10 +1,17 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, Activity, DollarSign, Target, Award } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { TrendingUp, TrendingDown, Activity, DollarSign, Target, Award, X } from "lucide-react";
 import { format } from "date-fns";
 import { Line } from "react-chartjs-2";
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -29,6 +36,52 @@ ChartJS.register(
 );
 
 export default function DashboardMyTrades() {
+  const [closeDialogOpen, setCloseDialogOpen] = useState(false);
+  const [selectedPosition, setSelectedPosition] = useState<any>(null);
+  const [closePrice, setClosePrice] = useState("");
+  const { toast } = useToast();
+
+  const closePositionMutation = useMutation({
+    mutationFn: async ({ positionId, closePrice }: { positionId: string; closePrice: string }) => {
+      const response = await apiRequest("POST", `/api/positions/${positionId}/close`, { closePrice });
+      return await response.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user/positions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/trades"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/subscriptions"] });
+      setCloseDialogOpen(false);
+      setSelectedPosition(null);
+      setClosePrice("");
+      toast({
+        title: "Position Closed",
+        description: `Position closed successfully. P&L: $${data.pnl}`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to close position",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleOpenCloseDialog = (position: any) => {
+    setSelectedPosition(position);
+    setClosePrice(position.currentPrice);
+    setCloseDialogOpen(true);
+  };
+
+  const handleClosePosition = () => {
+    if (!selectedPosition || !closePrice) return;
+    closePositionMutation.mutate({
+      positionId: selectedPosition.id,
+      closePrice,
+    });
+  };
+
   const { data: analytics, isLoading: analyticsLoading } = useQuery<{
     totalTrades: number;
     closedTrades: number;
@@ -352,7 +405,7 @@ export default function DashboardMyTrades() {
                 return (
                   <Card key={position.id} data-testid={`card-position-${position.id}`}>
                     <CardContent className="pt-4">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-start justify-between gap-4">
                         <div className="space-y-1 flex-1">
                           <div className="flex items-center gap-2">
                             <span className="font-semibold text-lg">{position.symbol}</span>
@@ -370,13 +423,22 @@ export default function DashboardMyTrades() {
                             Opened {format(new Date(position.openedAt), 'MMM dd, yyyy HH:mm')}
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right space-y-2">
                           <div className={`text-2xl font-bold tabular-nums ${isPnlPositive ? 'text-success' : 'text-danger'}`}>
                             {isPnlPositive && '+'}{pnl.toFixed(2)}
                           </div>
                           <div className="text-sm text-muted-foreground">
                             Current: ${parseFloat(position.currentPrice).toFixed(2)}
                           </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleOpenCloseDialog(position)}
+                            data-testid={`button-close-position-${position.id}`}
+                          >
+                            <X className="h-3 w-3 mr-1" />
+                            Close Position
+                          </Button>
                         </div>
                       </div>
                     </CardContent>
@@ -450,6 +512,58 @@ export default function DashboardMyTrades() {
           )}
         </TabsContent>
       </Tabs>
+
+      <Dialog open={closeDialogOpen} onOpenChange={setCloseDialogOpen}>
+        <DialogContent data-testid="dialog-close-position">
+          <DialogHeader>
+            <DialogTitle>Close Position</DialogTitle>
+            <DialogDescription>
+              Enter the current market price to close your {selectedPosition?.positionType?.toUpperCase()} position for {selectedPosition?.symbol}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Position Details</Label>
+              <div className="text-sm text-muted-foreground space-y-1">
+                <div>Entry Price: ${parseFloat(selectedPosition?.entryPrice || "0").toFixed(2)}</div>
+                <div>Quantity: {parseFloat(selectedPosition?.quantity || "0").toFixed(4)}</div>
+                <div>Current Unrealized P&L: ${parseFloat(selectedPosition?.unrealizedPnl || "0").toFixed(2)}</div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="close-price">Close Price</Label>
+              <Input
+                id="close-price"
+                type="number"
+                step="0.01"
+                placeholder="Enter current market price"
+                value={closePrice}
+                onChange={(e) => setClosePrice(e.target.value)}
+                data-testid="input-close-price"
+              />
+              <p className="text-xs text-muted-foreground">
+                Enter the current market price to calculate your final P&L
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCloseDialogOpen(false)}
+              data-testid="button-cancel-close"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleClosePosition}
+              disabled={!closePrice || closePositionMutation.isPending}
+              data-testid="button-confirm-close"
+            >
+              {closePositionMutation.isPending ? "Closing..." : "Close Position"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

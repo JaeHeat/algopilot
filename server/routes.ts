@@ -988,10 +988,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/positions/:positionId/close", async (req, res) => {
-    if (!req.user?.id) {
+    if (!req.user?.claims?.sub) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
+    const userId = req.user.claims.sub;
     const { positionId } = req.params;
     const { closePrice } = req.body;
 
@@ -1007,7 +1008,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const subscription = await storage.getSubscriptionById(position.subscriptionId);
-      if (!subscription || subscription.userId !== req.user.id) {
+      if (!subscription || subscription.userId !== userId) {
         return res.status(403).json({ message: "Unauthorized to close this position" });
       }
 
