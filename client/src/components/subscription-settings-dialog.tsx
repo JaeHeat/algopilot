@@ -52,6 +52,7 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
   const [maxDrawdown, setMaxDrawdown] = useState(
     subscription.maxDrawdown ? parseFloat(subscription.maxDrawdown) : 10
   );
+  const [maxPositionsPerSymbol, setMaxPositionsPerSymbol] = useState(subscription.maxPositionsPerSymbol || 1);
   
   const notificationPrefs = subscription.notificationPrefs as any || {
     newTrade: true,
@@ -239,6 +240,7 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
       capitalAllocatedType: capitalType,
       riskPercentage,
       maxDrawdown,
+      maxPositionsPerSymbol,
       notificationPrefs: notifications,
     });
   };
@@ -391,6 +393,25 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
                   />
                   <p className="text-sm text-muted-foreground mt-1">
                     Trading will pause if drawdown exceeds this limit
+                  </p>
+                </div>
+
+                <div>
+                  <Label htmlFor="max-positions" className="mb-2 block">
+                    Max Positions Per Symbol
+                  </Label>
+                  <Input
+                    id="max-positions"
+                    type="number"
+                    value={maxPositionsPerSymbol}
+                    onChange={(e) => setMaxPositionsPerSymbol(parseInt(e.target.value))}
+                    min="1"
+                    max="5"
+                    step="1"
+                    data-testid="input-max-positions-per-symbol"
+                  />
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Limit positions per symbol. Set to 1 to prevent conflicting signals from multiple timeframes.
                   </p>
                 </div>
               </div>

@@ -1344,8 +1344,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           if (normalizedAction === 'buy' || normalizedAction === 'long') {
             const existingPosition = await storage.getPositionBySubscriptionAndSymbol(subscription.id, symbol);
+            const maxPositions = subscription.maxPositionsPerSymbol || 1;
             
-            if (existingPosition && existingPosition.positionType === 'short') {
+            if (existingPosition && existingPosition.positionType === 'long' && maxPositions === 1) {
+              console.log(`[Trade] LONG position already exists for ${subscription.id} - ${symbol}, skipping duplicate BUY signal (maxPositionsPerSymbol=1)`);
+              continue;
+            } else if (existingPosition && existingPosition.positionType === 'short') {
               const positionQty = parseFloat(existingPosition.quantity);
               const entryPrice = parseFloat(existingPosition.entryPrice);
               const pnl = ((entryPrice - price) * positionQty) - fees;
@@ -1424,8 +1428,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
           } else if (normalizedAction === 'sell' || normalizedAction === 'short' || normalizedAction === 'close') {
             const existingPosition = await storage.getPositionBySubscriptionAndSymbol(subscription.id, symbol);
+            const maxPositions = subscription.maxPositionsPerSymbol || 1;
             
-            if (existingPosition && existingPosition.positionType === 'long') {
+            const isCloseAction = normalizedAction === 'close';
+            if (existingPosition && existingPosition.positionType === 'short' && maxPositions === 1 && !isCloseAction) {
+              console.log(`[Trade] SHORT position already exists for ${subscription.id} - ${symbol}, skipping duplicate SELL signal (maxPositionsPerSymbol=1)`);
+              continue;
+            } else if (existingPosition && existingPosition.positionType === 'long') {
               const positionQty = parseFloat(existingPosition.quantity);
               const entryPrice = parseFloat(existingPosition.entryPrice);
               const pnl = ((price - entryPrice) * positionQty) - fees;
