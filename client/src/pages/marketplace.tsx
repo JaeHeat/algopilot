@@ -26,10 +26,19 @@ export default function Marketplace() {
     queryKey: ["/api/bots"],
   });
 
+  const { data: subscriptions } = useQuery<any[]>({
+    queryKey: ["/api/subscriptions"],
+    enabled: isAuthenticated,
+  });
+
   const { data: onboarding } = useQuery<UserOnboarding>({
     queryKey: ["/api/onboarding"],
     enabled: isAuthenticated,
   });
+
+  const subscribedBotIds = new Set(
+    subscriptions?.filter(s => s.status === 'active').map(s => s.botId) ?? []
+  );
 
   const updateOnboardingMutation = useMutation({
     mutationFn: async (updates: Partial<UserOnboarding>) => {
@@ -315,18 +324,25 @@ export default function Marketplace() {
                       /month
                     </div>
                   </div>
-                  <Button 
-                    size="sm"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setSelectedBot(bot);
-                      setSubscribeDialogOpen(true);
-                    }}
-                    data-testid={`button-subscribe-${index + 1}`}
-                  >
-                    Subscribe
-                  </Button>
+                  {subscribedBotIds.has(bot.id) ? (
+                    <Badge variant="secondary" className="gap-1 shrink-0" data-testid={`badge-subscribed-${index + 1}`}>
+                      <Star className="h-3 w-3" />
+                      Subscribed
+                    </Badge>
+                  ) : (
+                    <Button 
+                      size="sm"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setSelectedBot(bot);
+                        setSubscribeDialogOpen(true);
+                      }}
+                      data-testid={`button-subscribe-${index + 1}`}
+                    >
+                      Subscribe
+                    </Button>
+                  )}
                 </div>
               </div>
               </Link>
