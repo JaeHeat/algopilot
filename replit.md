@@ -77,10 +77,19 @@ The platform is built with a modern web stack: React with TypeScript, Wouter for
 
 **System Design Choices:**
 - **Security-first Approach**: Emphasizes ownership validation, data redaction, protected routes, and extensive server-side validation, including robust Stripe payment validation.
+  - **CSRF Protection**: Production-grade double-submit cookie pattern using crypto-based tokens (server/csrf.ts)
+    - Non-httpOnly csrf_token cookie (readable by JavaScript) with secure, sameSite=strict, 7-day maxAge
+    - Automatic x-csrf-token header injection for all POST/PUT/DELETE requests via queryClient
+    - Server validation matches cookie value against header value on mutating requests
+    - Cookie-parser middleware for proper cookie parsing
+  - **Session Security**: Hardened session configuration with httpOnly, secure, sameSite=strict cookies, 7-day TTL, PostgreSQL-backed session store
+  - **Content Security Policy**: Production-ready CSP without unsafe-eval, allowing only required Stripe integrations and self-hosted resources
+  - **Rate Limiting**: Webhook endpoints (100 req/min), API endpoints (1000 req/15min), auth endpoints excluded
 - **Scalable Architecture**: Utilizes Drizzle ORM and Neon for PostgreSQL for scalability.
 - **Modular Design**: React with Wouter and TanStack Query for a modular frontend; Express.js with TypeScript for a robust backend.
 - **Performance Optimizations**: Includes strategic database indexing (composite indexes for frequently queried patterns), memoizee-based query caching with intelligent invalidation, and API response time monitoring to ensure low latency.
 - **Security Audit**: A comprehensive audit covered webhook endpoints, authentication, input validation (using Zod schemas), payment processing, and data protection, resulting in significant security enhancements and confirming production readiness.
+- **Legal Compliance**: Complete Terms of Service and Privacy Policy pages covering AlgoPilot-specific terms, GDPR/CCPA compliance, and cryptocurrency trading disclaimers.
 
 ## External Dependencies
 - **Database**: PostgreSQL (via Neon)
