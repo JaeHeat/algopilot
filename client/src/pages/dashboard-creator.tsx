@@ -4,7 +4,9 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Copy, RefreshCw, CheckCircle2, XCircle, Clock, Webhook } from "lucide-react";
+import { Plus, Copy, RefreshCw, CheckCircle2, XCircle, Clock, Webhook, TrendingUp, Award, AlertCircle } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -335,12 +337,40 @@ export default function DashboardCreator() {
           </Card>
         ) : (
           <div className="grid gap-6 md:grid-cols-2">
-            {creatorBots.map((bot: any) => (
+            {creatorBots.map((bot: any) => {
+              const isLive = bot.evaluationStatus === "live";
+              const isInEvaluation = bot.evaluationStatus === "in_evaluation";
+              const progress = bot.evaluationProgress || { tradeCount: 0, profitPercentage: 0, requiredTrades: 10, requiredProfit: 5 };
+              const tradeProgress = (progress.tradeCount / progress.requiredTrades) * 100;
+              const profitProgress = Math.max(0, (progress.profitPercentage / progress.requiredProfit) * 100);
+              const meetsRequirements = progress.tradeCount >= progress.requiredTrades && progress.profitPercentage >= progress.requiredProfit;
+
+              return (
               <Card key={bot.id} data-testid={`card-bot-${bot.id}`}>
                 <CardHeader>
                   <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle>{bot.name}</CardTitle>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <CardTitle>{bot.name}</CardTitle>
+                        {isLive && (
+                          <Badge variant="default" className="gap-1" data-testid={`badge-status-${bot.id}`}>
+                            <Award className="h-3 w-3" />
+                            Live
+                          </Badge>
+                        )}
+                        {isInEvaluation && (
+                          <Badge variant="secondary" className="gap-1" data-testid={`badge-status-${bot.id}`}>
+                            <TrendingUp className="h-3 w-3" />
+                            In Evaluation
+                          </Badge>
+                        )}
+                        {!isLive && !isInEvaluation && (
+                          <Badge variant="outline" className="gap-1" data-testid={`badge-status-${bot.id}`}>
+                            <AlertCircle className="h-3 w-3" />
+                            Not Started
+                          </Badge>
+                        )}
+                      </div>
                       <CardDescription>{bot.description}</CardDescription>
                     </div>
                     <Badge variant={bot.webhook?.status === "active" ? "default" : "secondary"}>
@@ -349,6 +379,46 @@ export default function DashboardCreator() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {(isInEvaluation || (!isLive && progress.tradeCount > 0)) && (
+                    <div className="space-y-3 p-3 bg-muted/50 rounded-md" data-testid={`evaluation-progress-${bot.id}`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">Evaluation Progress</span>
+                        <Link href={`/dashboard/creator/evaluation/${bot.id}`}>
+                          <Button variant="ghost" size="sm" data-testid={`button-view-evaluation-${bot.id}`}>
+                            View Details
+                          </Button>
+                        </Link>
+                      </div>
+                      <div className="space-y-2">
+                        <div>
+                          <div className="flex items-center justify-between text-xs mb-1">
+                            <span className="text-muted-foreground">Trades</span>
+                            <span className="font-medium">
+                              {progress.tradeCount} / {progress.requiredTrades}
+                              {progress.tradeCount >= progress.requiredTrades && " ✓"}
+                            </span>
+                          </div>
+                          <Progress value={Math.min(100, tradeProgress)} className="h-2" />
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between text-xs mb-1">
+                            <span className="text-muted-foreground">Total Profit</span>
+                            <span className={`font-medium ${progress.profitPercentage >= progress.requiredProfit ? 'text-success' : progress.profitPercentage >= 0 ? 'text-foreground' : 'text-destructive'}`}>
+                              {progress.profitPercentage.toFixed(2)}% / {progress.requiredProfit}%
+                              {progress.profitPercentage >= progress.requiredProfit && " ✓"}
+                            </span>
+                          </div>
+                          <Progress value={Math.min(100, profitProgress)} className="h-2" />
+                        </div>
+                      </div>
+                      {meetsRequirements && !isLive && (
+                        <p className="text-xs text-success flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Requirements met! Bot will go live soon.
+                        </p>
+                      )}
+                    </div>
+                  )}
                   <div>
                     <label className="text-sm font-medium mb-2 block">Webhook URL</label>
                     <div className="flex gap-2">
@@ -412,7 +482,8 @@ export default function DashboardCreator() {
                   )}
                 </CardContent>
               </Card>
-            ))}
+            );
+            })}
           </div>
         )}
       </div>

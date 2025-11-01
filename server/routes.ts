@@ -817,6 +817,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const webhook = await storage.getWebhookByBotId(bot.id);
           const recentEvents = webhook ? await storage.getRecentWebhookEvents(bot.id, 10) : [];
           
+          const tradeLogs = await storage.getBotTradeLogs(bot.id);
+          const closedTrades = tradeLogs.filter(t => t.status === 'closed');
+          const totalPnlPercentage = closedTrades.reduce((sum, t) => sum + Number(t.pnlPercentage || 0), 0);
+          
+          const evaluationProgress = {
+            tradeCount: closedTrades.length,
+            profitPercentage: closedTrades.length > 0 ? totalPnlPercentage * 100 : 0,
+            requiredTrades: 10,
+            requiredProfit: 5,
+          };
+          
           return {
             ...bot,
             webhook: webhook ? {
@@ -828,6 +839,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               webhookUrl: `${req.protocol}://${req.get('host')}/api/webhooks/${bot.id}/${webhook.secret}`,
             } : null,
             recentEvents,
+            evaluationProgress,
           };
         })
       );
