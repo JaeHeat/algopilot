@@ -51,14 +51,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.use('/api', csrfProtection);
 
-  app.get('/api/csrf-token', (req, res) => {
-    const token = getCsrfToken(req);
-    if (!token) {
-      return res.status(500).json({ message: 'Failed to generate CSRF token' });
-    }
-    res.json({ csrfToken: token });
-  });
-
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;

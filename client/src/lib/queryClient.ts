@@ -1,21 +1,16 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-let csrfToken: string | null = null;
+function getCsrfTokenFromCookie(): string | null {
+  const match = document.cookie.match(/csrf_token=([^;]+)/);
+  return match ? match[1] : null;
+}
 
-async function getCsrfToken(): Promise<string> {
-  if (csrfToken) return csrfToken;
-  
-  const res = await fetch('/api/csrf-token', {
-    credentials: 'include',
-  });
-  
-  if (!res.ok) {
-    throw new Error('Failed to get CSRF token');
+function getCsrfToken(): string {
+  const token = getCsrfTokenFromCookie();
+  if (!token) {
+    throw new Error('CSRF token not found. Please refresh the page.');
   }
-  
-  const data = await res.json();
-  csrfToken = data.csrfToken;
-  return csrfToken!;
+  return token;
 }
 
 async function throwIfResNotOk(res: Response) {
@@ -33,7 +28,7 @@ export async function apiRequest(
   const headers: Record<string, string> = data ? { "Content-Type": "application/json" } : {};
   
   if (method !== 'GET' && method !== 'HEAD') {
-    const token = await getCsrfToken();
+    const token = getCsrfToken();
     headers['x-csrf-token'] = token;
   }
   
