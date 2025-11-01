@@ -379,43 +379,69 @@ export default function DashboardCreator() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {(isInEvaluation || (!isLive && progress.tradeCount > 0)) && (
+                  {!isLive && (
                     <div className="space-y-3 p-3 bg-muted/50 rounded-md" data-testid={`evaluation-progress-${bot.id}`}>
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">Evaluation Progress</span>
+                        <span className="text-sm font-medium">
+                          {progress.tradeCount === 0 ? "Evaluation Requirements" : "Evaluation Progress"}
+                        </span>
                         <Link href={`/dashboard/creator/evaluation/${bot.id}`}>
                           <Button variant="ghost" size="sm" data-testid={`button-view-evaluation-${bot.id}`}>
-                            View Details
+                            {progress.tradeCount === 0 ? "Get Started" : "View Details"}
                           </Button>
                         </Link>
                       </div>
-                      <div className="space-y-2">
-                        <div>
-                          <div className="flex items-center justify-between text-xs mb-1">
-                            <span className="text-muted-foreground">Trades</span>
-                            <span className="font-medium">
-                              {progress.tradeCount} / {progress.requiredTrades}
-                              {progress.tradeCount >= progress.requiredTrades && " ✓"}
-                            </span>
-                          </div>
-                          <Progress value={Math.min(100, tradeProgress)} className="h-2" />
+                      
+                      {progress.tradeCount === 0 ? (
+                        <div className="space-y-2">
+                          <p className="text-xs text-muted-foreground">
+                            To go live on the marketplace, your bot must complete an evaluation:
+                          </p>
+                          <ul className="text-xs space-y-1 ml-4">
+                            <li className="flex items-start gap-2">
+                              <span className="text-muted-foreground">•</span>
+                              <span>Execute <strong>{progress.requiredTrades} completed trades</strong></span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                              <span className="text-muted-foreground">•</span>
+                              <span>Achieve <strong>{progress.requiredProfit}% total profit</strong></span>
+                            </li>
+                          </ul>
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Connect your TradingView webhook below to start trading and begin evaluation.
+                          </p>
                         </div>
-                        <div>
-                          <div className="flex items-center justify-between text-xs mb-1">
-                            <span className="text-muted-foreground">Total Profit</span>
-                            <span className={`font-medium ${progress.profitPercentage >= progress.requiredProfit ? 'text-success' : progress.profitPercentage >= 0 ? 'text-foreground' : 'text-destructive'}`}>
-                              {progress.profitPercentage.toFixed(2)}% / {progress.requiredProfit}%
-                              {progress.profitPercentage >= progress.requiredProfit && " ✓"}
-                            </span>
+                      ) : (
+                        <>
+                          <div className="space-y-2">
+                            <div>
+                              <div className="flex items-center justify-between text-xs mb-1">
+                                <span className="text-muted-foreground">Trades</span>
+                                <span className="font-medium">
+                                  {progress.tradeCount} / {progress.requiredTrades}
+                                  {progress.tradeCount >= progress.requiredTrades && " ✓"}
+                                </span>
+                              </div>
+                              <Progress value={Math.min(100, tradeProgress)} className="h-2" />
+                            </div>
+                            <div>
+                              <div className="flex items-center justify-between text-xs mb-1">
+                                <span className="text-muted-foreground">Total Profit</span>
+                                <span className={`font-medium ${progress.profitPercentage >= progress.requiredProfit ? 'text-success' : progress.profitPercentage >= 0 ? 'text-foreground' : 'text-destructive'}`}>
+                                  {progress.profitPercentage.toFixed(2)}% / {progress.requiredProfit}%
+                                  {progress.profitPercentage >= progress.requiredProfit && " ✓"}
+                                </span>
+                              </div>
+                              <Progress value={Math.min(100, profitProgress)} className="h-2" />
+                            </div>
                           </div>
-                          <Progress value={Math.min(100, profitProgress)} className="h-2" />
-                        </div>
-                      </div>
-                      {meetsRequirements && !isLive && (
-                        <p className="text-xs text-success flex items-center gap-1">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Requirements met! Bot will go live soon.
-                        </p>
+                          {meetsRequirements && (
+                            <p className="text-xs text-success flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Requirements met! Bot will go live soon.
+                            </p>
+                          )}
+                        </>
                       )}
                     </div>
                   )}
