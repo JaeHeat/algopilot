@@ -55,7 +55,17 @@ The platform is built with a modern web stack: React with TypeScript, Wouter for
   - Admin review and approval workflow with validated rejection reasons
   - Payout status tracking (pending, approved, processing, completed, rejected)
   - Form-based admin interface replacing prompt-based approvals for better UX and audit trail
-  - Ready for Stripe Connect integration for automated payouts
+  - **Stripe Connect Integration**: Full production-ready Stripe Connect Express implementation for automated creator payouts:
+    - Stripe Express accounts with hosted onboarding flow (simplest integration, Stripe handles all KYC/compliance)
+    - Account creation API creates Stripe Connect accounts on demand
+    - Single-use Account Links for secure onboarding with automatic expiration and refresh handling
+    - Status tracking: account creation, onboarding completion, charges/payouts enabled verification
+    - Login Links for creators to access Stripe Express Dashboard (manage bank details, view transfers, tax forms)
+    - Real Stripe transfers executed on admin payout approval (replaces manual processing)
+    - Database fields: stripeConnectAccountId (account ID) and stripeConnectOnboardingComplete (boolean status)
+    - Return URLs configured for onboarding success/failure with automatic status refresh
+    - Onboarding required before payout requests (enforced in UI and backend validation)
+    - Service layer (server/services/stripe-connect.ts) encapsulates all Stripe Connect operations
 - **Admin Panel**: Comprehensive platform management dashboard for administrators with:
   - Real-time platform statistics (total users, active bots, platform revenue, pending approvals)
   - Recent users list with subscription counts
