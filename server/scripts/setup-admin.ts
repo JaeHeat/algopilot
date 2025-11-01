@@ -8,11 +8,11 @@ async function setupAdmin() {
   if (args.length === 0) {
     console.error("\n❌ Error: User ID or email required\n");
     console.log("Usage:");
-    console.log("  npm run setup-admin <user-id>");
-    console.log("  npm run setup-admin <email>");
+    console.log("  tsx server/scripts/setup-admin.ts <user-id>");
+    console.log("  tsx server/scripts/setup-admin.ts <email>");
     console.log("\nExamples:");
-    console.log("  npm run setup-admin 12345678");
-    console.log("  npm run setup-admin admin@example.com\n");
+    console.log("  tsx server/scripts/setup-admin.ts 12345678");
+    console.log("  tsx server/scripts/setup-admin.ts admin@example.com\n");
     process.exit(1);
   }
 
