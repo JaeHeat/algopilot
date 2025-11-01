@@ -23,7 +23,15 @@ The platform is built with a modern web stack: React with TypeScript, Wouter for
 - **Monetization Strategy**: Simple pay-per-bot marketplace model inspired by Gumroad/Etsy. Platform access is FREE for traders. Bot creators set their own subscription prices (typically $5-50/month), earn 75% of revenue, with platform taking a 25% commission. Additional revenue from paid featured marketplace placements. Free creator application with review/approval process. More competitive and transparent than 3Commas ($29-99 platform fees) and Cryptohopper ($29-129 platform fees).
 - **Payment & Subscription Management**: Secure Stripe integration for recurring subscriptions with granular settings for capital allocation, risk limits, and notifications.
 - **User & Creator Dashboards**: Centralized views for active subscriptions, portfolio metrics, bot management, and trade signal monitoring.
-- **Exchange Integration**: Connection to multiple crypto exchanges for managing mock USDT balances and future live trading.
+- **Exchange Connection Management**: Comprehensive system for secure management of cryptocurrency exchange API credentials:
+  - AES-256-GCM authenticated encryption for all API secrets and passphrases with PBKDF2 key derivation (100,000 iterations, SHA-512)
+  - Encrypted storage using ENCRYPTION_KEY environment variable, 64-byte random salt, 16-byte IV, 16-byte auth tag per credential
+  - Credentials decrypted only transiently in memory during exchange API calls, never persisted in plaintext
+  - API response sanitization completely removes sensitive fields (keys don't exist, not just null)
+  - Support for paper trading and live trading modes, spot and futures accounts, testnet connections
+  - Connection testing and status validation
+  - Extensible exchange client architecture (Binance implemented, ready for additional exchanges)
+  - Both user-created and auto-generated mock connections use encryption at rest
 - **TradingView Integration**: Webhook-based integration for executing trade signals from TradingView alerts, with symbol normalization.
 - **Multi-Source Real-Time Price Fetching**: A 5-source cascading fallback system (Binance, Kraken, Coinbase, CoinGecko, CryptoCompare) ensures reliable price data, with server-side validation enforcing a 5% tolerance against market prices to prevent manipulation.
 - **Trade Execution & P&L Tracking**: Automated trade execution, comprehensive P&L tracking, position sizing, and fee calculation. The system tracks positions (open and close form one trade) and provides P&L summaries.
