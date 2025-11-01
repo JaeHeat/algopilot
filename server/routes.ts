@@ -120,6 +120,141 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/exchange-connections", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const connections = await storage.getUserExchangeConnections(userId);
+      
+      const sanitizedConnections = connections.map(conn => ({
+        ...conn,
+        apiSecret: undefined,
+        passphrase: undefined,
+      }));
+      
+      res.json(sanitizedConnections);
+    } catch (error) {
+      console.error("Error fetching exchange connections:", error);
+      res.status(500).json({ message: "Failed to fetch exchange connections" });
+    }
+  });
+
+  app.post("/api/exchange-connections", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const validationResult = insertExchangeConnectionSchema.safeParse({
+        ...req.body,
+        userId,
+      });
+      
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          message: "Invalid connection data",
+          errors: validationResult.error.errors 
+        });
+      }
+      
+      const connection = await storage.createExchangeConnection(validationResult.data);
+      
+      res.json({
+        ...connection,
+        apiSecret: undefined,
+        passphrase: undefined,
+      });
+    } catch (error) {
+      console.error("Error creating exchange connection:", error);
+      res.status(500).json({ message: "Failed to create exchange connection" });
+    }
+  });
+
+  app.put("/api/exchange-connections/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const connectionId = req.params.id;
+      
+      const existingConnection = await storage.getExchangeConnectionById(connectionId);
+      if (!existingConnection || existingConnection.userId !== userId) {
+        return res.status(404).json({ message: "Exchange connection not found" });
+      }
+      
+      const updated = await storage.updateExchangeConnection(connectionId, req.body);
+      
+      res.json({
+        ...updated,
+        apiSecret: undefined,
+        passphrase: undefined,
+      });
+    } catch (error) {
+      console.error("Error updating exchange connection:", error);
+      res.status(500).json({ message: "Failed to update exchange connection" });
+    }
+  });
+
+  app.delete("/api/exchange-connections/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const connectionId = req.params.id;
+      
+      const connection = await storage.getExchangeConnectionById(connectionId);
+      if (!connection || connection.userId !== userId) {
+        return res.status(404).json({ message: "Exchange connection not found" });
+      }
+      
+      await storage.deleteExchangeConnection(connectionId);
+      res.json({ message: "Exchange connection deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting exchange connection:", error);
+      res.status(500).json({ message: "Failed to delete exchange connection" });
+    }
+  });
+
+  app.post("/api/exchange-connections/:id/test", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const connectionId = req.params.id;
+      
+      const connection = await storage.getExchangeConnectionById(connectionId);
+      if (!connection || connection.userId !== userId) {
+        return res.status(404).json({ message: "Exchange connection not found" });
+      }
+      
+      const { ExchangeClientFactory } = await import('./exchange-clients/factory');
+      
+      try {
+        const client = ExchangeClientFactory.createClient(connection.exchange, {
+          apiKey: connection.apiKey,
+          apiSecret: connection.apiSecret,
+          passphrase: connection.passphrase || undefined,
+          isTestnet: connection.isTestnet,
+        });
+        
+        const isValid = await client.testConnection();
+        
+        await storage.updateExchangeConnection(connectionId, {
+          connectionStatus: isValid ? 'valid' : 'invalid',
+          lastSyncedAt: new Date(),
+        });
+        
+        res.json({ 
+          isValid,
+          message: isValid ? 'Connection successful' : 'Connection failed - please check your credentials'
+        });
+      } catch (error: any) {
+        await storage.updateExchangeConnection(connectionId, {
+          connectionStatus: 'invalid',
+        });
+        
+        res.status(400).json({ 
+          isValid: false,
+          message: error.message || 'Failed to test connection'
+        });
+      }
+    } catch (error) {
+      console.error("Error testing exchange connection:", error);
+      res.status(500).json({ message: "Failed to test exchange connection" });
+    }
+  });
+
   app.get("/api/marketplace/featured", async (req, res) => {
     try {
       const featuredPlacement = await storage.getCurrentFeaturedPlacement();
