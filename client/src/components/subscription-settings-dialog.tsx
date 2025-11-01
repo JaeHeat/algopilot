@@ -29,8 +29,9 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
-import type { Subscription, Bot } from "@shared/schema";
-import { Settings, Pause, Play, AlertTriangle, Bell, Wallet } from "lucide-react";
+import type { Subscription, Bot, ExchangeConnection } from "@shared/schema";
+import { Settings, Pause, Play, AlertTriangle, Bell, Wallet, Zap, Info, FileText, TestTube } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface SubscriptionSettingsDialogProps {
   subscription: Subscription & { bot: Bot };
@@ -53,6 +54,9 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
     subscription.maxDrawdown ? parseFloat(subscription.maxDrawdown) : 10
   );
   const [maxPositionsPerSymbol, setMaxPositionsPerSymbol] = useState(subscription.maxPositionsPerSymbol || 1);
+  const [selectedExchangeConnectionId, setSelectedExchangeConnectionId] = useState<string>(
+    subscription.exchangeConnectionId || ""
+  );
   
   const notificationPrefs = subscription.notificationPrefs as any || {
     newTrade: true,
@@ -69,6 +73,10 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
 
   const { data: balanceData } = useQuery<{ totalBalance: number }>({
     queryKey: ["/api/user/available-balance"],
+  });
+
+  const { data: exchangeConnections } = useQuery<ExchangeConnection[]>({
+    queryKey: ["/api/exchange-connections"],
   });
 
   const updateSettingsMutation = useMutation({
@@ -242,6 +250,7 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
       maxDrawdown,
       maxPositionsPerSymbol,
       notificationPrefs: notifications,
+      exchangeConnectionId: selectedExchangeConnectionId || null,
     });
   };
 
@@ -413,6 +422,59 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
                   <p className="text-sm text-muted-foreground mt-1">
                     Limit positions per symbol. Set to 1 to prevent conflicting signals from multiple timeframes.
                   </p>
+                </div>
+
+                <div>
+                  <Label htmlFor="exchange-connection" className="mb-2 block flex items-center gap-2">
+                    <Zap className="h-4 w-4" />
+                    Exchange Connection (Live Trading)
+                  </Label>
+                  <Select
+                    value={selectedExchangeConnectionId}
+                    onValueChange={setSelectedExchangeConnectionId}
+                  >
+                    <SelectTrigger data-testid="select-exchange-connection">
+                      <SelectValue placeholder="Mock Trading (Default)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">
+                        Mock Trading (Simulated)
+                      </SelectItem>
+                      {exchangeConnections?.filter(conn => conn.isActive).map((connection) => (
+                        <SelectItem 
+                          key={connection.id} 
+                          value={connection.id}
+                        >
+                          {connection.exchange.charAt(0).toUpperCase() + connection.exchange.slice(1)} 
+                          {connection.isTestnet && ' (Testnet)'} 
+                          {connection.accountType === 'futures' && ' - Futures'}
+                          {connection.connectionType === 'paper' && ' - Paper'}
+                          {connection.connectionType === 'live' && ' - LIVE'}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Select an exchange to execute real trades. Leave as "Mock Trading" to simulate trades without risking capital.
+                  </p>
+                  
+                  {selectedExchangeConnectionId && (
+                    <Alert className="mt-2 bg-red-500/10 border-red-500/20">
+                      <Zap className="h-4 w-4 text-red-600" />
+                      <AlertDescription className="text-sm">
+                        <strong className="text-red-600">Live Trading Enabled:</strong> This subscription will execute real trades on your connected exchange account. Make sure you have sufficient balance and understand the risks.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  
+                  {!exchangeConnections || exchangeConnections.length === 0 ? (
+                    <Alert className="mt-2">
+                      <Info className="h-4 w-4" />
+                      <AlertDescription className="text-sm">
+                        No exchange connections found. Add an exchange connection in Settings to enable live trading.
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
                 </div>
               </div>
 
