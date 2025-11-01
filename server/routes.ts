@@ -447,6 +447,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!user || user.role !== 'creator') {
         return res.status(403).json({ message: "Forbidden: Creator access required" });
       }
+
+      // Validate Stripe Connect onboarding
+      if (!user.stripeConnectAccountId) {
+        return res.status(400).json({ 
+          message: "Please connect your Stripe account before requesting payouts"
+        });
+      }
+
+      if (!user.stripeConnectOnboardingComplete) {
+        return res.status(400).json({ 
+          message: "Please complete Stripe onboarding before requesting payouts"
+        });
+      }
       
       const { amount, paymentMethod, paymentDetails } = req.body;
 
@@ -681,6 +694,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             creatorId: creator.id,
             creatorEmail: creator.email || '',
           },
+          idempotencyKey: `payout_${payoutId}`,
         });
 
         await storage.completePayoutRequest(payoutId, transfer.id);
