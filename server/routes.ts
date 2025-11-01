@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+import { csrfProtection, getCsrfToken } from "./csrf";
 import { insertBotSchema, insertSubscriptionSchema, insertExchangeConnectionSchema, updateSubscriptionSettingsSchema, insertCreatorPostSchema, insertPostCommentSchema, insertPostReactionSchema, insertCreatorApplicationSchema, updateBotEvaluationProgressSchema } from "@shared/schema";
 import { z } from "zod";
 import Stripe from "stripe";
@@ -47,6 +48,16 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 export async function registerRoutes(app: Express): Promise<Server> {
   await setupAuth(app);
+
+  app.use('/api', csrfProtection);
+
+  app.get('/api/csrf-token', (req, res) => {
+    const token = getCsrfToken(req);
+    if (!token) {
+      return res.status(500).json({ message: 'Failed to generate CSRF token' });
+    }
+    res.json({ csrfToken: token });
+  });
 
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
