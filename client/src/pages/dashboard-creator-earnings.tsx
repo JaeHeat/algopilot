@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { DollarSign, TrendingUp, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { DollarSign, TrendingUp, Clock, CheckCircle2, XCircle, ExternalLink, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useLocation } from "wouter";
 import {
   Dialog,
   DialogContent,
@@ -43,8 +45,18 @@ interface Payout {
   rejectionReason: string | null;
 }
 
+interface StripeConnectStatus {
+  hasAccount: boolean;
+  isFullyOnboarded: boolean;
+  accountId?: string;
+  detailsSubmitted?: boolean;
+  chargesEnabled?: boolean;
+  payoutsEnabled?: boolean;
+}
+
 export default function DashboardCreatorEarnings() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [payoutDialogOpen, setPayoutDialogOpen] = useState(false);
   const [requestAmount, setRequestAmount] = useState("");
 
@@ -54,6 +66,80 @@ export default function DashboardCreatorEarnings() {
 
   const { data: payouts = [], isLoading: payoutsLoading } = useQuery<Payout[]>({
     queryKey: ["/api/creator/payouts"],
+  });
+
+  const { data: stripeStatus, isLoading: stripeLoading, refetch: refetchStripeStatus } = useQuery<StripeConnectStatus>({
+    queryKey: ["/api/creator/stripe-connect/status"],
+  });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('onboarding') === 'complete') {
+      refetchStripeStatus();
+      toast({
+        title: "Onboarding Complete",
+        description: "Your Stripe account has been connected successfully!",
+      });
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (params.get('refresh') === 'true') {
+      refetchStripeStatus();
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [refetchStripeStatus, toast]);
+
+  const createStripeAccountMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/creator/stripe-connect/account", {});
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/creator/stripe-connect/status"] });
+      toast({
+        title: "Account Created",
+        description: "Stripe account created. Please complete onboarding.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create Stripe account",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const getOnboardingLinkMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/creator/stripe-connect/onboarding-link", {});
+      return await res.json();
+    },
+    onSuccess: (data) => {
+      window.location.href = data.url;
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to get onboarding link",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const getDashboardLinkMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("GET", "/api/creator/stripe-connect/dashboard-link");
+      return await res.json();
+    },
+    onSuccess: (data) => {
+      window.open(data.url, '_blank');
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to get dashboard link",
+        variant: "destructive",
+      });
+    },
   });
 
   const requestPayoutMutation = useMutation({
@@ -148,6 +234,74 @@ export default function DashboardCreatorEarnings() {
         </p>
       </div>
 
+      {/* Stripe Connect Onboarding Section */}
+      {!stripeLoading && (
+        <>
+          {!stripeStatus?.hasAccount && (
+            <Alert className="border-blue-200 bg-blue-50/50" data-testid="alert-stripe-connect">
+              <AlertCircle className="h-4 w-4 text-blue-600" />
+              <AlertTitle className="text-blue-900">Connect Your Stripe Account</AlertTitle>
+              <AlertDescription className="text-blue-800">
+                To receive payouts, you need to connect a Stripe account. This is a secure, one-time setup that takes just a few minutes.
+                <div className="mt-3">
+                  <Button 
+                    onClick={() => createStripeAccountMutation.mutate()}
+                    disabled={createStripeAccountMutation.isPending}
+                    data-testid="button-create-stripe-account"
+                  >
+                    {createStripeAccountMutation.isPending ? "Creating..." : "Connect Stripe Account"}
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {stripeStatus?.hasAccount && !stripeStatus?.isFullyOnboarded && (
+            <Alert className="border-yellow-200 bg-yellow-50/50" data-testid="alert-complete-onboarding">
+              <AlertCircle className="h-4 w-4 text-yellow-600" />
+              <AlertTitle className="text-yellow-900">Complete Stripe Onboarding</AlertTitle>
+              <AlertDescription className="text-yellow-800">
+                Your Stripe account is created but not fully set up. Complete the onboarding process to start receiving payouts.
+                <div className="mt-3">
+                  <Button 
+                    onClick={() => getOnboardingLinkMutation.mutate()}
+                    disabled={getOnboardingLinkMutation.isPending}
+                    data-testid="button-complete-onboarding"
+                  >
+                    {getOnboardingLinkMutation.isPending ? "Redirecting..." : "Complete Onboarding"}
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {stripeStatus?.isFullyOnboarded && (
+            <Card data-testid="card-stripe-connected">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  Stripe Account Connected
+                </CardTitle>
+                <CardDescription>
+                  Your payouts will be sent to your connected Stripe account
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button 
+                  variant="outline"
+                  onClick={() => getDashboardLinkMutation.mutate()}
+                  disabled={getDashboardLinkMutation.isPending}
+                  data-testid="button-view-stripe-dashboard"
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  {getDashboardLinkMutation.isPending ? "Opening..." : "View Stripe Dashboard"}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+
       {/* Earnings Summary Cards */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
@@ -207,16 +361,23 @@ export default function DashboardCreatorEarnings() {
         <CardContent>
           <Button
             onClick={() => setPayoutDialogOpen(true)}
-            disabled={parseFloat(earnings?.pendingBalance || "0") < 50}
+            disabled={
+              parseFloat(earnings?.pendingBalance || "0") < 50 || 
+              !stripeStatus?.isFullyOnboarded
+            }
             data-testid="button-request-payout"
           >
             Request Payout
           </Button>
-          {parseFloat(earnings?.pendingBalance || "0") < 50 && (
+          {!stripeStatus?.isFullyOnboarded ? (
+            <p className="text-sm text-muted-foreground mt-2">
+              Complete Stripe onboarding above to request payouts
+            </p>
+          ) : parseFloat(earnings?.pendingBalance || "0") < 50 ? (
             <p className="text-sm text-muted-foreground mt-2">
               You need at least $50 to request a payout
             </p>
-          )}
+          ) : null}
         </CardContent>
       </Card>
 
