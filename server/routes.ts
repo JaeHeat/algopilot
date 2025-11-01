@@ -585,22 +585,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const status = await stripeConnectService.getAccountStatus(user.stripeConnectAccountId);
+      try {
+        const status = await stripeConnectService.getAccountStatus(user.stripeConnectAccountId);
 
-      if (status.isFullyOnboarded && !user.stripeConnectOnboardingComplete) {
-        await storage.updateUserStripeConnect(userId, {
-          stripeConnectOnboardingComplete: true,
+        if (status.isFullyOnboarded && !user.stripeConnectOnboardingComplete) {
+          await storage.updateUserStripeConnect(userId, {
+            stripeConnectOnboardingComplete: true,
+          });
+        }
+
+        res.json({
+          hasAccount: true,
+          accountId: user.stripeConnectAccountId,
+          isFullyOnboarded: status.isFullyOnboarded,
+          detailsSubmitted: status.detailsSubmitted,
+          chargesEnabled: status.chargesEnabled,
+          payoutsEnabled: status.payoutsEnabled,
+        });
+      } catch (stripeError: any) {
+        console.warn(`[StripeConnect] Cannot retrieve account ${user.stripeConnectAccountId} from Stripe, using database flags. Error:`, stripeError.message);
+        
+        return res.json({
+          hasAccount: true,
+          accountId: user.stripeConnectAccountId,
+          isFullyOnboarded: user.stripeConnectOnboardingComplete || false,
+          detailsSubmitted: user.stripeConnectOnboardingComplete || false,
+          chargesEnabled: user.stripeConnectOnboardingComplete || false,
+          payoutsEnabled: user.stripeConnectOnboardingComplete || false,
         });
       }
-
-      res.json({
-        hasAccount: true,
-        accountId: user.stripeConnectAccountId,
-        isFullyOnboarded: status.isFullyOnboarded,
-        detailsSubmitted: status.detailsSubmitted,
-        chargesEnabled: status.chargesEnabled,
-        payoutsEnabled: status.payoutsEnabled,
-      });
     } catch (error: any) {
       console.error("Error fetching Stripe Connect status:", error);
       res.status(500).json({ message: "Failed to fetch account status: " + error.message });
