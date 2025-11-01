@@ -89,8 +89,14 @@ export const exchangeConnections = pgTable("exchange_connections", {
   exchange: text("exchange").notNull(),
   apiKey: text("api_key").notNull(),
   apiSecret: text("api_secret").notNull(),
+  passphrase: text("passphrase"),
   balance: decimal("balance", { precision: 15, scale: 2 }).notNull().default("10000.00"),
+  connectionType: text("connection_type").notNull().default("paper"),
+  accountType: text("account_type").notNull().default("spot"),
+  isTestnet: boolean("is_testnet").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
+  connectionStatus: text("connection_status").notNull().default("unchecked"),
+  lastSyncedAt: timestamp("last_synced_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

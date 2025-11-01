@@ -204,15 +204,19 @@ export class DbStorage implements IStorage {
       })
       .returning();
     
-    // Create default exchange connection for new users
+    // Create default exchange connection for new users (paper trading)
     if (isNewUser && finalUserId) {
       await db.insert(exchangeConnections).values({
         userId: finalUserId,
         exchange: "Mock Exchange",
         apiKey: `mock_${finalUserId.substring(0, 8)}`,
         apiSecret: `secret_${finalUserId.substring(0, 8)}`,
-        balance: "10000.00", // $10,000 starting balance for testing
+        balance: "10000.00", // $10,000 starting balance for paper trading
+        connectionType: "paper", // Paper trading mode
+        accountType: "spot",
+        isTestnet: false,
         isActive: true,
+        connectionStatus: "valid",
       });
     }
     
