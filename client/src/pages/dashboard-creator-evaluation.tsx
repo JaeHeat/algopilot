@@ -42,10 +42,21 @@ export default function DashboardCreatorEvaluation() {
 
   const isLive = bot.evaluationStatus === "live";
   const isInEvaluation = bot.evaluationStatus === "in_evaluation";
-  const progress = bot.evaluationProgress || { tradeCount: 0, profitPercentage: 0, requiredTrades: 10, requiredProfit: 5 };
+  const progress = bot.evaluationProgress || { 
+    tradeCount: 0, 
+    profitPercentage: 0, 
+    maxDrawdown: 0,
+    requiredTrades: 10, 
+    requiredProfit: 10,
+    requiredMaxDrawdown: 5,
+  };
   const tradeProgress = (progress.tradeCount / progress.requiredTrades) * 100;
   const profitProgress = Math.max(0, (progress.profitPercentage / progress.requiredProfit) * 100);
-  const meetsRequirements = progress.tradeCount >= progress.requiredTrades && progress.profitPercentage >= progress.requiredProfit;
+  const drawdownProgress = progress.maxDrawdown <= progress.requiredMaxDrawdown ? 100 : 0;
+  const meetsRequirements = 
+    progress.tradeCount >= progress.requiredTrades && 
+    progress.profitPercentage >= progress.requiredProfit &&
+    progress.maxDrawdown <= progress.requiredMaxDrawdown;
 
   return (
     <div className="space-y-6">
@@ -94,14 +105,18 @@ export default function DashboardCreatorEvaluation() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Total Trades</p>
                 <p className="text-2xl font-bold">{progress.tradeCount}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Total Profit</p>
-                <p className="text-2xl font-bold text-success">{progress.profitPercentage.toFixed(2)}%</p>
+                <p className="text-2xl font-bold text-success">+{progress.profitPercentage.toFixed(2)}%</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Max Drawdown</p>
+                <p className="text-2xl font-bold text-success">{progress.maxDrawdown.toFixed(2)}%</p>
               </div>
             </div>
           </CardContent>
@@ -148,12 +163,12 @@ export default function DashboardCreatorEvaluation() {
                     <div>
                       <p className="font-semibold">Total Profitability</p>
                       <p className="text-sm text-muted-foreground">
-                        Achieve at least {progress.requiredProfit}% total profit
+                        Achieve at least +{progress.requiredProfit}% total profit
                       </p>
                     </div>
                     <div className="text-right">
                       <p className={`text-2xl font-bold ${progress.profitPercentage >= progress.requiredProfit ? 'text-success' : progress.profitPercentage >= 0 ? 'text-foreground' : 'text-destructive'}`}>
-                        {progress.profitPercentage.toFixed(2)}%
+                        {progress.profitPercentage > 0 ? '+' : ''}{progress.profitPercentage.toFixed(2)}%
                       </p>
                       {progress.profitPercentage >= progress.requiredProfit && (
                         <Badge variant="default" className="gap-1 mt-1">
@@ -164,6 +179,39 @@ export default function DashboardCreatorEvaluation() {
                     </div>
                   </div>
                   <Progress value={Math.min(100, profitProgress)} className="h-3" data-testid="progress-profit" />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="font-semibold">Maximum Drawdown</p>
+                      <p className="text-sm text-muted-foreground">
+                        Stay under {progress.requiredMaxDrawdown}% drawdown
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-2xl font-bold ${progress.maxDrawdown <= progress.requiredMaxDrawdown ? 'text-success' : 'text-destructive'}`}>
+                        {progress.maxDrawdown.toFixed(2)}%
+                      </p>
+                      {progress.maxDrawdown <= progress.requiredMaxDrawdown && (
+                        <Badge variant="default" className="gap-1 mt-1">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Complete
+                        </Badge>
+                      )}
+                      {progress.maxDrawdown > progress.requiredMaxDrawdown && progress.tradeCount > 0 && (
+                        <Badge variant="destructive" className="gap-1 mt-1">
+                          <XCircle className="h-3 w-3" />
+                          Failed
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <Progress 
+                    value={drawdownProgress}
+                    className="h-3" 
+                    data-testid="progress-drawdown" 
+                  />
                 </div>
               </div>
 
@@ -184,7 +232,7 @@ export default function DashboardCreatorEvaluation() {
               {!meetsRequirements && progress.tradeCount > 0 && (
                 <div className="p-4 bg-muted rounded-md">
                   <p className="text-sm text-muted-foreground">
-                    Keep trading! Your bot needs to meet both requirements to go live on the marketplace.
+                    Keep trading! Your bot needs to meet all three requirements to go live on the marketplace.
                   </p>
                 </div>
               )}
@@ -240,7 +288,23 @@ export default function DashboardCreatorEvaluation() {
                   <div>
                     <p className="font-semibold">Profitability Threshold</p>
                     <p className="text-sm text-muted-foreground">
-                      Achieve a cumulative profit of at least {progress.requiredProfit}% across all completed trades. This ensures your strategy is genuinely profitable and not just breaking even or losing money.
+                      Achieve a cumulative profit of at least +{progress.requiredProfit}% across all completed trades. This ensures your strategy is genuinely profitable and not just breaking even or losing money.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  {progress.maxDrawdown <= progress.requiredMaxDrawdown ? (
+                    <CheckCircle2 className="h-5 w-5 text-success mt-0.5" />
+                  ) : progress.tradeCount > 0 ? (
+                    <XCircle className="h-5 w-5 text-destructive mt-0.5" />
+                  ) : (
+                    <XCircle className="h-5 w-5 text-muted-foreground mt-0.5" />
+                  )}
+                  <div>
+                    <p className="font-semibold">Maximum Drawdown Limit</p>
+                    <p className="text-sm text-muted-foreground">
+                      Maintain a maximum drawdown under {progress.requiredMaxDrawdown}% throughout the evaluation. Drawdown measures the largest peak-to-trough decline in your account equity, ensuring your strategy manages risk effectively.
                     </p>
                   </div>
                 </div>
@@ -250,14 +314,14 @@ export default function DashboardCreatorEvaluation() {
                   <div>
                     <p className="font-semibold">Performance-Based Approval</p>
                     <p className="text-sm text-muted-foreground">
-                      Similar to prop firm evaluations, this system ensures only profitable, proven strategies reach the marketplace. This protects traders and builds platform trust.
+                      Similar to prop firm evaluations, this system ensures only profitable, proven strategies with solid risk management reach the marketplace. This protects traders and builds platform trust.
                     </p>
                   </div>
                 </div>
 
                 <div className="p-3 bg-muted rounded-md mt-4">
                   <p className="text-xs text-muted-foreground">
-                    <strong>Note:</strong> All trades are tracked via your bot's trade logs. The profit percentage is calculated as the sum of all individual trade P&L percentages from completed positions.
+                    <strong>Note:</strong> All trades are tracked via your bot's trade logs. Profit is calculated as the sum of all trade P&L percentages. Drawdown is calculated by tracking your running equity from peak to current level throughout the evaluation period.
                   </p>
                 </div>
               </div>

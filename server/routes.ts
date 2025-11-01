@@ -821,11 +821,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const closedTrades = tradeLogs.filter(t => t.status === 'closed');
           const totalPnlPercentage = closedTrades.reduce((sum, t) => sum + Number(t.pnlPercentage || 0), 0);
           
+          // Calculate maximum drawdown
+          let equity = 100; // Start with 100%
+          let peakEquity = 100;
+          let maxDrawdown = 0;
+          
+          // Sort closed trades by closedAt timestamp
+          const sortedTrades = [...closedTrades].sort((a, b) => {
+            const timeA = a.closedAt ? new Date(a.closedAt).getTime() : 0;
+            const timeB = b.closedAt ? new Date(b.closedAt).getTime() : 0;
+            return timeA - timeB;
+          });
+          
+          for (const trade of sortedTrades) {
+            // Apply P&L to equity (pnlPercentage is stored as decimal, e.g., 0.05 for 5%)
+            equity = equity * (1 + Number(trade.pnlPercentage || 0));
+            
+            // Update peak if we hit a new high
+            if (equity > peakEquity) {
+              peakEquity = equity;
+            }
+            
+            // Calculate current drawdown from peak
+            const currentDrawdown = ((peakEquity - equity) / peakEquity) * 100;
+            
+            // Track maximum drawdown
+            if (currentDrawdown > maxDrawdown) {
+              maxDrawdown = currentDrawdown;
+            }
+          }
+          
           const evaluationProgress = {
             tradeCount: closedTrades.length,
             profitPercentage: closedTrades.length > 0 ? totalPnlPercentage * 100 : 0,
+            maxDrawdown: maxDrawdown,
             requiredTrades: 10,
-            requiredProfit: 5,
+            requiredProfit: 10,
+            requiredMaxDrawdown: 5,
           };
           
           return {

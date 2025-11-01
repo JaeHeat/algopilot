@@ -340,10 +340,21 @@ export default function DashboardCreator() {
             {creatorBots.map((bot: any) => {
               const isLive = bot.evaluationStatus === "live";
               const isInEvaluation = bot.evaluationStatus === "in_evaluation";
-              const progress = bot.evaluationProgress || { tradeCount: 0, profitPercentage: 0, requiredTrades: 10, requiredProfit: 5 };
+              const progress = bot.evaluationProgress || { 
+                tradeCount: 0, 
+                profitPercentage: 0, 
+                maxDrawdown: 0,
+                requiredTrades: 10, 
+                requiredProfit: 10,
+                requiredMaxDrawdown: 5,
+              };
               const tradeProgress = (progress.tradeCount / progress.requiredTrades) * 100;
               const profitProgress = Math.max(0, (progress.profitPercentage / progress.requiredProfit) * 100);
-              const meetsRequirements = progress.tradeCount >= progress.requiredTrades && progress.profitPercentage >= progress.requiredProfit;
+              const drawdownProgress = progress.maxDrawdown <= progress.requiredMaxDrawdown ? 100 : 0;
+              const meetsRequirements = 
+                progress.tradeCount >= progress.requiredTrades && 
+                progress.profitPercentage >= progress.requiredProfit &&
+                progress.maxDrawdown <= progress.requiredMaxDrawdown;
 
               return (
               <Card key={bot.id} data-testid={`card-bot-${bot.id}`}>
@@ -404,7 +415,11 @@ export default function DashboardCreator() {
                             </li>
                             <li className="flex items-start gap-2">
                               <span className="text-muted-foreground">•</span>
-                              <span>Achieve <strong>{progress.requiredProfit}% total profit</strong></span>
+                              <span>Achieve <strong>+{progress.requiredProfit}% total profit</strong></span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                              <span className="text-muted-foreground">•</span>
+                              <span>Stay under <strong>{progress.requiredMaxDrawdown}% maximum drawdown</strong></span>
                             </li>
                           </ul>
                           <p className="text-xs text-muted-foreground mt-2">
@@ -428,11 +443,24 @@ export default function DashboardCreator() {
                               <div className="flex items-center justify-between text-xs mb-1">
                                 <span className="text-muted-foreground">Total Profit</span>
                                 <span className={`font-medium ${progress.profitPercentage >= progress.requiredProfit ? 'text-success' : progress.profitPercentage >= 0 ? 'text-foreground' : 'text-destructive'}`}>
-                                  {progress.profitPercentage.toFixed(2)}% / {progress.requiredProfit}%
+                                  {progress.profitPercentage > 0 ? '+' : ''}{progress.profitPercentage.toFixed(2)}% / +{progress.requiredProfit}%
                                   {progress.profitPercentage >= progress.requiredProfit && " ✓"}
                                 </span>
                               </div>
                               <Progress value={Math.min(100, profitProgress)} className="h-2" />
+                            </div>
+                            <div>
+                              <div className="flex items-center justify-between text-xs mb-1">
+                                <span className="text-muted-foreground">Max Drawdown</span>
+                                <span className={`font-medium ${progress.maxDrawdown <= progress.requiredMaxDrawdown ? 'text-success' : 'text-destructive'}`}>
+                                  {progress.maxDrawdown.toFixed(2)}% / {progress.requiredMaxDrawdown}%
+                                  {progress.maxDrawdown <= progress.requiredMaxDrawdown && " ✓"}
+                                </span>
+                              </div>
+                              <Progress 
+                                value={drawdownProgress}
+                                className="h-2" 
+                              />
                             </div>
                           </div>
                           {meetsRequirements && (
