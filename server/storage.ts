@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents, creatorPosts, postComments, postReactions, botWebhooks, webhookEventLogs, trades, positions, userOnboarding, creatorApplications, featuredPlacements, botEvaluations, payouts } from "@shared/schema";
+import { encryptCredential, decryptCredential } from "./encryption";
 import type { 
   User, UpsertUser, 
   Bot, InsertBot,
@@ -206,11 +207,12 @@ export class DbStorage implements IStorage {
     
     // Create default exchange connection for new users (paper trading)
     if (isNewUser && finalUserId) {
+      const mockApiSecret = `secret_${finalUserId.substring(0, 8)}`;
       await db.insert(exchangeConnections).values({
         userId: finalUserId,
         exchange: "Mock Exchange",
         apiKey: `mock_${finalUserId.substring(0, 8)}`,
-        apiSecret: `secret_${finalUserId.substring(0, 8)}`,
+        apiSecret: encryptCredential(mockApiSecret), // Encrypt the mock secret
         balance: "10000.00", // $10,000 starting balance for paper trading
         connectionType: "paper", // Paper trading mode
         accountType: "spot",
@@ -506,14 +508,29 @@ export class DbStorage implements IStorage {
   }
 
   async createExchangeConnection(connection: InsertExchangeConnection): Promise<ExchangeConnection> {
-    const result = await db.insert(exchangeConnections).values(connection).returning();
+    const encryptedConnection = {
+      ...connection,
+      apiSecret: encryptCredential(connection.apiSecret),
+      passphrase: connection.passphrase ? encryptCredential(connection.passphrase) : null,
+    };
+    const result = await db.insert(exchangeConnections).values(encryptedConnection).returning();
     return result[0];
   }
 
   async updateExchangeConnection(id: string, updates: Partial<InsertExchangeConnection>): Promise<ExchangeConnection | undefined> {
+    const encryptedUpdates = { ...updates };
+    
+    if (updates.apiSecret) {
+      encryptedUpdates.apiSecret = encryptCredential(updates.apiSecret);
+    }
+    
+    if (updates.passphrase) {
+      encryptedUpdates.passphrase = encryptCredential(updates.passphrase);
+    }
+    
     const result = await db
       .update(exchangeConnections)
-      .set(updates)
+      .set(encryptedUpdates)
       .where(eq(exchangeConnections.id, id))
       .returning();
     return result[0];

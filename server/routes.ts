@@ -125,11 +125,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const connections = await storage.getUserExchangeConnections(userId);
       
-      const sanitizedConnections = connections.map(conn => ({
-        ...conn,
-        apiSecret: undefined,
-        passphrase: undefined,
-      }));
+      const sanitizedConnections = connections.map(conn => {
+        const { apiSecret, passphrase, ...safe } = conn;
+        return safe;
+      });
       
       res.json(sanitizedConnections);
     } catch (error) {
@@ -156,11 +155,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const connection = await storage.createExchangeConnection(validationResult.data);
       
-      res.json({
-        ...connection,
-        apiSecret: undefined,
-        passphrase: undefined,
-      });
+      const { apiSecret, passphrase, ...safeConnection } = connection;
+      res.json(safeConnection);
     } catch (error) {
       console.error("Error creating exchange connection:", error);
       res.status(500).json({ message: "Failed to create exchange connection" });
@@ -179,11 +175,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const updated = await storage.updateExchangeConnection(connectionId, req.body);
       
-      res.json({
-        ...updated,
-        apiSecret: undefined,
-        passphrase: undefined,
-      });
+      if (updated) {
+        const { apiSecret, passphrase, ...safeConnection } = updated;
+        res.json(safeConnection);
+      } else {
+        res.status(404).json({ message: "Exchange connection not found" });
+      }
     } catch (error) {
       console.error("Error updating exchange connection:", error);
       res.status(500).json({ message: "Failed to update exchange connection" });
@@ -219,14 +216,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const { ExchangeClientFactory } = await import('./exchange-clients/factory');
+      const { getDecryptedCredentials } = await import('./exchange-helpers');
       
       try {
-        const client = ExchangeClientFactory.createClient(connection.exchange, {
-          apiKey: connection.apiKey,
-          apiSecret: connection.apiSecret,
-          passphrase: connection.passphrase || undefined,
-          isTestnet: connection.isTestnet,
-        });
+        const credentials = getDecryptedCredentials(connection);
+        const client = ExchangeClientFactory.createClient(connection.exchange, credentials);
         
         const isValid = await client.testConnection();
         
