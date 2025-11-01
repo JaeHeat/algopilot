@@ -8,6 +8,7 @@ import Stripe from "stripe";
 import { randomBytes } from "crypto";
 import { notifyTradeExecuted, notifyDrawdownBreach } from "./services/notifications";
 import { tradeExecutionService } from "./services/trade-execution";
+import { stripeConnectService } from "./services/stripe-connect";
 
 const webhookPayloadSchema = z.object({
   symbol: z.string().min(1).max(20).regex(/^[A-Z0-9.]+$/, "Symbol must be alphanumeric with optional dots"),
@@ -487,6 +488,133 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Stripe Connect Routes for Creators
+  app.post("/api/creator/stripe-connect/account", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || user.role !== 'creator') {
+        return res.status(403).json({ message: "Forbidden: Creator access required" });
+      }
+
+      if (user.stripeConnectAccountId) {
+        return res.status(400).json({ 
+          message: "Stripe Connect account already exists",
+          accountId: user.stripeConnectAccountId 
+        });
+      }
+
+      const account = await stripeConnectService.createExpressAccount({
+        email: user.email!,
+        firstName: user.firstName || undefined,
+        lastName: user.lastName || undefined,
+      });
+
+      await storage.updateUserStripeConnect(userId, {
+        stripeConnectAccountId: account.id,
+        stripeConnectOnboardingComplete: false,
+      });
+
+      res.json({ 
+        accountId: account.id,
+        message: "Stripe Connect account created successfully" 
+      });
+    } catch (error: any) {
+      console.error("Error creating Stripe Connect account:", error);
+      res.status(500).json({ message: "Failed to create Stripe Connect account: " + error.message });
+    }
+  });
+
+  app.post("/api/creator/stripe-connect/onboarding-link", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || user.role !== 'creator') {
+        return res.status(403).json({ message: "Forbidden: Creator access required" });
+      }
+
+      if (!user.stripeConnectAccountId) {
+        return res.status(400).json({ message: "No Stripe Connect account found. Please create one first." });
+      }
+
+      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+        : 'http://localhost:5000';
+
+      const accountLink = await stripeConnectService.createAccountLink({
+        accountId: user.stripeConnectAccountId,
+        refreshUrl: `${baseUrl}/dashboard/earnings?refresh=true`,
+        returnUrl: `${baseUrl}/dashboard/earnings?onboarding=complete`,
+      });
+
+      res.json({ url: accountLink.url });
+    } catch (error: any) {
+      console.error("Error creating onboarding link:", error);
+      res.status(500).json({ message: "Failed to create onboarding link: " + error.message });
+    }
+  });
+
+  app.get("/api/creator/stripe-connect/status", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || user.role !== 'creator') {
+        return res.status(403).json({ message: "Forbidden: Creator access required" });
+      }
+
+      if (!user.stripeConnectAccountId) {
+        return res.json({ 
+          hasAccount: false,
+          isFullyOnboarded: false,
+        });
+      }
+
+      const status = await stripeConnectService.getAccountStatus(user.stripeConnectAccountId);
+
+      if (status.isFullyOnboarded && !user.stripeConnectOnboardingComplete) {
+        await storage.updateUserStripeConnect(userId, {
+          stripeConnectOnboardingComplete: true,
+        });
+      }
+
+      res.json({
+        hasAccount: true,
+        accountId: user.stripeConnectAccountId,
+        isFullyOnboarded: status.isFullyOnboarded,
+        detailsSubmitted: status.detailsSubmitted,
+        chargesEnabled: status.chargesEnabled,
+        payoutsEnabled: status.payoutsEnabled,
+      });
+    } catch (error: any) {
+      console.error("Error fetching Stripe Connect status:", error);
+      res.status(500).json({ message: "Failed to fetch account status: " + error.message });
+    }
+  });
+
+  app.get("/api/creator/stripe-connect/dashboard-link", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user || user.role !== 'creator') {
+        return res.status(403).json({ message: "Forbidden: Creator access required" });
+      }
+
+      if (!user.stripeConnectAccountId) {
+        return res.status(400).json({ message: "No Stripe Connect account found" });
+      }
+
+      const loginLink = await stripeConnectService.getLoginLink(user.stripeConnectAccountId);
+      res.json({ url: loginLink.url });
+    } catch (error: any) {
+      console.error("Error creating dashboard link:", error);
+      res.status(500).json({ message: "Failed to create dashboard link: " + error.message });
+    }
+  });
+
   // Admin Payout Routes
   app.get("/api/admin/payouts/pending", isAuthenticated, async (req: any, res) => {
     try {
@@ -515,16 +643,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const payoutId = req.params.id;
+      
+      const pendingPayouts = await storage.getPendingPayouts();
+      const payoutWithCreator = pendingPayouts.find(p => p.id === payoutId);
+
+      if (!payoutWithCreator) {
+        return res.status(404).json({ message: "Payout not found or not pending" });
+      }
+
+      const creator = payoutWithCreator.creator;
+      
+      if (!creator.stripeConnectAccountId) {
+        return res.status(400).json({ 
+          message: "Creator has not connected their Stripe account. Cannot process payout." 
+        });
+      }
+
+      if (!creator.stripeConnectOnboardingComplete) {
+        return res.status(400).json({ 
+          message: "Creator has not completed Stripe onboarding. Cannot process payout." 
+        });
+      }
+
       const payout = await storage.approvePayoutRequest(payoutId, userId);
 
       if (!payout) {
         return res.status(404).json({ message: "Payout not found" });
       }
 
-      res.json(payout);
-    } catch (error) {
+      try {
+        const transfer = await stripeConnectService.createTransfer({
+          destinationAccountId: creator.stripeConnectAccountId,
+          amount: parseFloat(payout.amount),
+          description: `AlgoPilot Creator Payout - ${payout.id}`,
+          metadata: {
+            payoutId: payout.id,
+            creatorId: creator.id,
+            creatorEmail: creator.email || '',
+          },
+        });
+
+        await storage.completePayoutRequest(payoutId, transfer.id);
+
+        res.json({ 
+          ...payout, 
+          status: 'completed',
+          transferId: transfer.id,
+          message: "Payout transferred successfully via Stripe Connect" 
+        });
+      } catch (stripeError: any) {
+        console.error("Stripe transfer error:", stripeError);
+        
+        await storage.rejectPayoutRequest(
+          payoutId, 
+          userId, 
+          `Stripe transfer failed: ${stripeError.message}`
+        );
+
+        return res.status(500).json({ 
+          message: "Failed to transfer funds via Stripe",
+          error: stripeError.message 
+        });
+      }
+    } catch (error: any) {
       console.error("Error approving payout:", error);
-      res.status(500).json({ message: "Failed to approve payout" });
+      res.status(500).json({ message: "Failed to approve payout: " + error.message });
     }
   });
 

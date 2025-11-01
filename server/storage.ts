@@ -144,6 +144,8 @@ export interface IStorage {
   getPendingPayouts(): Promise<Array<Payout & { creator: User }>>;
   approvePayoutRequest(payoutId: string, adminId: string): Promise<Payout | undefined>;
   rejectPayoutRequest(payoutId: string, adminId: string, reason: string): Promise<Payout | undefined>;
+  completePayoutRequest(payoutId: string, transferId: string): Promise<Payout | undefined>;
+  updateUserStripeConnect(userId: string, data: { stripeConnectAccountId?: string; stripeConnectOnboardingComplete?: boolean }): Promise<User | undefined>;
 }
 
 export class DbStorage implements IStorage {
@@ -229,6 +231,18 @@ export class DbStorage implements IStorage {
     const result = await db
       .update(users)
       .set({ stripeCustomerId, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return result[0];
+  }
+
+  async updateUserStripeConnect(userId: string, data: { 
+    stripeConnectAccountId?: string; 
+    stripeConnectOnboardingComplete?: boolean;
+  }): Promise<User | undefined> {
+    const result = await db
+      .update(users)
+      .set({ ...data, updatedAt: new Date() })
       .where(eq(users.id, userId))
       .returning();
     return result[0];
@@ -1334,6 +1348,20 @@ export class DbStorage implements IStorage {
         reviewedAt: new Date(),
         rejectionReason: reason,
         updatedAt: new Date(),
+      })
+      .where(eq(payouts.id, payoutId))
+      .returning();
+    return result[0];
+  }
+
+  async completePayoutRequest(payoutId: string, transferId: string): Promise<Payout | undefined> {
+    const result = await db
+      .update(payouts)
+      .set({
+        status: 'completed',
+        completedAt: new Date(),
+        updatedAt: new Date(),
+        paymentDetails: { transferId },
       })
       .where(eq(payouts.id, payoutId))
       .returning();
