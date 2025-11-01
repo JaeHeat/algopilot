@@ -1,5 +1,6 @@
 import { BaseExchangeClient, ExchangeCredentials } from './base';
 import { BinanceClient } from './binance';
+import { BybitClient } from './bybit';
 
 export type SupportedExchange = 'Binance' | 'Bybit' | 'OKX' | 'Kraken' | 'Bitfinex';
 
@@ -15,7 +16,7 @@ export class ExchangeClientFactory {
         return new BinanceClient(credentials);
       
       case 'bybit':
-        throw new Error('Bybit integration coming soon');
+        return new BybitClient(credentials);
       
       case 'okx':
         throw new Error('OKX integration coming soon');

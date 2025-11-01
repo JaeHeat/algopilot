@@ -7,5 +7,6 @@ export function getDecryptedCredentials(connection: ExchangeConnection) {
     apiSecret: decryptCredential(connection.apiSecret),
     passphrase: connection.passphrase ? decryptCredential(connection.passphrase) : undefined,
     isTestnet: connection.isTestnet,
+    accountType: connection.accountType as 'spot' | 'futures' | undefined,
   };
 }

@@ -30,7 +30,9 @@ The platform is built with a modern web stack: React with TypeScript, Wouter for
   - API response sanitization completely removes sensitive fields (keys don't exist, not just null)
   - Support for paper trading and live trading modes, spot and futures accounts, testnet connections
   - Connection testing and status validation
-  - Extensible exchange client architecture (Binance implemented, ready for additional exchanges)
+  - Extensible exchange client architecture with two fully implemented exchanges:
+    - **Binance**: Spot trading with testnet support
+    - **Bybit**: Spot and futures (linear perpetual) trading with full testnet support for prop firm accounts
   - Both user-created and auto-generated mock connections use encryption at rest
 - **TradingView Integration**: Webhook-based integration for executing trade signals from TradingView alerts, with symbol normalization.
 - **Multi-Source Real-Time Price Fetching**: A 5-source cascading fallback system (Binance, Kraken, Coinbase, CoinGecko, CryptoCompare) ensures reliable price data, with server-side validation enforcing a 5% tolerance against market prices to prevent manipulation.

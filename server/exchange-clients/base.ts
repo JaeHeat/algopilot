@@ -3,11 +3,13 @@ export interface ExchangeCredentials {
   apiSecret: string;
   passphrase?: string;
   isTestnet: boolean;
+  accountType?: 'spot' | 'futures';
 }
 
 export interface OrderSide {
   type: 'buy' | 'sell';
   positionSide?: 'long' | 'short';
+  reduceOnly?: boolean;
 }
 
 export interface PlaceOrderParams {
@@ -42,11 +44,13 @@ export interface Balance {
 export interface Position {
   symbol: string;
   side: 'long' | 'short';
-  quantity: number;
+  size: number;
+  quantity?: number;
   entryPrice: number;
   markPrice: number;
   unrealizedPnl: number;
   leverage: number;
+  liquidationPrice?: number;
 }
 
 export abstract class BaseExchangeClient {
