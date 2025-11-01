@@ -180,10 +180,10 @@ export default function DashboardCreatorEarnings() {
       return;
     }
 
-    if (amount < 50) {
+    if (amount < 100) {
       toast({
         title: "Minimum Payout",
-        description: "Minimum payout amount is $50",
+        description: "Minimum payout amount is $100",
         variant: "destructive",
       });
       return;
@@ -355,14 +355,14 @@ export default function DashboardCreatorEarnings() {
         <CardHeader>
           <CardTitle>Request Payout</CardTitle>
           <CardDescription>
-            Minimum payout amount is $50. Payouts are typically processed within 3-5 business days.
+            Minimum payout amount is $100. Payouts are typically processed within 3-5 business days.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Button
             onClick={() => setPayoutDialogOpen(true)}
             disabled={
-              parseFloat(earnings?.pendingBalance || "0") < 50 || 
+              parseFloat(earnings?.pendingBalance || "0") < 100 || 
               !stripeStatus?.isFullyOnboarded
             }
             data-testid="button-request-payout"
@@ -373,9 +373,9 @@ export default function DashboardCreatorEarnings() {
             <p className="text-sm text-muted-foreground mt-2">
               Complete Stripe onboarding above to request payouts
             </p>
-          ) : parseFloat(earnings?.pendingBalance || "0") < 50 ? (
+          ) : parseFloat(earnings?.pendingBalance || "0") < 100 ? (
             <p className="text-sm text-muted-foreground mt-2">
-              You need at least $50 to request a payout
+              You need at least $100 to request a payout
             </p>
           ) : null}
         </CardContent>

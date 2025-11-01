@@ -469,9 +469,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid amount" });
       }
 
-      // Check minimum payout threshold ($50)
-      if (amountNum < 50) {
-        return res.status(400).json({ message: "Minimum payout amount is $50" });
+      // Check minimum payout threshold ($100)
+      if (amountNum < 100) {
+        return res.status(400).json({ message: "Minimum payout amount is $100" });
       }
 
       // Get creator earnings to verify available balance

@@ -51,7 +51,7 @@ The platform is built with a modern web stack: React with TypeScript, Wouter for
 - **Creator Payout System**: Complete payout management system for creator earnings with:
   - Automatic earnings calculation (75% of subscription revenue)
   - Creator earnings dashboard showing total earnings, pending balance, and payout history
-  - Payout request functionality with minimum $50 threshold
+  - Payout request functionality with minimum $100 threshold
   - Admin review and approval workflow with validated rejection reasons
   - Payout status tracking (pending, approved, processing, completed, rejected)
   - Form-based admin interface replacing prompt-based approvals for better UX and audit trail
