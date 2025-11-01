@@ -35,6 +35,23 @@ export class TradeExecutionService {
         };
       }
 
+      // Validate inputs
+      if (!quantity || quantity <= 0) {
+        return {
+          success: false,
+          error: 'Invalid quantity - must be greater than zero',
+          exchange: exchangeConnection.exchange,
+        };
+      }
+
+      if (!price || price <= 0) {
+        return {
+          success: false,
+          error: 'Invalid price - must be greater than zero',
+          exchange: exchangeConnection.exchange,
+        };
+      }
+
       // Get decrypted credentials
       const credentials = getDecryptedCredentials(exchangeConnection);
 
@@ -44,9 +61,26 @@ export class TradeExecutionService {
         credentials
       );
 
-      // Determine order side and type
+      // Validate sufficient balance (approximate check for BUY orders)
       const normalizedAction = action.toLowerCase();
       const side = (normalizedAction === 'buy' || normalizedAction === 'long') ? 'buy' : 'sell';
+      
+      if (side === 'buy') {
+        const estimatedCost = price * quantity * 1.001; // Include 0.1% fee buffer
+        const balanceCheck = await this.validateSufficientBalance(
+          exchangeConnection,
+          estimatedCost,
+          'USDT'
+        );
+
+        if (!balanceCheck.sufficient) {
+          return {
+            success: false,
+            error: `Insufficient balance. Required: $${estimatedCost.toFixed(2)}, Available: $${balanceCheck.availableBalance.toFixed(2)}`,
+            exchange: exchangeConnection.exchange,
+          };
+        }
+      }
 
       // Prepare order parameters
       const orderParams: PlaceOrderParams = {
@@ -66,18 +100,40 @@ export class TradeExecutionService {
 
       const orderResult: OrderResult = await client.placeOrder(orderParams);
 
-      console.log(`[TradeExecution] Order executed successfully:`, {
+      console.log(`[TradeExecution] Order result from exchange:`, {
         orderId: orderResult.orderId,
         status: orderResult.status,
         filledQuantity: orderResult.filledQuantity,
         averagePrice: orderResult.averagePrice,
+        price: orderResult.price,
       });
+
+      // Validate order result has required data
+      const executedPrice = orderResult.averagePrice || orderResult.price || 0;
+      const executedQuantity = orderResult.filledQuantity || orderResult.quantity || 0;
+
+      // Guard against zero or missing execution data
+      if (executedPrice <= 0 || executedQuantity <= 0) {
+        console.error(`[TradeExecution] Order placed but missing execution data:`, {
+          orderId: orderResult.orderId,
+          executedPrice,
+          executedQuantity,
+          rawResult: orderResult,
+        });
+
+        return {
+          success: false,
+          error: `Order placed but execution data incomplete (price: ${executedPrice}, qty: ${executedQuantity}). This may indicate an exchange API issue. Please check your exchange account directly.`,
+          orderId: orderResult.orderId,
+          exchange: exchangeConnection.exchange,
+        };
+      }
 
       return {
         success: true,
         orderId: orderResult.orderId,
-        executedPrice: orderResult.averagePrice || orderResult.price,
-        executedQuantity: orderResult.filledQuantity || orderResult.quantity,
+        executedPrice,
+        executedQuantity,
         fees: orderResult.fees || 0,
         exchange: exchangeConnection.exchange,
       };
@@ -85,9 +141,15 @@ export class TradeExecutionService {
     } catch (error: any) {
       console.error(`[TradeExecution] Failed to execute trade on ${exchangeConnection.exchange}:`, error);
       
+      // Extract more detailed error information
+      const errorMessage = error.response?.data?.msg || 
+                          error.response?.data?.retMsg ||
+                          error.message || 
+                          'Unknown error occurred';
+
       return {
         success: false,
-        error: error.message || 'Unknown error occurred',
+        error: errorMessage,
         exchange: exchangeConnection.exchange,
       };
     }

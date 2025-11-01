@@ -2035,8 +2035,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           let actualQuantity = quantity;
           
           // Execute live trade if exchange connection is configured
+          let tradingMode = 'MOCK';
+          let tradeExecutionDetails = '';
+          
           if (useLiveTrading && exchangeConnection) {
-            console.log(`[Trade] Executing LIVE trade for subscription ${subscription.id} on ${exchangeConnection.exchange}`);
+            console.log(`[Trade] 🔴 LIVE TRADING: Executing real trade for subscription ${subscription.id} on ${exchangeConnection.exchange}`);
             
             const executionResult = await tradeExecutionService.executeTrade({
               symbol,
@@ -2046,25 +2049,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
               exchangeConnection,
             });
             
-            if (executionResult.success) {
+            if (executionResult.success && executionResult.executedPrice && executionResult.executedQuantity) {
+              tradingMode = 'LIVE';
               exchange = executionResult.exchange;
-              actualPrice = executionResult.executedPrice || price;
-              actualQuantity = executionResult.executedQuantity || quantity;
+              actualPrice = executionResult.executedPrice;
+              actualQuantity = executionResult.executedQuantity;
               fees = executionResult.fees || 0;
-              console.log(`[Trade] Live trade executed successfully:`, {
+              tradeExecutionDetails = `Order ID: ${executionResult.orderId}`;
+              
+              console.log(`[Trade] ✅ LIVE trade executed successfully:`, {
+                mode: 'LIVE',
+                exchange: exchange,
                 orderId: executionResult.orderId,
                 price: actualPrice,
                 quantity: actualQuantity,
                 fees,
+                subscription: subscription.id,
               });
             } else {
-              console.error(`[Trade] Live trade failed for subscription ${subscription.id}:`, executionResult.error);
-              // Fall back to mock or skip the trade
-              console.log(`[Trade] Skipping subscription ${subscription.id} - live trade execution failed`);
-              continue;
+              console.error(`[Trade] ❌ LIVE trade failed for subscription ${subscription.id}:`, {
+                error: executionResult.error,
+                orderId: executionResult.orderId,
+                exchange: exchangeConnection.exchange,
+              });
+              
+              // Important: Fall back to MOCK trading instead of skipping
+              console.log(`[Trade] ⚠️  Falling back to MOCK execution due to live trade failure`);
+              tradingMode = 'MOCK';
+              exchange = 'mock';
+              fees = (positionSize * 0.001);
+              tradeExecutionDetails = `Failed live trade: ${executionResult.error}`;
             }
           } else {
-            console.log(`[Trade] Using MOCK execution for subscription ${subscription.id} (no live exchange configured)`);
+            console.log(`[Trade] 🟡 MOCK TRADING: Using simulated execution for subscription ${subscription.id}` + 
+                       (subscription.exchangeConnectionId ? ' (exchange connection not active or not in live mode)' : ' (no exchange connection configured)'));
           }
           
           if (normalizedAction === 'buy' || normalizedAction === 'long') {
@@ -2095,7 +2113,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               await storage.closePosition(
                 existingPosition.id,
-                price.toFixed(2),
+                actualPrice.toFixed(2),
                 pnl.toFixed(2)
               );
               
@@ -2110,7 +2128,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 newPnl
               );
               
-              console.log(`[Trade] BUY to close SHORT for subscription ${subscription.id}: ${positionQty.toFixed(8)} ${symbol} @ $${price}, PnL: $${pnl.toFixed(2)}`);
+              console.log(`[Trade] BUY to close SHORT for subscription ${subscription.id}: ${positionQty.toFixed(8)} ${symbol} @ $${actualPrice}, PnL: $${pnl.toFixed(2)}`);
               executedTrades++;
               
               // Send trade notification
@@ -2125,7 +2143,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   action: 'closed',
                   positionType: 'short',
                   quantity: positionQty.toFixed(8),
-                  price: price.toFixed(2),
+                  price: actualPrice.toFixed(2),
                   pnl: pnl.toFixed(2),
                 }).catch(err => console.error('[Webhook] Notification error:', err));
               }
@@ -2165,8 +2183,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 botId,
                 symbol,
                 side: 'buy',
-                quantity: quantity.toFixed(8),
-                price: price.toFixed(2),
+                quantity: actualQuantity.toFixed(8),
+                price: actualPrice.toFixed(2),
                 exchange,
                 status: 'filled',
                 fees: fees.toFixed(2),
@@ -2177,21 +2195,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 botId,
                 symbol,
                 positionType: 'long',
-                quantity: quantity.toFixed(8),
-                entryPrice: price.toFixed(2),
-                currentPrice: price.toFixed(2),
+                quantity: actualQuantity.toFixed(8),
+                entryPrice: actualPrice.toFixed(2),
+                currentPrice: actualPrice.toFixed(2),
                 unrealizedPnl: "0.00",
                 status: 'open',
               });
               
-              const newBalance = (parseFloat(subscription.currentBalance) - positionSize - fees).toFixed(2);
+              const actualPositionSize = actualPrice * actualQuantity;
+              const newBalance = (parseFloat(subscription.currentBalance) - actualPositionSize - fees).toFixed(2);
               await storage.updateSubscriptionBalance(
                 subscription.id,
                 newBalance,
                 subscription.totalPnl
               );
               
-              console.log(`[Trade] BUY to open LONG for subscription ${subscription.id}: ${quantity.toFixed(8)} ${symbol} @ $${price}`);
+              console.log(`[Trade] BUY to open LONG for subscription ${subscription.id}: ${actualQuantity.toFixed(8)} ${symbol} @ $${actualPrice}`);
               executedTrades++;
               
               // Send trade notification
@@ -2205,8 +2224,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   symbol,
                   action: 'opened',
                   positionType: 'long',
-                  quantity: quantity.toFixed(8),
-                  price: price.toFixed(2),
+                  quantity: actualQuantity.toFixed(8),
+                  price: actualPrice.toFixed(2),
                 }).catch(err => console.error('[Webhook] Notification error:', err));
               }
             } else {
@@ -2224,8 +2243,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             } else if (existingPosition && existingPosition.positionType === 'long') {
               const positionQty = parseFloat(existingPosition.quantity);
               const entryPrice = parseFloat(existingPosition.entryPrice);
-              const pnl = ((price - entryPrice) * positionQty) - fees;
-              const positionValue = price * positionQty;
+              const pnl = ((actualPrice - entryPrice) * positionQty) - fees;
+              const positionValue = actualPrice * positionQty;
               
               const trade = await storage.createTrade({
                 subscriptionId: subscription.id,
@@ -2233,7 +2252,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 symbol,
                 side: 'sell',
                 quantity: positionQty.toFixed(8),
-                price: price.toFixed(2),
+                price: actualPrice.toFixed(2),
                 exchange,
                 status: 'filled',
                 fees: fees.toFixed(2),
@@ -2242,7 +2261,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               await storage.closePosition(
                 existingPosition.id,
-                price.toFixed(2),
+                actualPrice.toFixed(2),
                 pnl.toFixed(2)
               );
               
@@ -2257,7 +2276,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 newPnl
               );
               
-              console.log(`[Trade] SELL to close LONG for subscription ${subscription.id}: ${positionQty.toFixed(8)} ${symbol} @ $${price}, PnL: $${pnl.toFixed(2)}`);
+              console.log(`[Trade] SELL to close LONG for subscription ${subscription.id}: ${positionQty.toFixed(8)} ${symbol} @ $${actualPrice}, PnL: $${pnl.toFixed(2)}`);
               executedTrades++;
               
               // Send trade notification
@@ -2272,7 +2291,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   action: 'closed',
                   positionType: 'long',
                   quantity: positionQty.toFixed(8),
-                  price: price.toFixed(2),
+                  price: actualPrice.toFixed(2),
                   pnl: pnl.toFixed(2),
                 }).catch(err => console.error('[Webhook] Notification error:', err));
               }
@@ -2312,8 +2331,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 botId,
                 symbol,
                 side: 'sell',
-                quantity: quantity.toFixed(8),
-                price: price.toFixed(2),
+                quantity: actualQuantity.toFixed(8),
+                price: actualPrice.toFixed(2),
                 exchange,
                 status: 'filled',
                 fees: fees.toFixed(2),
@@ -2324,21 +2343,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 botId,
                 symbol,
                 positionType: 'short',
-                quantity: quantity.toFixed(8),
-                entryPrice: price.toFixed(2),
-                currentPrice: price.toFixed(2),
+                quantity: actualQuantity.toFixed(8),
+                entryPrice: actualPrice.toFixed(2),
+                currentPrice: actualPrice.toFixed(2),
                 unrealizedPnl: "0.00",
                 status: 'open',
               });
               
-              const newBalance = (parseFloat(subscription.currentBalance) - positionSize - fees).toFixed(2);
+              const actualPositionSize = actualPrice * actualQuantity;
+              const newBalance = (parseFloat(subscription.currentBalance) - actualPositionSize - fees).toFixed(2);
               await storage.updateSubscriptionBalance(
                 subscription.id,
                 newBalance,
                 subscription.totalPnl
               );
               
-              console.log(`[Trade] SELL to open SHORT for subscription ${subscription.id}: ${quantity.toFixed(8)} ${symbol} @ $${price}`);
+              console.log(`[Trade] SELL to open SHORT for subscription ${subscription.id}: ${actualQuantity.toFixed(8)} ${symbol} @ $${actualPrice}`);
               executedTrades++;
               
               // Send trade notification
@@ -2352,8 +2372,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   symbol,
                   action: 'opened',
                   positionType: 'short',
-                  quantity: quantity.toFixed(8),
-                  price: price.toFixed(2),
+                  quantity: actualQuantity.toFixed(8),
+                  price: actualPrice.toFixed(2),
                 }).catch(err => console.error('[Webhook] Notification error:', err));
               }
             } else {
