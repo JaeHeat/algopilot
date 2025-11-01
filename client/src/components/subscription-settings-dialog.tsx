@@ -55,7 +55,7 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
   );
   const [maxPositionsPerSymbol, setMaxPositionsPerSymbol] = useState(subscription.maxPositionsPerSymbol || 1);
   const [selectedExchangeConnectionId, setSelectedExchangeConnectionId] = useState<string>(
-    subscription.exchangeConnectionId || ""
+    subscription.exchangeConnectionId || "mock"
   );
   
   const notificationPrefs = subscription.notificationPrefs as any || {
@@ -250,7 +250,7 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
       maxDrawdown,
       maxPositionsPerSymbol,
       notificationPrefs: notifications,
-      exchangeConnectionId: selectedExchangeConnectionId || null,
+      exchangeConnectionId: selectedExchangeConnectionId === "mock" ? null : selectedExchangeConnectionId,
     });
   };
 
@@ -437,7 +437,7 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
                       <SelectValue placeholder="Mock Trading (Default)" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">
+                      <SelectItem value="mock">
                         Mock Trading (Simulated)
                       </SelectItem>
                       {exchangeConnections?.filter(conn => conn.isActive).map((connection) => (
@@ -458,7 +458,7 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
                     Select an exchange to execute real trades. Leave as "Mock Trading" to simulate trades without risking capital.
                   </p>
                   
-                  {selectedExchangeConnectionId && (
+                  {selectedExchangeConnectionId && selectedExchangeConnectionId !== "mock" && (
                     <Alert className="mt-2 bg-red-500/10 border-red-500/20">
                       <Zap className="h-4 w-4 text-red-600" />
                       <AlertDescription className="text-sm">

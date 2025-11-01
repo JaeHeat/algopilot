@@ -351,6 +351,8 @@ export const updateSubscriptionSettingsSchema = z.object({
   capitalAllocatedType: z.enum(["amount", "percent"]).optional(),
   riskPercentage: z.number().int().min(1).max(5).optional(),
   maxDrawdown: z.number().positive().max(100).optional(),
+  maxPositionsPerSymbol: z.number().int().min(1).max(5).optional(),
+  exchangeConnectionId: z.string().nullable().optional(),
   notificationPrefs: z.object({
     newTrade: z.boolean(),
     drawdownBreach: z.boolean(),
