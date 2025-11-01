@@ -510,6 +510,15 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
+  async updateExchangeConnection(id: string, updates: Partial<InsertExchangeConnection>): Promise<ExchangeConnection | undefined> {
+    const result = await db
+      .update(exchangeConnections)
+      .set(updates)
+      .where(eq(exchangeConnections.id, id))
+      .returning();
+    return result[0];
+  }
+
   async deleteExchangeConnection(id: string): Promise<void> {
     await db.update(exchangeConnections).set({ isActive: false }).where(eq(exchangeConnections.id, id));
   }
