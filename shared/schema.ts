@@ -64,6 +64,7 @@ export const subscriptions = pgTable("subscriptions", {
   userId: varchar("user_id").notNull().references(() => users.id),
   botId: varchar("bot_id").notNull().references(() => bots.id),
   stripeSubscriptionId: text("stripe_subscription_id"),
+  exchangeConnectionId: varchar("exchange_connection_id").references(() => exchangeConnections.id),
   status: text("status").notNull().default("active"),
   capitalAllocated: decimal("capital_allocated", { precision: 10, scale: 2 }),
   capitalAllocatedType: text("capital_allocated_type").notNull().default("amount"),
@@ -81,6 +82,7 @@ export const subscriptions = pgTable("subscriptions", {
 }, (table) => [
   index("idx_subscriptions_user_status_started").on(table.userId, table.status, table.startedAt.desc()),
   index("idx_subscriptions_bot_id").on(table.botId),
+  index("idx_subscriptions_exchange_connection").on(table.exchangeConnectionId),
 ]);
 
 export const exchangeConnections = pgTable("exchange_connections", {

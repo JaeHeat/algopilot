@@ -7,6 +7,7 @@ import { z } from "zod";
 import Stripe from "stripe";
 import { randomBytes } from "crypto";
 import { notifyTradeExecuted, notifyDrawdownBreach } from "./services/notifications";
+import { tradeExecutionService } from "./services/trade-execution";
 
 const webhookPayloadSchema = z.object({
   symbol: z.string().min(1).max(20).regex(/^[A-Z0-9.]+$/, "Symbol must be alphanumeric with optional dots"),
@@ -2019,8 +2020,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           
           const normalizedAction = action.toLowerCase();
-          const exchange = 'mock';
-          const fees = (positionSize * 0.001);
+          
+          // Get exchange connection for live trading
+          let exchangeConnection = null;
+          let useLiveTrading = false;
+          if (subscription.exchangeConnectionId) {
+            exchangeConnection = await storage.getExchangeConnectionById(subscription.exchangeConnectionId);
+            useLiveTrading = exchangeConnection && exchangeConnection.isActive && exchangeConnection.connectionType === 'live';
+          }
+          
+          let exchange = 'mock';
+          let fees = (positionSize * 0.001);
+          let actualPrice = price;
+          let actualQuantity = quantity;
+          
+          // Execute live trade if exchange connection is configured
+          if (useLiveTrading && exchangeConnection) {
+            console.log(`[Trade] Executing LIVE trade for subscription ${subscription.id} on ${exchangeConnection.exchange}`);
+            
+            const executionResult = await tradeExecutionService.executeTrade({
+              symbol,
+              action: normalizedAction as 'buy' | 'sell' | 'long' | 'short',
+              price,
+              quantity,
+              exchangeConnection,
+            });
+            
+            if (executionResult.success) {
+              exchange = executionResult.exchange;
+              actualPrice = executionResult.executedPrice || price;
+              actualQuantity = executionResult.executedQuantity || quantity;
+              fees = executionResult.fees || 0;
+              console.log(`[Trade] Live trade executed successfully:`, {
+                orderId: executionResult.orderId,
+                price: actualPrice,
+                quantity: actualQuantity,
+                fees,
+              });
+            } else {
+              console.error(`[Trade] Live trade failed for subscription ${subscription.id}:`, executionResult.error);
+              // Fall back to mock or skip the trade
+              console.log(`[Trade] Skipping subscription ${subscription.id} - live trade execution failed`);
+              continue;
+            }
+          } else {
+            console.log(`[Trade] Using MOCK execution for subscription ${subscription.id} (no live exchange configured)`);
+          }
           
           if (normalizedAction === 'buy' || normalizedAction === 'long') {
             const existingPosition = await storage.getPositionBySubscriptionAndSymbol(subscription.id, symbol);
@@ -2032,8 +2077,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             } else if (existingPosition && existingPosition.positionType === 'short') {
               const positionQty = parseFloat(existingPosition.quantity);
               const entryPrice = parseFloat(existingPosition.entryPrice);
-              const pnl = ((entryPrice - price) * positionQty) - fees;
-              const positionValue = price * positionQty;
+              const pnl = ((entryPrice - actualPrice) * positionQty) - fees;
+              const positionValue = actualPrice * positionQty;
               
               const trade = await storage.createTrade({
                 subscriptionId: subscription.id,
@@ -2041,7 +2086,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 symbol,
                 side: 'buy',
                 quantity: positionQty.toFixed(8),
-                price: price.toFixed(2),
+                price: actualPrice.toFixed(2),
                 exchange,
                 status: 'filled',
                 fees: fees.toFixed(2),
