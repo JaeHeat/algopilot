@@ -63,7 +63,7 @@ export default function DashboardMyBots() {
           <h1 className="text-3xl font-bold mb-2">My Bots</h1>
           <p className="text-muted-foreground">Manage all your trading bot subscriptions</p>
         </div>
-        <Button onClick={() => setLocation("/dashboard/marketplace")} data-testid="button-browse-marketplace">
+        <Button onClick={() => setLocation("/marketplace")} data-testid="button-browse-marketplace">
           <BotIcon className="h-4 w-4 mr-2" />
           Browse Marketplace
         </Button>
@@ -85,7 +85,7 @@ export default function DashboardMyBots() {
             <p className="text-muted-foreground mb-4">
               You don't have any active trading bots yet
             </p>
-            <Button onClick={() => setLocation("/dashboard/marketplace")}>
+            <Button onClick={() => setLocation("/marketplace")}>
               Browse Marketplace
             </Button>
           </div>
@@ -157,7 +157,7 @@ export default function DashboardMyBots() {
           <p className="text-muted-foreground mb-6 max-w-md mx-auto">
             Start your automated trading journey by subscribing to a bot from our marketplace
           </p>
-          <Button size="lg" onClick={() => setLocation("/dashboard/marketplace")}>
+          <Button size="lg" onClick={() => setLocation("/marketplace")}>
             <BotIcon className="h-5 w-5 mr-2" />
             Explore Trading Bots
           </Button>

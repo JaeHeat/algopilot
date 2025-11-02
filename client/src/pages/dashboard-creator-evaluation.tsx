@@ -8,7 +8,7 @@ import { ArrowLeft, Award, TrendingUp, AlertCircle, CheckCircle2, XCircle, Targe
 import { Link } from "wouter";
 
 export default function DashboardCreatorEvaluation() {
-  const [, params] = useRoute("/dashboard/creator/evaluation/:botId");
+  const [, params] = useRoute("/creator/evaluation/:botId");
   const botId = params?.botId;
 
   const { data: creatorBots = [], isLoading } = useQuery<any[]>({
@@ -30,7 +30,7 @@ export default function DashboardCreatorEvaluation() {
       <div className="flex flex-col items-center justify-center h-full gap-4">
         <AlertCircle className="h-12 w-12 text-muted-foreground" />
         <h2 className="text-xl font-semibold">Bot not found</h2>
-        <Link href="/dashboard/creator">
+        <Link href="/creator">
           <Button variant="outline" data-testid="button-back-to-creator">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Creator Dashboard
@@ -61,7 +61,7 @@ export default function DashboardCreatorEvaluation() {
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/dashboard/creator">
+        <Link href="/creator">
           <Button variant="ghost" size="sm" className="mb-4" data-testid="button-back">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Creator Dashboard

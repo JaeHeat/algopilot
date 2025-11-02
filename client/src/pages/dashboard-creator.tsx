@@ -396,7 +396,7 @@ export default function DashboardCreator() {
                         <span className="text-sm font-medium">
                           {progress.tradeCount === 0 ? "Evaluation Requirements" : "Evaluation Progress"}
                         </span>
-                        <Link href={`/dashboard/creator/evaluation/${bot.id}`}>
+                        <Link href={`/creator/evaluation/${bot.id}`}>
                           <Button variant="ghost" size="sm" data-testid={`button-view-evaluation-${bot.id}`}>
                             {progress.tradeCount === 0 ? "Get Started" : "View Details"}
                           </Button>

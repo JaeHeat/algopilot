@@ -14,7 +14,7 @@ import type { Subscription, Bot as BotType, BotPerformance, UserOnboarding } fro
 import { useEffect, useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 type SubscriptionWithBot = Subscription & { bot: BotType; performance: BotPerformance | null };
@@ -277,7 +277,7 @@ export default function DashboardOverview() {
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold">Active Bots</h2>
-          <Button variant="ghost" size="sm" onClick={() => setLocation("/dashboard/my-bots")} data-testid="button-view-all-bots">
+          <Button variant="ghost" size="sm" onClick={() => setLocation("/my-bots")} data-testid="button-view-all-bots">
             View All Bots
           </Button>
         </div>
@@ -299,9 +299,9 @@ export default function DashboardOverview() {
                 ? "All your bots are paused. Visit My Bots to manage them."
                 : "You haven't subscribed to any bots yet"}
             </p>
-            <a href="/dashboard/marketplace" className="text-primary hover:underline">
+            <Link href="/marketplace" className="text-primary hover:underline">
               Browse the marketplace
-            </a>
+            </Link>
           </div>
         )}
       </div>

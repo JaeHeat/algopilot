@@ -4,7 +4,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationsDropdown } from "@/components/notifications-dropdown";
 import { User } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Route, Switch, Link } from "wouter";
+import { Route, Switch, Link, Router } from "wouter";
 import DashboardOverview from "./dashboard-overview";
 import DashboardMyBots from "./dashboard-my-bots";
 import DashboardMyTrades from "./dashboard-my-trades";
@@ -42,19 +42,22 @@ export default function DashboardLayout() {
           </header>
           <main className="flex-1 overflow-auto p-6">
             <div className="max-w-screen-2xl mx-auto">
+              <Router base="/dashboard">
+                <Switch>
+                  <Route path="/" component={DashboardOverview} />
+                  <Route path="/creator/evaluation/:botId" component={DashboardCreatorEvaluation} />
+                  <Route path="/creator" component={DashboardCreator} />
+                  <Route path="/my-bots" component={DashboardMyBots} />
+                  <Route path="/my-trades" component={DashboardMyTrades} />
+                  <Route path="/marketplace" component={DashboardMarketplace} />
+                  <Route path="/settings" component={DashboardSettings} />
+                  <Route path="/earnings" component={DashboardCreatorEarnings} />
+                  <Route path="/admin" component={DashboardAdmin} />
+                  <Route component={NotFound} />
+                </Switch>
+              </Router>
               <Switch>
-                <Route path="/" component={DashboardOverview} />
-                <Route path="/dashboard" component={DashboardOverview} />
-                <Route path="/dashboard/my-bots" component={DashboardMyBots} />
-                <Route path="/dashboard/my-trades" component={DashboardMyTrades} />
-                <Route path="/dashboard/marketplace" component={DashboardMarketplace} />
-                <Route path="/dashboard/settings" component={DashboardSettings} />
-                <Route path="/dashboard/earnings" component={DashboardCreatorEarnings} />
-                <Route path="/dashboard/creator/evaluation/:botId" component={DashboardCreatorEvaluation} />
-                <Route path="/dashboard/creator" component={DashboardCreator} />
-                <Route path="/dashboard/admin" component={DashboardAdmin} />
                 <Route path="/bot/:id" component={BotDetail} />
-                <Route component={NotFound} />
               </Switch>
             </div>
           </main>
