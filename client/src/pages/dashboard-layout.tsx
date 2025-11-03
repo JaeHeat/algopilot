@@ -49,24 +49,17 @@ export default function DashboardLayout() {
                 {/* Bot detail pages (from public marketplace or direct links) */}
                 <Route path="/bot/:id" component={BotDetail} />
                 
-                {/* Dashboard routes */}
-                <Route path="/dashboard/:rest*">
-                  <Router base="/dashboard">
-                    <Switch>
-                      <Route path="/" component={DashboardOverview} />
-                      <Route path="/bot/:id" component={BotDetail} />
-                      <Route path="/creator/evaluation/:botId" component={DashboardCreatorEvaluation} />
-                      <Route path="/creator" component={DashboardCreator} />
-                      <Route path="/my-bots" component={DashboardMyBots} />
-                      <Route path="/my-trades" component={DashboardMyTrades} />
-                      <Route path="/marketplace" component={DashboardMarketplace} />
-                      <Route path="/settings" component={DashboardSettings} />
-                      <Route path="/earnings" component={DashboardCreatorEarnings} />
-                      <Route path="/admin" component={DashboardAdmin} />
-                      <Route component={NotFound} />
-                    </Switch>
-                  </Router>
-                </Route>
+                {/* Dashboard routes (explicit) */}
+                <Route path="/dashboard" component={DashboardOverview} />
+                <Route path="/dashboard/bot/:id" component={BotDetail} />
+                <Route path="/dashboard/creator/evaluation/:botId" component={DashboardCreatorEvaluation} />
+                <Route path="/dashboard/creator" component={DashboardCreator} />
+                <Route path="/dashboard/my-bots" component={DashboardMyBots} />
+                <Route path="/dashboard/my-trades" component={DashboardMyTrades} />
+                <Route path="/dashboard/marketplace" component={DashboardMarketplace} />
+                <Route path="/dashboard/settings" component={DashboardSettings} />
+                <Route path="/dashboard/earnings" component={DashboardCreatorEarnings} />
+                <Route path="/dashboard/admin" component={DashboardAdmin} />
                 
                 <Route component={NotFound} />
               </Switch>

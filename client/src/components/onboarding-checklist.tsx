@@ -75,7 +75,7 @@ export function OnboardingChecklist({ onboarding, onDismiss }: OnboardingCheckli
       title: "Configure Bot Settings",
       description: "Set capital allocation and risk parameters",
       completed: onboarding.hasConfiguredSettings,
-      link: "/dashboard/subscriptions",
+      link: "/dashboard/my-bots",
       action: "Manage Subscriptions",
     },
     {

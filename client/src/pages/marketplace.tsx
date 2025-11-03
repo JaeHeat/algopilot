@@ -225,7 +225,7 @@ export default function Marketplace() {
             </div>
 
             {filteredAndSortedBots.map((bot, index) => (
-              <Link href={`/bot/${bot.id}`} key={bot.id}>
+              <Link to={`/bot/${bot.id}`} key={bot.id}>
                 <div
                   className="grid md:grid-cols-[60px_80px_1fr_120px_120px_120px_120px_140px] gap-4 items-center px-4 py-4 rounded-lg border border-border/50 hover-elevate active-elevate-2 cursor-pointer transition-all"
                   data-testid={`row-bot-${index + 1}`}
