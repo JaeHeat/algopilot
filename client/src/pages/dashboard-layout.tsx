@@ -42,21 +42,31 @@ export default function DashboardLayout() {
           </header>
           <main className="flex-1 overflow-auto p-6">
             <div className="max-w-screen-2xl mx-auto">
-              <Router base="/dashboard">
-                <Switch>
-                  <Route path="/" component={DashboardOverview} />
-                  <Route path="/bot/:id" component={BotDetail} />
-                  <Route path="/creator/evaluation/:botId" component={DashboardCreatorEvaluation} />
-                  <Route path="/creator" component={DashboardCreator} />
-                  <Route path="/my-bots" component={DashboardMyBots} />
-                  <Route path="/my-trades" component={DashboardMyTrades} />
-                  <Route path="/marketplace" component={DashboardMarketplace} />
-                  <Route path="/settings" component={DashboardSettings} />
-                  <Route path="/earnings" component={DashboardCreatorEarnings} />
-                  <Route path="/admin" component={DashboardAdmin} />
-                  <Route component={NotFound} />
-                </Switch>
-              </Router>
+              <Switch>
+                {/* Handle /bot/:id URLs (from public marketplace) */}
+                <Route path="/bot/:id" component={BotDetail} />
+                
+                {/* Handle /dashboard and all /dashboard/* URLs */}
+                <Route path="/dashboard">
+                  <Router base="/dashboard">
+                    <Switch>
+                      <Route path="/" component={DashboardOverview} />
+                      <Route path="/bot/:id" component={BotDetail} />
+                      <Route path="/creator/evaluation/:botId" component={DashboardCreatorEvaluation} />
+                      <Route path="/creator" component={DashboardCreator} />
+                      <Route path="/my-bots" component={DashboardMyBots} />
+                      <Route path="/my-trades" component={DashboardMyTrades} />
+                      <Route path="/marketplace" component={DashboardMarketplace} />
+                      <Route path="/settings" component={DashboardSettings} />
+                      <Route path="/earnings" component={DashboardCreatorEarnings} />
+                      <Route path="/admin" component={DashboardAdmin} />
+                      <Route component={NotFound} />
+                    </Switch>
+                  </Router>
+                </Route>
+                
+                <Route component={NotFound} />
+              </Switch>
             </div>
           </main>
         </div>
