@@ -54,14 +54,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const sig = req.headers['stripe-signature'];
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
+    // ALWAYS acknowledge receipt with 200, even if we can't process the webhook
+    // This prevents Stripe from retrying endlessly
+    
     if (!webhookSecret) {
-      console.error("[Stripe Webhook] CRITICAL: STRIPE_WEBHOOK_SECRET not configured");
-      return res.status(500).json({ error: "Webhook secret not configured" });
+      console.error("[Stripe Webhook] CRITICAL: STRIPE_WEBHOOK_SECRET not configured - cannot verify webhooks");
+      return res.json({ received: true, error: "Webhook secret not configured" });
     }
 
     if (!sig) {
-      console.error("[Stripe Webhook] Missing stripe-signature header");
-      return res.status(400).json({ error: "Missing signature" });
+      console.error("[Stripe Webhook] Missing stripe-signature header - rejecting webhook");
+      return res.json({ received: true, error: "Missing signature" });
     }
 
     let event: Stripe.Event;
@@ -71,7 +74,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const rawBody = req.rawBody;
       if (!rawBody) {
         console.error("[Stripe Webhook] No raw body available for signature verification");
-        return res.status(400).json({ error: "No raw body available" });
+        return res.json({ received: true, error: "No raw body available" });
       }
       
       event = stripe.webhooks.constructEvent(
@@ -81,7 +84,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
     } catch (err: any) {
       console.error(`[Stripe Webhook] Signature verification failed:`, err.message);
-      return res.status(400).json({ error: `Webhook signature verification failed: ${err.message}` });
+      return res.json({ received: true, error: `Webhook signature verification failed: ${err.message}` });
     }
 
     console.log(`[Stripe Webhook] Received event: ${event.type}`);

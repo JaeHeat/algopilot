@@ -43,11 +43,14 @@ export default function DashboardLayout() {
           <main className="flex-1 overflow-auto p-6">
             <div className="max-w-screen-2xl mx-auto">
               <Switch>
-                {/* Handle /bot/:id URLs (from public marketplace) */}
+                {/* Authenticated landing page */}
+                <Route path="/" component={DashboardOverview} />
+                
+                {/* Bot detail pages (from public marketplace or direct links) */}
                 <Route path="/bot/:id" component={BotDetail} />
                 
-                {/* Handle /dashboard and all /dashboard/* URLs */}
-                <Route path="/dashboard">
+                {/* Dashboard routes */}
+                <Route path="/dashboard/:rest*">
                   <Router base="/dashboard">
                     <Switch>
                       <Route path="/" component={DashboardOverview} />
