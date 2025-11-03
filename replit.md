@@ -78,6 +78,7 @@ The platform is built with a modern web stack: React with TypeScript, Wouter for
 
 **System Design Choices:**
 - **Security-first Approach**: Emphasizes ownership validation, data redaction, protected routes, and extensive server-side validation, including robust Stripe payment validation.
+  - **Exchange Connection Update Validation**: Strict Zod schema validation on PUT endpoint prevents field injection attacks and ensures only whitelisted fields (apiKey, apiSecret, passphrase, balance, connectionType, accountType, isTestnet, isActive, connectionStatus) can be updated, protecting critical fields like userId and id from manipulation.
   - **CSRF Protection**: Production-grade double-submit cookie pattern using crypto-based tokens (server/csrf.ts)
     - Non-httpOnly csrf_token cookie (readable by JavaScript) with secure, sameSite=strict, 7-day maxAge
     - Automatic x-csrf-token header injection for all POST/PUT/DELETE requests via queryClient

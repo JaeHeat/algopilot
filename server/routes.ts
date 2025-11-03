@@ -178,9 +178,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Exchange connection not found" });
       }
       
-      const updated = await storage.updateExchangeConnection(connectionId, req.body);
+      // Validate the update data with strict schema
+      const { updateExchangeConnectionSchema } = await import("@shared/schema");
+      const validationResult = updateExchangeConnectionSchema.safeParse(req.body);
+      
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          message: "Invalid update data",
+          errors: validationResult.error.errors 
+        });
+      }
+      
+      // Only pass validated and allowed fields to storage layer
+      const updated = await storage.updateExchangeConnection(connectionId, validationResult.data);
       
       if (updated) {
+        // Never return encrypted secrets in response
         const { apiSecret, passphrase, ...safeConnection } = updated;
         res.json(safeConnection);
       } else {

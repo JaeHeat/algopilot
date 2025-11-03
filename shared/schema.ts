@@ -325,6 +325,19 @@ export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({
   stripeSubscriptionId: z.string().min(1, "Stripe subscription ID is required"),
 });
 export const insertExchangeConnectionSchema = createInsertSchema(exchangeConnections).omit({ id: true, createdAt: true });
+
+export const updateExchangeConnectionSchema = z.object({
+  apiKey: z.string().min(1).optional(),
+  apiSecret: z.string().min(1).optional(),
+  passphrase: z.string().optional(),
+  balance: z.string().optional(),
+  connectionType: z.enum(["paper", "live"]).optional(),
+  accountType: z.enum(["spot", "futures"]).optional(),
+  isTestnet: z.boolean().optional(),
+  isActive: z.boolean().optional(),
+  connectionStatus: z.enum(["unchecked", "valid", "invalid"]).optional(),
+  lastSyncedAt: z.date().optional(),
+});
 export const insertBotTradeLogSchema = createInsertSchema(botTradeLogs).omit({ id: true });
 export const insertBotPerformanceHistorySchema = createInsertSchema(botPerformanceHistory).omit({ id: true, createdAt: true });
 export const insertSubscriptionEventSchema = createInsertSchema(subscriptionEvents).omit({ id: true, createdAt: true });
@@ -383,6 +396,7 @@ export type BotPerformance = typeof botPerformance.$inferSelect;
 export type InsertSubscription = z.infer<typeof insertSubscriptionSchema>;
 export type Subscription = typeof subscriptions.$inferSelect;
 export type InsertExchangeConnection = z.infer<typeof insertExchangeConnectionSchema>;
+export type UpdateExchangeConnection = z.infer<typeof updateExchangeConnectionSchema>;
 export type ExchangeConnection = typeof exchangeConnections.$inferSelect;
 export type InsertBotTradeLog = z.infer<typeof insertBotTradeLogSchema>;
 export type BotTradeLog = typeof botTradeLogs.$inferSelect;
