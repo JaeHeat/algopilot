@@ -49,6 +49,163 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 export async function registerRoutes(app: Express): Promise<Server> {
   await setupAuth(app);
 
+  // Stripe Webhook Endpoint (MUST be before CSRF protection - needs raw body for signature verification)
+  app.post("/api/webhooks/stripe", async (req: any, res) => {
+    const sig = req.headers['stripe-signature'];
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+    if (!webhookSecret) {
+      console.error("[Stripe Webhook] CRITICAL: STRIPE_WEBHOOK_SECRET not configured");
+      return res.status(500).json({ error: "Webhook secret not configured" });
+    }
+
+    if (!sig) {
+      console.error("[Stripe Webhook] Missing stripe-signature header");
+      return res.status(400).json({ error: "Missing signature" });
+    }
+
+    let event: Stripe.Event;
+
+    try {
+      // Verify webhook signature using raw body
+      const rawBody = req.rawBody;
+      if (!rawBody) {
+        console.error("[Stripe Webhook] No raw body available for signature verification");
+        return res.status(400).json({ error: "No raw body available" });
+      }
+      
+      event = stripe.webhooks.constructEvent(
+        rawBody,
+        sig,
+        webhookSecret
+      );
+    } catch (err: any) {
+      console.error(`[Stripe Webhook] Signature verification failed:`, err.message);
+      return res.status(400).json({ error: `Webhook signature verification failed: ${err.message}` });
+    }
+
+    console.log(`[Stripe Webhook] Received event: ${event.type}`);
+
+    try {
+      // Handle the event
+      switch (event.type) {
+        case 'customer.subscription.created':
+        case 'customer.subscription.updated': {
+          const subscription = event.data.object as Stripe.Subscription;
+          console.log(`[Stripe Webhook] Subscription ${subscription.id} ${event.type}`);
+          
+          // Update subscription status in database
+          const dbSubscription = await storage.getSubscriptionByStripeId(subscription.id);
+          if (dbSubscription) {
+            const newStatus = subscription.status === 'active' ? 'active' : 
+                             subscription.status === 'canceled' ? 'cancelled' :
+                             subscription.status === 'past_due' ? 'past_due' : 'pending';
+            
+            await storage.updateSubscriptionStatus(dbSubscription.id, newStatus);
+            console.log(`[Stripe Webhook] Updated subscription ${dbSubscription.id} to status: ${newStatus}`);
+          }
+          break;
+        }
+
+        case 'customer.subscription.deleted': {
+          const subscription = event.data.object as Stripe.Subscription;
+          console.log(`[Stripe Webhook] Subscription deleted: ${subscription.id}`);
+          
+          const dbSubscription = await storage.getSubscriptionByStripeId(subscription.id);
+          if (dbSubscription) {
+            await storage.updateSubscriptionStatus(dbSubscription.id, 'cancelled');
+            console.log(`[Stripe Webhook] Marked subscription ${dbSubscription.id} as cancelled`);
+          }
+          break;
+        }
+
+        case 'invoice.payment_succeeded': {
+          const invoice = event.data.object as Stripe.Invoice;
+          console.log(`[Stripe Webhook] Payment succeeded for invoice: ${invoice.id}`);
+          
+          if (invoice.subscription) {
+            const subscriptionId = typeof invoice.subscription === 'string' ? 
+              invoice.subscription : invoice.subscription.id;
+            
+            const dbSubscription = await storage.getSubscriptionByStripeId(subscriptionId);
+            if (dbSubscription) {
+              // Mark subscription as active on successful payment
+              await storage.updateSubscriptionStatus(dbSubscription.id, 'active');
+              console.log(`[Stripe Webhook] Activated subscription ${dbSubscription.id} after payment`);
+            }
+          }
+          break;
+        }
+
+        case 'invoice.payment_failed': {
+          const invoice = event.data.object as Stripe.Invoice;
+          console.log(`[Stripe Webhook] Payment failed for invoice: ${invoice.id}`);
+          
+          if (invoice.subscription) {
+            const subscriptionId = typeof invoice.subscription === 'string' ? 
+              invoice.subscription : invoice.subscription.id;
+            
+            const dbSubscription = await storage.getSubscriptionByStripeId(subscriptionId);
+            if (dbSubscription) {
+              // Mark subscription as past_due on failed payment
+              await storage.updateSubscriptionStatus(dbSubscription.id, 'past_due');
+              console.log(`[Stripe Webhook] Marked subscription ${dbSubscription.id} as past_due`);
+              
+              // TODO: Send email notification to user about failed payment
+            }
+          }
+          break;
+        }
+
+        case 'account.updated': {
+          const account = event.data.object as Stripe.Account;
+          console.log(`[Stripe Webhook] Connect account updated: ${account.id}`);
+          
+          // Update creator's Connect account status
+          const user = await storage.getUserByStripeConnectAccountId(account.id);
+          if (user) {
+            const isFullyOnboarded = account.details_submitted && 
+                                    account.charges_enabled && 
+                                    account.payouts_enabled;
+            
+            if (isFullyOnboarded && !user.stripeConnectOnboardingComplete) {
+              await storage.updateUser(user.id, {
+                stripeConnectOnboardingComplete: true,
+              });
+              console.log(`[Stripe Webhook] Marked user ${user.id} Connect onboarding as complete`);
+            }
+          }
+          break;
+        }
+
+        case 'transfer.created': {
+          const transfer = event.data.object as Stripe.Transfer;
+          console.log(`[Stripe Webhook] Transfer created: ${transfer.id}`);
+          // Transfer events are logged but don't require action
+          // The payout status is updated when admin approves it
+          break;
+        }
+
+        default:
+          console.log(`[Stripe Webhook] Unhandled event type: ${event.type}`);
+      }
+
+      // ALWAYS return 200 to acknowledge receipt to Stripe
+      res.json({ received: true });
+    } catch (error: any) {
+      // Log the error but still return 200 to prevent Stripe retries
+      console.error(`[Stripe Webhook] ERROR processing event ${event.type}:`, {
+        error: error.message,
+        stack: error.stack,
+        eventId: event.id,
+        eventType: event.type,
+      });
+      // Return 200 even on failure to acknowledge receipt
+      // This prevents Stripe from retrying endlessly
+      res.json({ received: true, error: "Processing failed but acknowledged" });
+    }
+  });
+
   app.use('/api', csrfProtection);
 
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {

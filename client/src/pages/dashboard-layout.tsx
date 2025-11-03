@@ -45,6 +45,7 @@ export default function DashboardLayout() {
               <Router base="/dashboard">
                 <Switch>
                   <Route path="/" component={DashboardOverview} />
+                  <Route path="/bot/:id" component={BotDetail} />
                   <Route path="/creator/evaluation/:botId" component={DashboardCreatorEvaluation} />
                   <Route path="/creator" component={DashboardCreator} />
                   <Route path="/my-bots" component={DashboardMyBots} />
@@ -56,9 +57,6 @@ export default function DashboardLayout() {
                   <Route component={NotFound} />
                 </Switch>
               </Router>
-              <Switch>
-                <Route path="/bot/:id" component={BotDetail} />
-              </Switch>
             </div>
           </main>
         </div>

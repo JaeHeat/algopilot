@@ -30,6 +30,7 @@ import memoizee from "memoizee";
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByStripeConnectAccountId(accountId: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
   updateUserStripeCustomerId(userId: string, stripeCustomerId: string): Promise<User | undefined>;
   
@@ -44,8 +45,10 @@ export interface IStorage {
   getUserSubscriptions(userId: string): Promise<Array<Subscription & { bot: Bot; performance: BotPerformance | null }>>;
   getSubscription(userId: string, botId: string): Promise<Subscription | undefined>;
   getSubscriptionById(id: string): Promise<Subscription | undefined>;
+  getSubscriptionByStripeId(stripeSubscriptionId: string): Promise<Subscription | undefined>;
   createSubscription(subscription: InsertSubscription): Promise<Subscription>;
   updateSubscriptionSettings(id: string, settings: UpdateSubscriptionSettings): Promise<Subscription | undefined>;
+  updateSubscriptionStatus(id: string, status: string): Promise<Subscription | undefined>;
   pauseSubscription(id: string, reason: string): Promise<Subscription | undefined>;
   resumeSubscription(id: string): Promise<Subscription | undefined>;
   cancelSubscription(id: string): Promise<Subscription | undefined>;
@@ -176,6 +179,11 @@ export class DbStorage implements IStorage {
 
   async getUserByEmail(email: string): Promise<User | undefined> {
     const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    return result[0];
+  }
+
+  async getUserByStripeConnectAccountId(accountId: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.stripeConnectAccountId, accountId)).limit(1);
     return result[0];
   }
 
@@ -360,6 +368,13 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
+  async getSubscriptionByStripeId(stripeSubscriptionId: string): Promise<Subscription | undefined> {
+    const result = await db.select().from(subscriptions)
+      .where(eq(subscriptions.stripeSubscriptionId, stripeSubscriptionId))
+      .limit(1);
+    return result[0];
+  }
+
   async createSubscription(subscription: InsertSubscription): Promise<Subscription> {
     const result = await db.insert(subscriptions).values(subscription).returning();
     this.getUserSubscriptions.delete(subscription.userId);
@@ -381,6 +396,17 @@ export class DbStorage implements IStorage {
       .where(eq(subscriptions.id, id))
       .returning();
     
+    if (result[0]) {
+      this.getUserSubscriptions.delete(result[0].userId);
+    }
+    return result[0];
+  }
+
+  async updateSubscriptionStatus(id: string, status: string): Promise<Subscription | undefined> {
+    const result = await db.update(subscriptions)
+      .set({ status })
+      .where(eq(subscriptions.id, id))
+      .returning();
     if (result[0]) {
       this.getUserSubscriptions.delete(result[0].userId);
     }
