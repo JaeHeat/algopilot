@@ -18,7 +18,13 @@ The platform is built with a modern web stack: React with TypeScript, Wouter for
 - **Marketplace Design**: Steam-inspired clean table layout with ranked list, bot icons, key metrics in columns (ROI, Win Rate, Sharpe, Subscribers), sticky filters, and easy-to-scan rows. Much simpler and cleaner than previous card grid design.
 
 **Technical Implementations & Feature Specifications:**
-- **Dashboard Routing Architecture**: Simplified routing system using single Wouter Router with base="/dashboard" at DashboardLayout level. All dashboard routes including bot detail pages (/bot/:id becomes /dashboard/bot/:id) handled within this router. Clean, maintainable routing without complex nesting.
+- **Dashboard Routing Architecture**: Simplified routing using explicit route definitions in single Switch at DashboardLayout level. All routes clearly enumerated without nested Router complexity:
+  - Authenticated landing (`/`) → DashboardOverview
+  - Direct bot links (`/bot/:id`) → BotDetail (for public marketplace links)
+  - Dashboard home (`/dashboard`) → DashboardOverview
+  - Dashboard bot detail (`/dashboard/bot/:id`) → BotDetail (for marketplace clicks)
+  - All other dashboard routes explicitly listed (`/dashboard/marketplace`, `/dashboard/my-bots`, `/dashboard/settings`, etc.)
+  - Production-tested with end-to-end subscription flow validation
 - **Stripe Webhook Implementation**: Production-ready webhook endpoint with comprehensive event handling:
   - Signature verification using req.rawBody for Stripe security requirements
   - Placed before CSRF middleware to access raw request body
