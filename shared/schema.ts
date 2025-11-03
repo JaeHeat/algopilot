@@ -185,7 +185,7 @@ export const botWebhooks = pgTable("bot_webhooks", {
 
 export const webhookEventLogs = pgTable("webhook_event_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  botId: varchar("bot_id").notNull().references(() => bots.id),
+  botId: varchar("bot_id"),
   payload: jsonb("payload").notNull(),
   headers: jsonb("headers"),
   status: text("status").notNull(),

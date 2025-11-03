@@ -25,6 +25,22 @@ The platform is built with a modern web stack: React with TypeScript, Wouter for
   - Dashboard bot detail (`/dashboard/bot/:id`) → BotDetail (for marketplace clicks)
   - All other dashboard routes explicitly listed (`/dashboard/marketplace`, `/dashboard/my-bots`, `/dashboard/settings`, etc.)
   - Production-tested with end-to-end subscription flow validation
+- **TradingView Webhook Authentication**: Production-ready multi-layer security system for webhook validation:
+  - **URL Secret**: 64-character hex secret in webhook URL path (first layer)
+  - **Header Token Authentication**: X-Webhook-Token header validation (second layer)
+    - 64-character hex token generated on webhook creation
+    - Required for all webhooks (legacy webhooks migrated on startup)
+    - Returns 401 if missing or mismatched
+  - **Timestamp Validation**: Optional replay attack prevention (third layer)
+    - Validates `timestamp` field in payload (Unix timestamp in seconds)
+    - Rejects requests older than 5 minutes
+    - Prevents replay attacks with 5-minute rolling window
+  - **Comprehensive Logging**: All authentication failures logged to webhook_event_logs with specific error reasons (botId nullable to allow logging invalid attempts)
+  - **Rate Limiting**: 100 requests/minute per endpoint
+  - **CSRF Exemption**: Webhook endpoints exempt from CSRF middleware to allow external TradingView requests
+  - **Backward Compatible**: Nullable authToken field with application-layer migration
+  - **Token Management**: Both secret and authToken regenerated together, all API responses include authToken
+  - **End-to-End Tested**: Comprehensive Playwright tests validate all authentication layers, error cases, and logging
 - **Stripe Webhook Implementation**: Production-ready webhook endpoint with comprehensive event handling:
   - Signature verification using req.rawBody for Stripe security requirements
   - Placed before CSRF middleware to access raw request body

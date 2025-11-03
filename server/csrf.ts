@@ -10,6 +10,10 @@ export function generateCsrfToken(): string {
 }
 
 export function csrfProtection(req: Request, res: Response, next: NextFunction) {
+  if (req.path.startsWith('/api/webhooks/')) {
+    return next();
+  }
+  
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
     let tokenFromCookie = req.cookies?.[CSRF_COOKIE_NAME];
     
