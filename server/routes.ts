@@ -23,6 +23,7 @@ const webhookPayloadSchema = z.object({
     { message: "Price must be a valid positive number less than 10M" }
   ),
   time: z.string().optional(),
+  timestamp: z.number().optional(),
 }).refine(
   (data) => data.action || data.side,
   { message: "Either 'action' or 'side' field is required" }
@@ -48,6 +49,11 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 export async function registerRoutes(app: Express): Promise<Server> {
   await setupAuth(app);
+  
+  const migrated = await storage.populateWebhookAuthTokens();
+  if (migrated > 0) {
+    console.log(`[Migration] Populated auth tokens for ${migrated} webhooks`);
+  }
 
   // Stripe Webhook Endpoint (MUST be before CSRF protection - needs raw body for signature verification)
   app.post("/api/webhooks/stripe", async (req: any, res) => {
@@ -1038,6 +1044,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             webhook: webhook ? {
               id: webhook.id,
               secret: webhook.secret,
+              authToken: webhook.authToken,
               status: webhook.status,
               lastReceivedAt: webhook.lastReceivedAt,
               failureCount: webhook.failureCount,
@@ -1063,9 +1070,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const bot = await storage.createBot(validatedBot);
       
       const secret = generateWebhookSecret();
+      const authToken = generateWebhookSecret();
       const webhook = await storage.createBotWebhook({
         botId: bot.id,
         secret,
+        authToken,
         status: 'active',
       });
       
@@ -1076,6 +1085,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         webhook: {
           id: webhook.id,
           secret: webhook.secret,
+          authToken: webhook.authToken,
           status: webhook.status,
           webhookUrl,
         },
@@ -1100,7 +1110,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const newSecret = generateWebhookSecret();
-      const webhook = await storage.regenerateWebhookSecret(req.params.id, newSecret);
+      const newAuthToken = generateWebhookSecret();
+      const webhook = await storage.regenerateWebhookSecret(req.params.id, newSecret, newAuthToken);
       
       if (!webhook) {
         return res.status(404).json({ message: "Webhook not found for this bot" });
@@ -1110,6 +1121,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({
         secret: webhook.secret,
+        authToken: webhook.authToken,
         webhookUrl,
       });
     } catch (error) {
@@ -2374,6 +2386,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { botId, secret } = req.params;
     const payload = req.body;
     const headers = req.headers;
+    const authToken = headers['x-webhook-token'] as string;
     
     try {
       const webhook = await storage.getWebhookByBotAndSecret(botId, secret);
@@ -2387,6 +2400,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
           error: 'Invalid bot ID or webhook secret',
         });
         return res.status(401).json({ message: "Unauthorized: Invalid webhook credentials" });
+      }
+      
+      if (webhook.authToken && !authToken) {
+        await storage.logWebhookEvent({
+          botId,
+          payload,
+          headers: headers as any,
+          status: 'rejected',
+          error: 'Missing X-Webhook-Token header',
+        });
+        return res.status(401).json({ message: "Unauthorized: Missing authentication token" });
+      }
+      
+      if (webhook.authToken && authToken !== webhook.authToken) {
+        await storage.logWebhookEvent({
+          botId,
+          payload,
+          headers: headers as any,
+          status: 'rejected',
+          error: 'Invalid authentication token',
+        });
+        return res.status(401).json({ message: "Unauthorized: Invalid authentication token" });
+      }
+      
+      if (payload.timestamp) {
+        const requestTime = payload.timestamp * 1000;
+        const currentTime = Date.now();
+        const timeDifference = Math.abs(currentTime - requestTime);
+        const maxAgeMs = 5 * 60 * 1000;
+        
+        if (timeDifference > maxAgeMs) {
+          await storage.logWebhookEvent({
+            botId,
+            payload,
+            headers: headers as any,
+            status: 'rejected',
+            error: `Timestamp too old or invalid (age: ${Math.floor(timeDifference / 1000)}s, max: ${Math.floor(maxAgeMs / 1000)}s)`,
+          });
+          return res.status(401).json({ message: "Unauthorized: Request timestamp expired or invalid" });
+        }
       }
       
       await storage.updateWebhookLastReceived(botId);

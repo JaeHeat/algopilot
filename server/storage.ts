@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents, creatorPosts, postComments, postReactions, botWebhooks, webhookEventLogs, trades, positions, userOnboarding, creatorApplications, featuredPlacements, botEvaluations, payouts } from "@shared/schema";
 import { encryptCredential, decryptCredential } from "./encryption";
+import { randomBytes } from "crypto";
 import type { 
   User, UpsertUser, 
   Bot, InsertBot,
@@ -85,7 +86,8 @@ export interface IStorage {
   createBotWebhook(webhook: InsertBotWebhook): Promise<BotWebhook>;
   getWebhookByBotId(botId: string): Promise<BotWebhook | undefined>;
   getWebhookByBotAndSecret(botId: string, secret: string): Promise<BotWebhook | undefined>;
-  regenerateWebhookSecret(botId: string, newSecret: string): Promise<BotWebhook | undefined>;
+  regenerateWebhookSecret(botId: string, newSecret: string, newAuthToken?: string): Promise<BotWebhook | undefined>;
+  populateWebhookAuthTokens(): Promise<number>;
   updateWebhookLastReceived(botId: string): Promise<void>;
   incrementWebhookFailureCount(botId: string): Promise<void>;
   resetWebhookFailureCount(botId: string): Promise<void>;
@@ -726,13 +728,35 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async regenerateWebhookSecret(botId: string, newSecret: string): Promise<BotWebhook | undefined> {
+  async regenerateWebhookSecret(botId: string, newSecret: string, newAuthToken?: string): Promise<BotWebhook | undefined> {
+    const updateData: any = { secret: newSecret };
+    if (newAuthToken) {
+      updateData.authToken = newAuthToken;
+    }
     const result = await db
       .update(botWebhooks)
-      .set({ secret: newSecret })
+      .set(updateData)
       .where(eq(botWebhooks.botId, botId))
       .returning();
     return result[0];
+  }
+  
+  async populateWebhookAuthTokens(): Promise<number> {
+    const webhooksWithoutToken = await db
+      .select()
+      .from(botWebhooks)
+      .where(isNull(botWebhooks.authToken));
+    
+    let updated = 0;
+    for (const webhook of webhooksWithoutToken) {
+      const authToken = randomBytes(32).toString('hex');
+      await db
+        .update(botWebhooks)
+        .set({ authToken })
+        .where(eq(botWebhooks.id, webhook.id));
+      updated++;
+    }
+    return updated;
   }
 
   async updateWebhookLastReceived(botId: string): Promise<void> {

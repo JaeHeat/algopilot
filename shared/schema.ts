@@ -175,6 +175,7 @@ export const botWebhooks = pgTable("bot_webhooks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   botId: varchar("bot_id").notNull().unique().references(() => bots.id),
   secret: text("secret").notNull(),
+  authToken: text("auth_token"),
   status: text("status").notNull().default("active"),
   lastReceivedAt: timestamp("last_received_at"),
   failureCount: integer("failure_count").notNull().default(0),
