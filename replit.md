@@ -16,7 +16,7 @@ The platform utilizes a modern web stack: React with TypeScript, Wouter, TanStac
 - Context-aware navigation and a Steam-inspired clean table layout for the marketplace with key metrics and sticky filters.
 
 **Technical Implementations & Feature Specifications:**
-- **Dashboard Routing**: Simplified routing at the DashboardLayout level with explicit route definitions.
+- **Dashboard Routing**: Simplified routing at the DashboardLayout level with explicit route definitions. Important: Wouter wildcard routes (`:rest*`) may not always match nested paths - explicit routes must be registered in App.tsx for deeply nested dashboard paths (e.g., `/dashboard/creator/bot/:id/settings`).
 - **TradingView Webhook Authentication**: Multi-layer security featuring a 64-character hex URL secret, flexible token authentication (query parameter or header), optional timestamp validation for replay attack prevention, comprehensive logging, and rate limiting. Token regeneration and full webhook URL display for creators are supported.
 - **Stripe Webhook Implementation**: Secure webhook endpoint with signature verification, handling all critical subscription and payment events, and structured error logging.
 - **Authentication**: Secure user authentication via Replit Auth.
@@ -34,6 +34,7 @@ The platform utilizes a modern web stack: React with TypeScript, Wouter, TanStac
 - **Performance-Based Bot Evaluation**: Bots must pass performance requirements (e.g., minimum trade count, profitability threshold) before going live.
 - **Featured Placements**: Paid featured banner slots in the marketplace with analytics.
 - **Creator Payout System**: Automated earnings calculation (75% of revenue), creator dashboard, payout request functionality (min $100), admin review workflow, and Stripe Connect Express integration for automated payouts and hosted onboarding.
+- **Bot Settings Management**: Comprehensive bot configuration system with dedicated database table (bot_settings) using jsonb for flexible settings storage. Features tabbed UI (Trading, Risk Management, Signal Handling, Order Execution, Schedule) covering leverage (1-20x), position sizing modes (fixed/percentage/risk-based), risk management (stop loss/take profit/max daily loss), signal handling (strategy, filters, confirmations), order execution (types, slippage, retries), and trading schedule (hours, days). Accessible via Bot Settings button on creator dashboard.
 - **Admin Panel**: Comprehensive dashboard for platform management, including statistics, user/creator management, and payout approvals.
 
 **System Design Choices:**
