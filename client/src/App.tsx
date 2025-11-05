@@ -40,6 +40,7 @@ function Router() {
           <Route path="/dashboard/creator/bot/:id" component={DashboardLayout} />
           <Route path="/dashboard/creator/evaluation/:botId" component={DashboardLayout} />
           <Route path="/dashboard/creator" component={DashboardLayout} />
+          <Route path="/dashboard" component={DashboardLayout} />
           <Route path="/dashboard/:rest*" component={DashboardLayout} />
           <Route path="/" component={DashboardLayout} />
         </>
