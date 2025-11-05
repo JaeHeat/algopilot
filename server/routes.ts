@@ -1130,6 +1130,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Bot Settings Routes
+  app.get("/api/creator/bots/:id/settings", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const bot = await storage.getBotById(req.params.id);
+      
+      if (!bot) {
+        return res.status(404).json({ message: "Bot not found" });
+      }
+      
+      if (bot.creatorId !== userId) {
+        return res.status(403).json({ message: "Forbidden: Only bot creators can view settings" });
+      }
+      
+      let settings = await storage.getBotSettings(req.params.id);
+      
+      if (!settings) {
+        settings = await storage.createBotSettings({
+          botId: req.params.id,
+        });
+      }
+      
+      res.json(settings);
+    } catch (error) {
+      console.error("Error fetching bot settings:", error);
+      res.status(500).json({ message: "Failed to fetch bot settings" });
+    }
+  });
+
+  app.patch("/api/creator/bots/:id/settings", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const bot = await storage.getBotById(req.params.id);
+      
+      if (!bot) {
+        return res.status(404).json({ message: "Bot not found" });
+      }
+      
+      if (bot.creatorId !== userId) {
+        return res.status(403).json({ message: "Forbidden: Only bot creators can update settings" });
+      }
+      
+      const settings = await storage.updateBotSettings(req.params.id, req.body);
+      
+      if (!settings) {
+        return res.status(404).json({ message: "Settings not found" });
+      }
+      
+      res.json(settings);
+    } catch (error) {
+      console.error("Error updating bot settings:", error);
+      res.status(500).json({ message: "Failed to update bot settings" });
+    }
+  });
+
   // Bot Evaluation Routes
   app.post("/api/bots/:botId/evaluation/start", isAuthenticated, async (req: any, res) => {
     try {
