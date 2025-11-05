@@ -50,18 +50,18 @@ export default function DashboardLayout() {
                 {/* Bot detail pages (from public marketplace or direct links) */}
                 <Route path="/bot/:id" component={BotDetail} />
                 
-                {/* Dashboard routes (explicit) */}
-                <Route path="/dashboard" component={DashboardOverview} />
-                <Route path="/dashboard/bot/:id" component={BotDetail} />
+                {/* Dashboard routes (explicit) - more specific routes first */}
                 <Route path="/dashboard/creator/bot/:id/settings" component={DashboardBotSettings} />
                 <Route path="/dashboard/creator/evaluation/:botId" component={DashboardCreatorEvaluation} />
                 <Route path="/dashboard/creator" component={DashboardCreator} />
+                <Route path="/dashboard/bot/:id" component={BotDetail} />
                 <Route path="/dashboard/my-bots" component={DashboardMyBots} />
                 <Route path="/dashboard/my-trades" component={DashboardMyTrades} />
                 <Route path="/dashboard/marketplace" component={DashboardMarketplace} />
                 <Route path="/dashboard/settings" component={DashboardSettings} />
                 <Route path="/dashboard/earnings" component={DashboardCreatorEarnings} />
                 <Route path="/dashboard/admin" component={DashboardAdmin} />
+                <Route path="/dashboard" component={DashboardOverview} />
                 
                 <Route component={NotFound} />
               </Switch>

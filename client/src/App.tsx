@@ -35,10 +35,10 @@ function Router() {
       ) : (
         <>
           <Route path="/marketplace" component={Marketplace} />
-          <Route path="/" component={DashboardLayout} />
-          <Route path="/dashboard/:rest*" component={DashboardLayout} />
-          <Route path="/dashboard" component={DashboardLayout} />
           <Route path="/bot/:id" component={DashboardLayout} />
+          <Route path="/dashboard/creator/bot/:id/settings" component={DashboardLayout} />
+          <Route path="/dashboard/:rest*" component={DashboardLayout} />
+          <Route path="/" component={DashboardLayout} />
         </>
       )}
       <Route component={NotFound} />
