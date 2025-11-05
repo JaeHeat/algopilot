@@ -24,6 +24,12 @@ The platform utilizes a modern web stack: React with TypeScript, Wouter, TanStac
 - **Monetization Strategy**: Pay-per-bot marketplace model. Creators set prices, earn 75% revenue; platform takes 25% commission. Free creator application with review process.
 - **Payment & Subscription Management**: Secure Stripe integration for recurring subscriptions with granular settings.
 - **User & Creator Dashboards**: Centralized views for subscriptions, portfolio, bot management, and trade signal monitoring.
+- **Creator Bot Detail Page**: Comprehensive bot management dashboard at `/dashboard/creator/bot/:id` with tabbed interface:
+  - Overview tab: Performance metrics (trades, profit, drawdown, subscription price), quick action buttons to evaluation and settings
+  - Evaluation tab: Real-time evaluation progress with visual progress bars for trade count, profit percentage, and maximum drawdown
+  - Details tab: Edit bot information including name, description, price, and category with validation
+  - Updates tab: Future feature for bot updates and announcements
+  All evaluation progress is calculated dynamically from actual trade data for tamper-proof accuracy.
 - **Exchange Connection Management**: Secure management of API credentials using AES-256-GCM encryption with PBKDF2 key derivation. Credentials are encrypted at rest and decrypted transiently. Supports paper/live trading, spot/futures accounts, and testnet connections for Binance and Bybit.
 - **TradingView Integration**: Webhook-based integration for executing trade signals from TradingView alerts.
 - **Multi-Source Real-Time Price Fetching**: A 5-source cascading fallback system ensures reliable price data with server-side validation.
