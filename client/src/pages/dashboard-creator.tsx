@@ -4,7 +4,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Copy, RefreshCw, CheckCircle2, XCircle, Clock, Webhook, TrendingUp, Award, AlertCircle } from "lucide-react";
+import { Plus, Copy, RefreshCw, CheckCircle2, XCircle, Clock, Webhook, TrendingUp, Award, AlertCircle, Settings } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -473,8 +473,8 @@ export default function DashboardCreator() {
                       )}
                     </div>
                   )}
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Webhook URL</label>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium block">Webhook URL</label>
                     <div className="flex gap-2">
                       <Input
                         value={bot.webhook?.webhookUrl || "No webhook"}
@@ -501,6 +501,12 @@ export default function DashboardCreator() {
                         <RefreshCw className={`h-4 w-4 ${regenerateWebhookMutation.isPending ? 'animate-spin' : ''}`} />
                       </Button>
                     </div>
+                    <Link href={`/dashboard/creator/bot/${bot.id}/settings`}>
+                      <Button variant="outline" className="w-full" size="sm" data-testid={`button-bot-settings-${bot.id}`}>
+                        <Settings className="h-4 w-4 mr-2" />
+                        Bot Settings
+                      </Button>
+                    </Link>
                   </div>
 
                   {bot.webhook?.lastReceivedAt && (

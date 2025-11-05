@@ -14,6 +14,7 @@ import DashboardAdmin from "./dashboard-admin";
 import DashboardCreator from "./dashboard-creator";
 import DashboardCreatorEarnings from "./dashboard-creator-earnings";
 import DashboardCreatorEvaluation from "./dashboard-creator-evaluation";
+import DashboardBotSettings from "./dashboard-bot-settings";
 import BotDetail from "./bot-detail";
 import NotFound from "./not-found";
 
@@ -52,6 +53,7 @@ export default function DashboardLayout() {
                 {/* Dashboard routes (explicit) */}
                 <Route path="/dashboard" component={DashboardOverview} />
                 <Route path="/dashboard/bot/:id" component={BotDetail} />
+                <Route path="/dashboard/creator/bot/:id/settings" component={DashboardBotSettings} />
                 <Route path="/dashboard/creator/evaluation/:botId" component={DashboardCreatorEvaluation} />
                 <Route path="/dashboard/creator" component={DashboardCreator} />
                 <Route path="/dashboard/my-bots" component={DashboardMyBots} />
