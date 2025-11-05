@@ -11,22 +11,35 @@ import { notifyTradeExecuted, notifyDrawdownBreach } from "./services/notificati
 import { tradeExecutionService } from "./services/trade-execution";
 import { stripeConnectService } from "./services/stripe-connect";
 
+const priceValidator = z.string().or(z.number()).refine(
+  (val) => {
+    const num = typeof val === 'string' ? parseFloat(val) : val;
+    return !isNaN(num) && num > 0 && num < 10000000;
+  },
+  { message: "Price must be a valid positive number less than 10M" }
+);
+
 const webhookPayloadSchema = z.object({
   symbol: z.string().min(1).max(20).regex(/^[A-Z0-9.]+$/, "Symbol must be alphanumeric with optional dots"),
   action: z.string().optional(),
   side: z.string().optional(),
-  price: z.string().or(z.number()).refine(
-    (val) => {
-      const num = typeof val === 'string' ? parseFloat(val) : val;
-      return !isNaN(num) && num > 0 && num < 10000000;
-    },
-    { message: "Price must be a valid positive number less than 10M" }
-  ),
+  price: priceValidator.optional(),
+  entry: priceValidator.optional(),
+  exit: priceValidator.optional(),
+  sl: priceValidator.optional(),
+  tp: priceValidator.optional(),
   time: z.string().optional(),
   timestamp: z.number().optional(),
+  reason: z.string().optional(),
+  pnl_pct: z.number().optional(),
+  pnl_usd: z.number().optional(),
+  timeframe: z.string().optional(),
 }).refine(
   (data) => data.action || data.side,
   { message: "Either 'action' or 'side' field is required" }
+).refine(
+  (data) => data.price || data.entry || data.exit,
+  { message: "Must include at least one price field (price, entry, or exit)" }
 );
 
 const onboardingProgressSchema = z.object({
@@ -2530,9 +2543,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedPayload = validationResult.data;
       const symbol = validatedPayload.symbol.toUpperCase();
       const action = (validatedPayload.action || validatedPayload.side)!.toLowerCase();
-      const price = typeof validatedPayload.price === 'string' 
-        ? parseFloat(validatedPayload.price) 
-        : validatedPayload.price;
+      
+      // Normalize price field - accept price, entry, or exit
+      const priceValue = validatedPayload.price || validatedPayload.entry || validatedPayload.exit;
+      const price = typeof priceValue === 'string' 
+        ? parseFloat(priceValue) 
+        : priceValue!;
       
       console.log(`[Webhook] Received trade signal for bot ${botId}:`, {
         symbol,
