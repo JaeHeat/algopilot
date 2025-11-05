@@ -10,7 +10,7 @@ export function generateCsrfToken(): string {
 }
 
 export function csrfProtection(req: Request, res: Response, next: NextFunction) {
-  if (req.path.startsWith('/api/webhooks/')) {
+  if (req.path.startsWith('/webhooks/')) {
     return next();
   }
   

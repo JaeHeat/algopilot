@@ -1048,7 +1048,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               status: webhook.status,
               lastReceivedAt: webhook.lastReceivedAt,
               failureCount: webhook.failureCount,
-              webhookUrl: `${req.protocol}://${req.get('host')}/api/webhooks/${bot.id}/${webhook.secret}`,
+              webhookUrl: `${req.protocol}://${req.get('host')}/api/webhooks/${bot.id}/${webhook.secret}?token=${webhook.authToken}`,
             } : null,
             recentEvents,
             evaluationProgress,
@@ -1078,7 +1078,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'active',
       });
       
-      const webhookUrl = `${req.protocol}://${req.get('host')}/api/webhooks/${bot.id}/${webhook.secret}`;
+      const webhookUrl = `${req.protocol}://${req.get('host')}/api/webhooks/${bot.id}/${webhook.secret}?token=${webhook.authToken}`;
       
       res.json({
         ...bot,
@@ -1117,7 +1117,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Webhook not found for this bot" });
       }
       
-      const webhookUrl = `${req.protocol}://${req.get('host')}/api/webhooks/${req.params.id}/${webhook.secret}`;
+      const webhookUrl = `${req.protocol}://${req.get('host')}/api/webhooks/${req.params.id}/${webhook.secret}?token=${webhook.authToken}`;
       
       res.json({
         secret: webhook.secret,
@@ -2386,7 +2386,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { botId, secret } = req.params;
     const payload = req.body;
     const headers = req.headers;
-    const authToken = headers['x-webhook-token'] as string;
+    const authTokenFromHeader = headers['x-webhook-token'] as string;
+    const authTokenFromQuery = req.query.token as string;
+    const authToken = authTokenFromQuery || authTokenFromHeader;
     
     try {
       const webhook = await storage.getWebhookByBotAndSecret(botId, secret);
@@ -2408,7 +2410,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           payload,
           headers: headers as any,
           status: 'rejected',
-          error: 'Missing X-Webhook-Token header',
+          error: 'Missing authentication token (header or query parameter)',
         });
         return res.status(401).json({ message: "Unauthorized: Missing authentication token" });
       }
