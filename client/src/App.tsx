@@ -37,6 +37,9 @@ function Router() {
           <Route path="/marketplace" component={Marketplace} />
           <Route path="/bot/:id" component={DashboardLayout} />
           <Route path="/dashboard/creator/bot/:id/settings" component={DashboardLayout} />
+          <Route path="/dashboard/creator/bot/:id" component={DashboardLayout} />
+          <Route path="/dashboard/creator/evaluation/:botId" component={DashboardLayout} />
+          <Route path="/dashboard/creator" component={DashboardLayout} />
           <Route path="/dashboard/:rest*" component={DashboardLayout} />
           <Route path="/" component={DashboardLayout} />
         </>

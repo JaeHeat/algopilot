@@ -4,7 +4,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Copy, RefreshCw, CheckCircle2, XCircle, Clock, Webhook, TrendingUp, Award, AlertCircle, Settings } from "lucide-react";
+import { Plus, Copy, RefreshCw, CheckCircle2, XCircle, Clock, Webhook, TrendingUp, Award, AlertCircle, Settings, BarChart3 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -396,7 +396,7 @@ export default function DashboardCreator() {
                         <span className="text-sm font-medium">
                           {progress.tradeCount === 0 ? "Evaluation Requirements" : "Evaluation Progress"}
                         </span>
-                        <Link href={`/creator/evaluation/${bot.id}`}>
+                        <Link href={`/dashboard/creator/evaluation/${bot.id}`}>
                           <Button variant="ghost" size="sm" data-testid={`button-view-evaluation-${bot.id}`}>
                             {progress.tradeCount === 0 ? "Get Started" : "View Details"}
                           </Button>
@@ -501,12 +501,20 @@ export default function DashboardCreator() {
                         <RefreshCw className={`h-4 w-4 ${regenerateWebhookMutation.isPending ? 'animate-spin' : ''}`} />
                       </Button>
                     </div>
-                    <Link href={`/dashboard/creator/bot/${bot.id}/settings`}>
-                      <Button variant="outline" className="w-full" size="sm" data-testid={`button-bot-settings-${bot.id}`}>
-                        <Settings className="h-4 w-4 mr-2" />
-                        Bot Settings
-                      </Button>
-                    </Link>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Link href={`/dashboard/creator/bot/${bot.id}`}>
+                        <Button variant="default" className="w-full" size="sm" data-testid={`button-view-bot-dashboard-${bot.id}`}>
+                          <BarChart3 className="h-4 w-4 mr-2" />
+                          View Dashboard
+                        </Button>
+                      </Link>
+                      <Link href={`/dashboard/creator/bot/${bot.id}/settings`}>
+                        <Button variant="outline" className="w-full" size="sm" data-testid={`button-bot-settings-${bot.id}`}>
+                          <Settings className="h-4 w-4 mr-2" />
+                          Settings
+                        </Button>
+                      </Link>
+                    </div>
                   </div>
 
                   {bot.webhook?.lastReceivedAt && (
