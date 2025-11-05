@@ -1,11 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, Award, TrendingUp, AlertCircle, CheckCircle2, XCircle, Target, BarChart3 } from "lucide-react";
+import { ArrowLeft, Award, TrendingUp, AlertCircle, CheckCircle2, XCircle, Target, BarChart3, RefreshCw } from "lucide-react";
 import { Link } from "wouter";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient } from "@/lib/queryClient";
 
 export default function DashboardCreatorEvaluation() {
   const [, params] = useRoute("/dashboard/creator/evaluation/:botId");
@@ -40,8 +43,11 @@ export default function DashboardCreatorEvaluation() {
     );
   }
 
+  const { toast } = useToast();
+  
   const isLive = bot.evaluationStatus === "live";
   const isInEvaluation = bot.evaluationStatus === "in_evaluation";
+  const isFailed = bot.evaluationStatus === "failed";
   const progress = bot.evaluationProgress || { 
     tradeCount: 0, 
     profitPercentage: 0, 
@@ -57,6 +63,26 @@ export default function DashboardCreatorEvaluation() {
     progress.tradeCount >= progress.requiredTrades && 
     progress.profitPercentage >= progress.requiredProfit &&
     progress.maxDrawdown <= progress.requiredMaxDrawdown;
+
+  const restartMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", `/api/bots/${botId}/evaluation/restart`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/creator/bots"] });
+      toast({
+        title: "Evaluation restarted",
+        description: "All previous trades have been cleared. You can now start fresh.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to restart evaluation",
+        description: error.message || "An error occurred",
+        variant: "destructive",
+      });
+    },
+  });
 
   return (
     <div className="space-y-6">
@@ -81,7 +107,13 @@ export default function DashboardCreatorEvaluation() {
               In Evaluation
             </Badge>
           )}
-          {!isLive && !isInEvaluation && (
+          {isFailed && (
+            <Badge variant="destructive" className="gap-1" data-testid="badge-evaluation-status">
+              <XCircle className="h-3 w-3" />
+              Evaluation Failed
+            </Badge>
+          )}
+          {!isLive && !isInEvaluation && !isFailed && (
             <Badge variant="outline" className="gap-1" data-testid="badge-evaluation-status">
               <AlertCircle className="h-3 w-3" />
               Not Started
@@ -93,7 +125,60 @@ export default function DashboardCreatorEvaluation() {
         </p>
       </div>
 
-      {isLive ? (
+      {isFailed ? (
+        <Card className="border-destructive">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <XCircle className="h-5 w-5 text-destructive" />
+                <CardTitle className="text-destructive">Evaluation Failed</CardTitle>
+              </div>
+              <Button
+                onClick={() => restartMutation.mutate()}
+                disabled={restartMutation.isPending}
+                data-testid="button-restart-evaluation"
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${restartMutation.isPending ? 'animate-spin' : ''}`} />
+                Restart Evaluation
+              </Button>
+            </div>
+            <CardDescription>
+              {bot.failureReason || "Your bot did not meet the evaluation requirements."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="p-4 bg-destructive/10 rounded-lg border border-destructive/20">
+                <p className="text-sm font-medium mb-2">What happens when you restart?</p>
+                <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                  <li>All previous evaluation trades will be deleted</li>
+                  <li>Evaluation status will reset to "In Evaluation"</li>
+                  <li>Your bot can start receiving new trade signals immediately</li>
+                  <li>Webhooks will be re-enabled for this bot</li>
+                </ul>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Trades Before Failure</p>
+                  <p className="text-2xl font-bold">{progress.tradeCount}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Profit Before Failure</p>
+                  <p className={`text-2xl font-bold ${progress.profitPercentage >= 0 ? 'text-success' : 'text-destructive'}`}>
+                    {progress.profitPercentage >= 0 ? '+' : ''}{progress.profitPercentage.toFixed(2)}%
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Max Drawdown</p>
+                  <p className={`text-2xl font-bold ${progress.maxDrawdown <= progress.requiredMaxDrawdown ? 'text-success' : 'text-destructive'}`}>
+                    {progress.maxDrawdown.toFixed(2)}%
+                  </p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : isLive ? (
         <Card className="border-success">
           <CardHeader>
             <div className="flex items-center gap-2">

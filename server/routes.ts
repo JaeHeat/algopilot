@@ -1251,6 +1251,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/bots/:botId/evaluation/restart", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const bot = await storage.getBotById(req.params.botId);
+      
+      if (!bot) {
+        return res.status(404).json({ message: "Bot not found" });
+      }
+      
+      if (bot.creatorId !== userId) {
+        return res.status(403).json({ message: "Forbidden: Only bot creators can restart evaluations" });
+      }
+
+      // Only allow restart if evaluation has failed
+      if (bot.evaluationStatus !== 'failed') {
+        return res.status(400).json({ 
+          message: "Can only restart failed evaluations",
+          currentStatus: bot.evaluationStatus 
+        });
+      }
+
+      await storage.restartBotEvaluation(req.params.botId);
+
+      res.json({ 
+        message: "Evaluation restarted successfully",
+        status: "in_evaluation"
+      });
+    } catch (error) {
+      console.error("Error restarting evaluation:", error);
+      res.status(500).json({ message: "Failed to restart evaluation" });
+    }
+  });
+
   // NOTE: Evaluation progress is now automatically updated via webhook trade execution
   // This endpoint is removed to prevent metric spoofing by creators
 
@@ -2516,6 +2549,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       await storage.updateWebhookLastReceived(botId);
       await storage.resetWebhookFailureCount(botId);
+      
+      // Check if bot evaluation has failed - reject webhooks if so
+      const bot = await storage.getBotById(botId);
+      if (bot && bot.evaluationStatus === 'failed') {
+        await storage.logWebhookEvent({
+          botId,
+          payload,
+          headers: headers as any,
+          status: 'rejected',
+          error: `Bot evaluation has failed. Reason: ${bot.failureReason || 'Unknown'}. Restart evaluation to resume trading.`,
+        });
+        return res.status(403).json({ 
+          message: "Bot evaluation has failed",
+          reason: bot.failureReason,
+          action: "Restart evaluation to resume trading"
+        });
+      }
       
       const validationResult = webhookPayloadSchema.safeParse(payload);
       

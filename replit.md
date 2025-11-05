@@ -37,7 +37,15 @@ The platform utilizes a modern web stack: React with TypeScript, Wouter, TanStac
 - **Notification System**: Email notifications for trade alerts, drawdown warnings, and P&L summaries via Resend.
 - **User Onboarding System**: Guides new users with a Welcome Modal, Checklist, and Getting Started Guide.
 - **Creator Application System**: Gated creator program with review/approval workflow.
-- **Performance-Based Bot Evaluation**: Bots must pass performance requirements (e.g., minimum trade count, profitability threshold) before going live.
+- **Performance-Based Bot Evaluation**: Bots must pass three independent requirements before going live:
+  1. Minimum 10 trades required
+  2. Cumulative profit must reach +10% (across all trades)
+  3. Maximum drawdown under 5%
+  - **Auto-Pause on Failure**: Bots automatically pause when evaluation fails (max drawdown >5% or 50 trades without meeting profit requirement)
+  - **Failure Detection**: Server-side evaluation monitoring with instant failure on drawdown breach or deferred failure after 50 unmet trades
+  - **Restart System**: Creators can restart failed evaluations, which clears all previous trades and resets status to "in_evaluation"
+  - **Webhook Rejection**: Failed bots cannot receive trade signals until evaluation is restarted
+  - **Transparent Feedback**: Failure reasons displayed prominently (e.g., "Maximum drawdown exceeded: 6.2% (limit: 5%)")
 - **Featured Placements**: Paid featured banner slots in the marketplace with analytics.
 - **Creator Payout System**: Automated earnings calculation (75% of revenue), creator dashboard, payout request functionality (min $100), admin review workflow, and Stripe Connect Express integration for automated payouts and hosted onboarding.
 - **Bot Settings Management**: Comprehensive bot configuration system with dedicated database table (bot_settings) using jsonb for flexible settings storage. Features tabbed UI (Trading, Risk Management, Signal Handling, Order Execution, Schedule) covering leverage (1-20x), position sizing modes (fixed/percentage/risk-based), risk management (stop loss/take profit/max daily loss), signal handling (strategy, filters, confirmations), order execution (types, slippage, retries), and trading schedule (hours, days). Accessible via Bot Settings button on creator dashboard.

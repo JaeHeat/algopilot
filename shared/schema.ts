@@ -40,6 +40,7 @@ export const bots = pgTable("bots", {
   isVerified: boolean("is_verified").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
   evaluationStatus: text("evaluation_status").notNull().default("not_started"),
+  failureReason: text("failure_reason"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
   index("idx_bots_creator_id").on(table.creatorId),

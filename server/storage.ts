@@ -134,6 +134,7 @@ export interface IStorage {
   updateBotEvaluation(botId: string, updates: Partial<BotEvaluation>): Promise<BotEvaluation | undefined>;
   updateEvaluationFromTrade(botId: string, pnl: number, newBalance: number, initialCapital: number): Promise<void>;
   checkAndUpdateEvaluationStatus(botId: string): Promise<{ status: string; passed: boolean; reason?: string }>;
+  restartBotEvaluation(botId: string): Promise<void>;
   
   getAdminStats(): Promise<{
     totalUsers: number;
@@ -1182,24 +1183,60 @@ export class DbStorage implements IStorage {
     const requiredProfit = parseFloat(evaluation.requiredProfitPercent.toString());
     const maxDrawdown = parseFloat(evaluation.requiredMaxDrawdownPercent.toString());
 
-    // Check if failed drawdown rule
+    // Check if failed drawdown rule (instant fail)
     if (currentDrawdown > maxDrawdown) {
+      const failureReason = `Maximum drawdown exceeded: ${currentDrawdown.toFixed(2)}% (limit: ${maxDrawdown}%)`;
+      
       await this.updateBotEvaluation(botId, {
         status: 'failed',
         completedAt: new Date(),
-        evaluationNotes: `Failed: Exceeded maximum drawdown of ${maxDrawdown}% (current: ${currentDrawdown.toFixed(2)}%)`
+        evaluationNotes: `Failed: ${failureReason}`
       });
       
-      // Update bot evaluation status
+      // Update bot evaluation status and failure reason
       await db
         .update(bots)
-        .set({ evaluationStatus: 'failed' })
+        .set({ 
+          evaluationStatus: 'failed',
+          failureReason 
+        })
         .where(eq(bots.id, botId));
 
+      console.log(`[Evaluation] Bot ${botId} FAILED: ${failureReason}`);
+      
       return {
         status: 'failed',
         passed: false,
-        reason: `Exceeded maximum drawdown of ${maxDrawdown}% (current: ${currentDrawdown.toFixed(2)}%)`
+        reason: failureReason
+      };
+    }
+    
+    // Check if failed due to too many trades without meeting requirements
+    // If bot has completed 50 trades but still hasn't met profit requirement, mark as failed
+    if (currentTrades >= 50 && currentPnlPercent < requiredProfit) {
+      const failureReason = `Insufficient profit after 50 trades: ${currentPnlPercent.toFixed(2)}% (required: ${requiredProfit}%)`;
+      
+      await this.updateBotEvaluation(botId, {
+        status: 'failed',
+        completedAt: new Date(),
+        evaluationNotes: `Failed: ${failureReason}`
+      });
+      
+      // Update bot evaluation status and failure reason
+      await db
+        .update(bots)
+        .set({ 
+          evaluationStatus: 'failed',
+          failureReason 
+        })
+        .where(eq(bots.id, botId));
+
+      console.log(`[Evaluation] Bot ${botId} FAILED: ${failureReason}`);
+      
+      return {
+        status: 'failed',
+        passed: false,
+        reason: failureReason
       };
     }
 
@@ -1236,6 +1273,40 @@ export class DbStorage implements IStorage {
       passed: false,
       reason: `Progress: ${currentTrades}/${requiredTrades} trades, ${currentPnlPercent.toFixed(2)}%/${requiredProfit}% profit`
     };
+  }
+
+  async restartBotEvaluation(botId: string): Promise<void> {
+    // Delete all evaluation trades for this bot
+    await db
+      .delete(botTradeLogs)
+      .where(eq(botTradeLogs.botId, botId));
+    
+    console.log(`[Evaluation] Deleted all trades for bot ${botId}`);
+    
+    // Reset bot evaluation record
+    await this.updateBotEvaluation(botId, {
+      status: 'in_progress',
+      currentTrades: 0,
+      currentPnl: '0.00',
+      currentPnlPercent: '0.00',
+      currentDrawdownPercent: '0.00',
+      completedAt: null,
+      evaluationNotes: '',
+    });
+    
+    // Reset bot status and clear failure reason
+    await db
+      .update(bots)
+      .set({ 
+        evaluationStatus: 'in_evaluation',
+        failureReason: null 
+      })
+      .where(eq(bots.id, botId));
+    
+    // Invalidate cache
+    this.getAllBots.clear();
+    
+    console.log(`[Evaluation] Bot ${botId} evaluation restarted - all trades cleared, status reset to in_evaluation`);
   }
 
   async getAdminStats(): Promise<{
