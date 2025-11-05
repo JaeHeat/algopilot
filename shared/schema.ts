@@ -196,6 +196,33 @@ export const webhookEventLogs = pgTable("webhook_event_logs", {
   index("idx_webhook_event_logs_processed_at").on(table.processedAt),
 ]);
 
+export const botSettings = pgTable("bot_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  botId: varchar("bot_id").notNull().unique().references(() => bots.id),
+  leverage: integer("leverage").notNull().default(1),
+  positionSizingStrategy: text("position_sizing_strategy").notNull().default("fixed_amount"),
+  positionSizeValue: decimal("position_size_value", { precision: 15, scale: 2 }).notNull().default("100.00"),
+  stopLossPercentage: decimal("stop_loss_percentage", { precision: 5, scale: 2 }),
+  takeProfitPercentage: decimal("take_profit_percentage", { precision: 5, scale: 2 }),
+  maxDrawdownPercentage: decimal("max_drawdown_percentage", { precision: 5, scale: 2 }).notNull().default("10.00"),
+  signalHandling: text("signal_handling").notNull().default("open_close"),
+  orderType: text("order_type").notNull().default("market"),
+  slippageTolerance: decimal("slippage_tolerance", { precision: 5, scale: 2 }).notNull().default("0.50"),
+  allowedSymbols: text("allowed_symbols").array(),
+  tradingHoursEnabled: boolean("trading_hours_enabled").notNull().default(false),
+  tradingHoursStart: integer("trading_hours_start"),
+  tradingHoursEnd: integer("trading_hours_end"),
+  tradingDays: text("trading_days").array(),
+  autoCompounding: boolean("auto_compounding").notNull().default(false),
+  closePositionsOnDrawdown: boolean("close_positions_on_drawdown").notNull().default(true),
+  maxPositionsPerSymbol: integer("max_positions_per_symbol").notNull().default(1),
+  maxTotalPositions: integer("max_total_positions").notNull().default(5),
+  minTradeInterval: integer("min_trade_interval"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_bot_settings_bot_id").on(table.botId),
+]);
+
 export const trades = pgTable("trades", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   subscriptionId: varchar("subscription_id").notNull().references(() => subscriptions.id),
@@ -346,6 +373,7 @@ export const insertCreatorPostSchema = createInsertSchema(creatorPosts).omit({ i
 export const insertPostCommentSchema = createInsertSchema(postComments).omit({ id: true, createdAt: true });
 export const insertPostReactionSchema = createInsertSchema(postReactions).omit({ id: true, createdAt: true });
 export const insertBotWebhookSchema = createInsertSchema(botWebhooks).omit({ id: true, createdAt: true });
+export const insertBotSettingsSchema = createInsertSchema(botSettings).omit({ id: true, updatedAt: true });
 export const insertWebhookEventLogSchema = createInsertSchema(webhookEventLogs).omit({ id: true, processedAt: true });
 export const insertTradeSchema = createInsertSchema(trades).omit({ id: true, executedAt: true });
 export const insertPositionSchema = createInsertSchema(positions).omit({ id: true, openedAt: true, closedAt: true });
@@ -414,6 +442,8 @@ export type InsertPostReaction = z.infer<typeof insertPostReactionSchema>;
 export type PostReaction = typeof postReactions.$inferSelect;
 export type InsertBotWebhook = z.infer<typeof insertBotWebhookSchema>;
 export type BotWebhook = typeof botWebhooks.$inferSelect;
+export type InsertBotSettings = z.infer<typeof insertBotSettingsSchema>;
+export type BotSettings = typeof botSettings.$inferSelect;
 export type InsertWebhookEventLog = z.infer<typeof insertWebhookEventLogSchema>;
 export type WebhookEventLog = typeof webhookEventLogs.$inferSelect;
 export type InsertTrade = z.infer<typeof insertTradeSchema>;

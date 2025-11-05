@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents, creatorPosts, postComments, postReactions, botWebhooks, webhookEventLogs, trades, positions, userOnboarding, creatorApplications, featuredPlacements, botEvaluations, payouts } from "@shared/schema";
+import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents, creatorPosts, postComments, postReactions, botWebhooks, botSettings, webhookEventLogs, trades, positions, userOnboarding, creatorApplications, featuredPlacements, botEvaluations, payouts } from "@shared/schema";
 import { encryptCredential, decryptCredential } from "./encryption";
 import { randomBytes } from "crypto";
 import type { 
@@ -16,6 +16,7 @@ import type {
   PostComment, InsertPostComment,
   PostReaction, InsertPostReaction,
   BotWebhook, InsertBotWebhook,
+  BotSettings, InsertBotSettings,
   WebhookEventLog, InsertWebhookEventLog,
   Trade, InsertTrade,
   Position, InsertPosition,
@@ -94,6 +95,10 @@ export interface IStorage {
   
   logWebhookEvent(log: InsertWebhookEventLog): Promise<WebhookEventLog>;
   getRecentWebhookEvents(botId: string, limit?: number): Promise<WebhookEventLog[]>;
+  
+  getBotSettings(botId: string): Promise<BotSettings | undefined>;
+  createBotSettings(settings: InsertBotSettings): Promise<BotSettings>;
+  updateBotSettings(botId: string, settings: Partial<BotSettings>): Promise<BotSettings | undefined>;
   
   createTrade(trade: InsertTrade): Promise<Trade>;
   getSubscriptionTrades(subscriptionId: string, limit?: number): Promise<Trade[]>;
@@ -796,6 +801,29 @@ export class DbStorage implements IStorage {
       .orderBy(desc(webhookEventLogs.processedAt))
       .limit(limit);
     return result;
+  }
+
+  async getBotSettings(botId: string): Promise<BotSettings | undefined> {
+    const result = await db
+      .select()
+      .from(botSettings)
+      .where(eq(botSettings.botId, botId))
+      .limit(1);
+    return result[0];
+  }
+
+  async createBotSettings(settings: InsertBotSettings): Promise<BotSettings> {
+    const result = await db.insert(botSettings).values(settings).returning();
+    return result[0];
+  }
+
+  async updateBotSettings(botId: string, updates: Partial<BotSettings>): Promise<BotSettings | undefined> {
+    const result = await db
+      .update(botSettings)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(botSettings.botId, botId))
+      .returning();
+    return result[0];
   }
 
   async createTrade(trade: InsertTrade): Promise<Trade> {
