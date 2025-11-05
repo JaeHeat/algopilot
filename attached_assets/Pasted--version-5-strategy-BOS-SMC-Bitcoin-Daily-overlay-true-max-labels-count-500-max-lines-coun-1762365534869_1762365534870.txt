@@ -1,0 +1,328 @@
+//@version=5
+strategy("BOS SMC [Bitcoin Daily]", overlay=true, max_labels_count=500, max_lines_count=500)
+color GREEN = color.rgb(2, 133, 69)
+color TAIL = color.rgb(20, 141, 154)
+color RED = color.rgb(246, 7, 7)
+color _Green = color.rgb(2, 106, 89)
+color OFF = color.new(color.red, 100)
+string CORE = "➞ Core Settings 🔸"
+var array<int> score = array.new_int(2, 0)
+
+var float UpdatedHigh = na
+var float UpdatedLow = na
+var bool ShortTrade = false
+var bool TradeisON = false
+var bool LongTrade = false
+var int HighIndex = na
+var bool phActive = false
+var bool plActive = false
+var int LowIndex = na
+var bool HBreak = false
+var line tpLine = na
+var line SLLine = na
+var label LAB = na
+var float TP = 0.0
+var float SL = 0.0
+int Sync = bar_index
+bool BUY = false
+bool SELL = false
+var string lastSignalMessage = na
+
+// === ADDED: Trade state tracking for exit alerts ===
+var float tradeEntryPrice = na
+var float tradeTP_val = na
+var float tradeSL_val = na
+var int tradeEntryBar = na
+
+type Vol
+    array<float> Total
+    array<float> Green
+    array<float> Red
+    array<float> SCR
+
+Volume = Vol.new(array.new_float(), array.new_float(), array.new_float(), array.new_float())
+
+int period = input.int(20, 'Length', group=CORE)
+bool CandleType = input.string("Wicks", "Type ➞", options=["Wicks", "Body"], group=CORE) == "Wicks"
+float RR1 = input.float(1.1, "RR Ratio", step=0.1, group=CORE)
+bool SLType = input.string("Close", "SL Type", ["Close", "High/Low"], group=CORE) == "Close"
+bool ShowSL = input.bool(false, "Show SL", group=CORE)
+string Linestyle = input.string("Dashed", "Line Style", ["Solid", "Dashed", "Dotted"], group=CORE, inline="Line")
+color Bull = input.color(GREEN, "", group=CORE, inline="Line")
+color Bear = input.color(RED, "", group=CORE, inline="Line")
+
+// === DATE RANGE INPUTS FOR BACKTEST ===
+startDate = input.time(timestamp("2023-01-01T00:00:00"), title="Backtest Start Date")
+endDate   = input.time(timestamp("2025-12-31T23:59:59"), title="Backtest End Date")
+inDateRange = (time >= startDate) and (time <= endDate)
+
+x2 = low - ta.rma(ta.tr(true), 14) * 1.5
+xz = ta.rma(ta.tr(true), 14) * 1.5 + high
+longDiffSL2 = math.abs(close - xz)
+longDiffSL = math.abs(close - x2)
+
+StyleSwitch = switch Linestyle
+    'Dashed' => line.style_dashed
+    'Dotted' => line.style_dotted
+    => line.style_solid
+
+method volAdj(int len) =>
+    math.min(ta.atr(len) * 0.3, close * (0.3 / 100))[20] / 2
+
+Adj = volAdj(30)
+
+VolCal(Index, Sync) =>
+    Bars = math.abs(Index - Sync)
+    for i = 0 to Bars - 1
+        Volume.SCR.push(close[i])
+    for i = 0 to Volume.SCR.size() - 1
+        if Volume.SCR.get(i) > open[i]
+            Volume.Green.push(volume[i])
+        if Volume.SCR.get(i) < open[i]
+            Volume.Red.push(volume[i])
+        Volume.Total.push(volume[i])
+    GreenRatio = math.round(Volume.Green.sum() / Volume.Total.sum() * 100, 2)
+    RedRatio = math.round(Volume.Red.sum() / Volume.Total.sum() * 100, 2)
+    Out = GreenRatio > 55 ? "🟢" : RedRatio > 55 ? "🔴" : "🟡"
+    Out
+
+PH = ta.pivothigh(high, period, period)
+PL = ta.pivotlow(low, period, period)
+ScrHigh = CandleType ? high : close
+ScrLow = CandleType ? low : close
+
+if ta.change(fixnan(PH)) != 0
+    UpdatedHigh := PH
+    phActive := true
+    HighIndex := Sync - period
+
+if ta.change(fixnan(PL)) != 0
+    UpdatedLow := PL
+    plActive := true
+    LowIndex := Sync - period
+
+if ScrHigh > UpdatedHigh and phActive
+    BUY := true
+    phActive := false
+
+if ScrLow < UpdatedLow and plActive
+    SELL := true
+    plActive := false
+
+if BUY and not TradeisON
+    sign = VolCal(HighIndex, Sync)
+    line.new(HighIndex, UpdatedHigh, Sync, UpdatedHigh, color=Bull, style=StyleSwitch, width=2)
+    label.new(math.floor(Sync - (Sync - HighIndex) / 2), UpdatedHigh, not HBreak ? 'CHoCH\n' + sign : 'BOS\n' + sign, color=OFF, textcolor=color.white, size=size.tiny)
+    label.new(Sync, low, "", yloc=yloc.belowbar, color=color.lime, size=size.small, style=label.style_label_up)
+    HBreak := true
+
+if SELL and not TradeisON
+    sign = VolCal(LowIndex, Sync)
+    line.new(LowIndex, UpdatedLow, Sync, UpdatedLow, color=Bear, style=StyleSwitch, width=2)
+    label.new(math.floor(Sync - (Sync - LowIndex) / 2), UpdatedLow, HBreak ? 'CHoCH\n' + sign : 'BOS\n' + sign, color=OFF, textcolor=color.white, style=label.style_label_up, size=size.tiny)
+    label.new(Sync, low, "", yloc=yloc.abovebar, color=RED, size=size.small, style=label.style_label_down)
+    HBreak := false
+
+Long = BUY and not TradeisON
+Short = SELL and not TradeisON
+TradeFire = Long or Short
+
+if Long and not TradeisON
+    LongTrade := true
+    ShortTrade := false
+
+if Short and not TradeisON
+    LongTrade := false
+    ShortTrade := true
+
+// Win rate calculation (for alerts)
+trade_sum = array.get(score, 0) + array.get(score, 1)
+win_rate = (trade_sum > 0) ? math.round(array.get(score, 0) / trade_sum * 100, 2) : na
+
+//FUNCTIONS FOR ALERTS ==============================================================================================
+time_ext(tf_) =>
+    isNumeric = str.match(tf_, "^[0-9]+$") != ""
+    tfMinutes = isNumeric ? str.tonumber(tf_) : na
+    timeframe_isHourly = isNumeric and tfMinutes % 60 == 0
+    base = isNumeric ? (timeframe_isHourly ? str.tostring(tfMinutes / 60) : tf_) :
+           (str.match(tf_, "D$") != "" or str.match(tf_, "W$") != "" or str.match(tf_, "M$") != "" ? "1" : "")
+    ext = isNumeric ? (timeframe_isHourly ? "H" : "min") :
+          str.match(tf_, "S$") != "" ? "sec" :
+          str.match(tf_, "D$") != "" ? "D" :
+          str.match(tf_, "W$") != "" ? "W" :
+          str.match(tf_, "M$") != "" ? "M" : ""
+    base + ext
+
+format(t) =>
+    decimals = t >= 1 ? 0 : math.ceil(-math.log(t) / math.log(10))
+    "#" + (decimals > 0 ? "." + str.repeat("#", decimals) : "")
+f = format(syminfo.mintick)
+string f_pnl = "#.##"
+price_prefix = syminfo.currency == "USD" ? "$" : ""
+
+signalMessage(string side_, float entry_price, float tp_val, float sl_val, float win_rate_val, int bar_time) =>
+    string side_icon = side_ == "LONG" ? "🚀 New LONG Trade Alert!" : "🔻 New SHORT Trade Alert!"
+    string win_rate_str = na(win_rate_val) ? "N/A" : str.tostring(win_rate_val) + "%"
+    string time_str = str.format("{0,date,yyyy-MM-dd HH:mm:ss }", bar_time) 
+
+    // Build the multi-line message string
+    string msg = ""
+    msg += side_icon + "\n"
+    msg += "📌 Ticker / Timeframe\n"
+    msg += syminfo.ticker + " on " + time_ext(timeframe.period) + "\n"
+    msg += "💰 Entry Price\n"
+    msg += price_prefix + str.tostring(entry_price, f) + "\n"
+    msg += "🛑 Stop Loss\n"
+    msg += price_prefix + str.tostring(sl_val, f) + "\n"
+    msg += "🎯 Take Profit\n"
+    msg += price_prefix + str.tostring(tp_val, f) + "\n"
+    msg += "📈 Historical Win Rate\n"
+    msg += win_rate_str + "\n"
+    msg += "📅 Triggered at " + time_str
+    msg
+
+// === ADDED: Exit alert message functions ===
+hypeWinMessage(string side_, float exit_price, float pnl_usd, float pnl_pct, float rr, int duration, float entry_price, float sl_price, float tp_price) =>
+    string msg = ""
+    msg += "🟢💰 Winner Winner! 🥝 ✅\n"
+    msg += "🏁 TRADE CLOSED — ✅ WIN\n"
+    msg += "💎 " + syminfo.ticker + " on " + time_ext(timeframe.period) + " • " + side_ + "\n"
+    msg += "📈 Exit: " + price_prefix + str.tostring(exit_price, f) + "\n"
+    msg += "💸 P&L: +" + price_prefix + str.tostring(pnl_usd, f_pnl) + " (+" + str.tostring(pnl_pct, f_pnl) + "%)\n"
+    msg += "⏱ Duration: " + str.tostring(duration) + " bars\n"
+    msg += "🎯 Reason: TP\n"
+    msg
+
+neutralLossMessage(string side_, float exit_price, float pnl_usd, float pnl_pct, float rr, int duration, float entry_price, float sl_price, float tp_price) =>
+    string msg = ""
+    msg += "🔴 TRADE CLOSED — ❌ LOSS\n"
+    msg += "💎 " + syminfo.ticker + " on " + time_ext(timeframe.period) + " • " + side_ + "\n"
+    msg += "📉 Exit: " + price_prefix + str.tostring(exit_price, f) + "\n"
+    msg += "💸 P&L: -" + price_prefix + str.tostring(pnl_usd, f_pnl) + " (-" + str.tostring(pnl_pct, f_pnl) + "%)\n"
+    msg += "⏱ Duration: " + str.tostring(duration) + " bars\n"
+    msg += "🎯 Reason: SL\n"
+    msg
+
+// ENTRIES ==========================================================================================================
+if TradeFire and not TradeisON and inDateRange
+    TP := Long ? close + (RR1 * longDiffSL) : close - (RR1 * longDiffSL2)
+    SL := Long ? close - longDiffSL : close + longDiffSL2
+
+    // === ADDED: Track trade state for exit alerts ===
+    tradeEntryPrice := close
+    tradeTP_val := TP
+    tradeSL_val := SL
+    tradeEntryBar := bar_index
+
+    // 💥 Entry + Exit (Plain text alert for bots)
+    if Long
+        strategy.entry("Buy", strategy.long)
+        strategy.exit("TP/SL", from_entry="Buy", limit=TP, stop=SL)
+        lastSignalMessage := signalMessage("LONG", close, TP, SL, win_rate, time)
+        alert(lastSignalMessage, alert.freq_once_per_bar_close)
+
+    if Short
+        strategy.entry("Sell", strategy.short)
+        strategy.exit("TP/SL", from_entry="Sell", limit=TP, stop=SL)
+        lastSignalMessage := signalMessage("SHORT", close, TP, SL, win_rate, time)
+        alert(lastSignalMessage, alert.freq_once_per_bar_close)
+
+    TradeisON := true
+
+    line.new(bar_index, Long ? high : low, bar_index, TP, width=2, color=TAIL, style=line.style_dashed)
+    tpLine := line.new(bar_index, TP, bar_index + 2, TP, style=line.style_dashed, color=TAIL)
+    if ShowSL
+        SLLine := line.new(bar_index, SL, bar_index + 2, SL, style=line.style_dashed, color=RED)
+    LAB := label.new(bar_index, TP, "Target", color=TAIL, style=label.style_label_left, size=size.small, textcolor=color.white)
+
+if TradeisON
+    line.set_x2(tpLine, bar_index)
+    label.set_x(LAB, bar_index + 1)
+    if ShowSL
+        line.set_x2(SLLine, bar_index)
+
+    if LongTrade and TradeisON
+        if high >= TP
+            // === ADDED: Exit alert for TP win ===
+            float pnl_usd = tradeTP_val - tradeEntryPrice
+            float pnl_pct = (pnl_usd / tradeEntryPrice) * 100
+            int duration = bar_index - tradeEntryBar
+            string msg = hypeWinMessage("LONG", tradeTP_val, pnl_usd, pnl_pct, RR1, duration, tradeEntryPrice, tradeSL_val, tradeTP_val)
+            alert(msg, alert.freq_once_per_bar_close)
+            
+            label.set_color(LAB, GREEN)
+            score.set(0, score.get(0) + 1)
+            TradeisON := false
+            
+        if (SLType ? close : low) <= SL
+            // === ADDED: Exit alert for SL loss ===
+            float exit_price = tradeSL_val
+            float pnl_usd = tradeEntryPrice - exit_price
+            float pnl_pct = (pnl_usd / tradeEntryPrice) * 100
+            int duration = bar_index - tradeEntryBar
+            string msg = neutralLossMessage("LONG", exit_price, pnl_usd, pnl_pct, 1.0, duration, tradeEntryPrice, tradeSL_val, tradeTP_val)
+            alert(msg, alert.freq_once_per_bar_close)
+            
+            score.set(1, score.get(1) + 1)
+            label.set_color(LAB, color.new(RED, 70))
+            label.set_tooltip(LAB, "Stoploss Hit : " + str.tostring(math.round_to_mintick(SL)))
+            TradeisON := false
+
+    else if ShortTrade and TradeisON
+        if low <= TP
+            // === ADDED: Exit alert for TP win ===
+            float pnl_usd = tradeEntryPrice - tradeTP_val
+            float pnl_pct = (pnl_usd / tradeEntryPrice) * 100
+            int duration = bar_index - tradeEntryBar
+            string msg = hypeWinMessage("SHORT", tradeTP_val, pnl_usd, pnl_pct, RR1, duration, tradeEntryPrice, tradeSL_val, tradeTP_val)
+            alert(msg, alert.freq_once_per_bar_close)
+            
+            label.set_color(LAB, GREEN)
+            score.set(0, score.get(0) + 1)
+            TradeisON := false
+            
+        if (SLType ? close : high) >= SL
+            // === ADDED: Exit alert for SL loss ===
+            float exit_price = tradeSL_val
+            float pnl_usd = exit_price - tradeEntryPrice
+            float pnl_pct = (pnl_usd / tradeEntryPrice) * 100
+            int duration = bar_index - tradeEntryBar
+            string msg = neutralLossMessage("SHORT", exit_price, pnl_usd, pnl_pct, 1.0, duration, tradeEntryPrice, tradeSL_val, tradeTP_val)
+            alert(msg, alert.freq_once_per_bar_close)
+            
+            score.set(1, score.get(1) + 1)
+            label.set_color(LAB, color.new(RED, 70))
+            label.set_tooltip(LAB, "Stoploss Hit : " + str.tostring(math.round_to_mintick(SL)))
+            TradeisON := false
+
+BearCon = TradeisON and ShortTrade
+BullCon = TradeisON and LongTrade
+
+barcolor(BearCon ? RED : BullCon ? _Green : color.rgb(52, 52, 54))
+plotcandle(open, high, low, close, color=BearCon ? RED : BullCon ? _Green : color.rgb(52, 52, 54), wickcolor=color.rgb(103, 99, 99), bordercolor=BearCon ? RED : BullCon ? _Green : color.rgb(52, 52, 54))
+bgcolor(BearCon ? color.rgb(136, 4, 15, 90) : BullCon ? color.rgb(8, 191, 158, 90) : na)
+
+var tb = table.new(position.top_right, 3, 3, bgcolor=color.new(color.gray, 80))
+var label l_ = na
+if barstate.islast
+    // Original Table logic
+    table.cell(tb, 0, 0, "Winning Trades", text_color=#a3a3b1)
+    table.cell(tb, 1, 0, str.tostring(score.get(0)), text_color=#08c09b)
+    table.cell(tb, 0, 1, "Losing Trades", text_color=#a3a3b1)
+    table.cell(tb, 1, 1, str.tostring(score.get(1)), text_color=#cd0202)
+
+if not na(lastSignalMessage)
+    l_.delete()
+    l_ := label.new(
+             bar_index, 
+             low, 
+             lastSignalMessage,
+             xloc = xloc.bar_index,
+             yloc = yloc.price,
+             style = label.style_label_left,
+             color = color.new(color.black, 30),
+             textcolor = color.white,
+             textalign = text.align_left,
+             text_font_family  = font.family_monospace,
+             size = size.small
+         )
