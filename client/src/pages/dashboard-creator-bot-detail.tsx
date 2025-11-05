@@ -550,7 +550,7 @@ export default function DashboardCreatorBotDetail() {
                     <div>
                       <Label className="text-muted-foreground">Category</Label>
                       <p className="text-lg font-medium capitalize" data-testid="text-display-category">
-                        {bot.category.replace("_", " ")}
+                        {bot.category?.replace("_", " ") || "N/A"}
                       </p>
                     </div>
                   </div>
@@ -565,7 +565,7 @@ export default function DashboardCreatorBotDetail() {
 
                     <div>
                       <Label className="text-muted-foreground">Status</Label>
-                      <p className="text-sm capitalize">{bot.evaluationStatus.replace("_", " ")}</p>
+                      <p className="text-sm capitalize">{bot.evaluationStatus?.replace("_", " ") || "N/A"}</p>
                     </div>
                   </div>
                 </div>

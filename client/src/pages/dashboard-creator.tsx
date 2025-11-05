@@ -406,20 +406,20 @@ export default function DashboardCreator() {
                       {progress.tradeCount === 0 ? (
                         <div className="space-y-2">
                           <p className="text-xs text-muted-foreground">
-                            To go live on the marketplace, your bot must complete an evaluation:
+                            To go live, your bot must meet all three requirements independently:
                           </p>
                           <ul className="text-xs space-y-1 ml-4">
                             <li className="flex items-start gap-2">
                               <span className="text-muted-foreground">•</span>
-                              <span>Execute <strong>{progress.requiredTrades} completed trades</strong></span>
+                              <span>Minimum <strong>{progress.requiredTrades} trades</strong> completed</span>
                             </li>
                             <li className="flex items-start gap-2">
                               <span className="text-muted-foreground">•</span>
-                              <span>Achieve <strong>+{progress.requiredProfit}% total profit</strong></span>
+                              <span>Cumulative profit of <strong>+{progress.requiredProfit}%</strong> or more</span>
                             </li>
                             <li className="flex items-start gap-2">
                               <span className="text-muted-foreground">•</span>
-                              <span>Stay under <strong>{progress.requiredMaxDrawdown}% maximum drawdown</strong></span>
+                              <span>Maximum drawdown under <strong>{progress.requiredMaxDrawdown}%</strong></span>
                             </li>
                           </ul>
                           <p className="text-xs text-muted-foreground mt-2">

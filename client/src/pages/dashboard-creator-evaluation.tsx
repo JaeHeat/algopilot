@@ -89,7 +89,7 @@ export default function DashboardCreatorEvaluation() {
           )}
         </div>
         <p className="text-muted-foreground mt-2">
-          Track your bot's evaluation progress and requirements to go live
+          Your bot must meet all three requirements independently to go live on the marketplace
         </p>
       </div>
 
@@ -130,7 +130,7 @@ export default function DashboardCreatorEvaluation() {
                 Current Progress
               </CardTitle>
               <CardDescription>
-                Your bot's performance metrics during the evaluation period
+                All three requirements must be met independently. You need at least 10 trades, cumulative profit of +10%, AND maximum drawdown under 5%.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -140,7 +140,7 @@ export default function DashboardCreatorEvaluation() {
                     <div>
                       <p className="font-semibold">Trade Count</p>
                       <p className="text-sm text-muted-foreground">
-                        Complete at least {progress.requiredTrades} trades
+                        Minimum {progress.requiredTrades} trades required
                       </p>
                     </div>
                     <div className="text-right">
@@ -163,7 +163,7 @@ export default function DashboardCreatorEvaluation() {
                     <div>
                       <p className="font-semibold">Total Profitability</p>
                       <p className="text-sm text-muted-foreground">
-                        Achieve at least +{progress.requiredProfit}% total profit
+                        Cumulative profit must reach +{progress.requiredProfit}%
                       </p>
                     </div>
                     <div className="text-right">
@@ -186,7 +186,7 @@ export default function DashboardCreatorEvaluation() {
                     <div>
                       <p className="font-semibold">Maximum Drawdown</p>
                       <p className="text-sm text-muted-foreground">
-                        Stay under {progress.requiredMaxDrawdown}% drawdown
+                        Must stay under {progress.requiredMaxDrawdown}% drawdown
                       </p>
                     </div>
                     <div className="text-right">
