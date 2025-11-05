@@ -2482,7 +2482,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       if (payload.timestamp) {
-        const requestTime = payload.timestamp * 1000;
+        // Auto-detect timestamp format: seconds (10 digits) vs milliseconds (13 digits)
+        const timestamp = payload.timestamp;
+        const requestTime = timestamp > 9999999999 ? timestamp : timestamp * 1000;
         const currentTime = Date.now();
         const timeDifference = Math.abs(currentTime - requestTime);
         const maxAgeMs = 5 * 60 * 1000;
