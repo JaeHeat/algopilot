@@ -1,7 +1,18 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, decimal, timestamp, boolean, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, decimal, timestamp, boolean, jsonb, index, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+export const botCategoryEnum = pgEnum("bot_category", [
+  "scalping",
+  "day_trading",
+  "swing_trading",
+  "trend_following",
+  "mean_reversion",
+  "arbitrage",
+  "market_making",
+  "grid_trading",
+]);
 
 export const sessions = pgTable(
   "sessions",
@@ -33,6 +44,7 @@ export const bots = pgTable("bots", {
   description: text("description").notNull(),
   strategyDescription: text("strategy_description").notNull().default(""),
   strategy: text("strategy").notNull(),
+  category: botCategoryEnum("category").notNull().default("trend_following"),
   riskLevel: text("risk_level").notNull(),
   monthlyPrice: decimal("monthly_price", { precision: 10, scale: 2 }).notNull(),
   iconUrl: text("icon_url"),
@@ -46,6 +58,7 @@ export const bots = pgTable("bots", {
   index("idx_bots_creator_id").on(table.creatorId),
   index("idx_bots_is_active").on(table.isActive),
   index("idx_bots_evaluation_status").on(table.evaluationStatus),
+  index("idx_bots_category").on(table.category),
 ]);
 
 export const botPerformance = pgTable("bot_performance", {

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Copy, RefreshCw, CheckCircle2, XCircle, Clock, Webhook, TrendingUp, Award, AlertCircle, Settings, BarChart3, History, Tag, Percent, DollarSign } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -310,16 +311,23 @@ function DiscountCodesDialog({ bot }: { bot: any }) {
 
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-      <DialogTrigger asChild>
-        <Button
-          variant="outline"
-          size="icon"
-          data-testid={`button-discount-codes-${bot.id}`}
-          aria-label="Manage discount codes"
-        >
-          <Tag className="h-4 w-4" />
-        </Button>
-      </DialogTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DialogTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              data-testid={`button-discount-codes-${bot.id}`}
+              aria-label="Manage discount codes"
+            >
+              <Tag className="h-4 w-4" />
+            </Button>
+          </DialogTrigger>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>Manage Discount Codes</p>
+        </TooltipContent>
+      </Tooltip>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>Discount Codes</DialogTitle>
