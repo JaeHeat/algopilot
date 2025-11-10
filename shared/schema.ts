@@ -184,6 +184,18 @@ export const botWebhooks = pgTable("bot_webhooks", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+export const webhookUrlHistory = pgTable("webhook_url_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  botId: varchar("bot_id").notNull().references(() => bots.id),
+  secret: text("secret").notNull(),
+  authToken: text("auth_token"),
+  replacedAt: timestamp("replaced_at").notNull().defaultNow(),
+  replacedBy: varchar("replaced_by").references(() => users.id),
+}, (table) => [
+  index("idx_webhook_url_history_bot_id").on(table.botId),
+  index("idx_webhook_url_history_replaced_at").on(table.replacedAt),
+]);
+
 export const webhookEventLogs = pgTable("webhook_event_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   botId: varchar("bot_id"),
@@ -374,6 +386,7 @@ export const insertCreatorPostSchema = createInsertSchema(creatorPosts).omit({ i
 export const insertPostCommentSchema = createInsertSchema(postComments).omit({ id: true, createdAt: true });
 export const insertPostReactionSchema = createInsertSchema(postReactions).omit({ id: true, createdAt: true });
 export const insertBotWebhookSchema = createInsertSchema(botWebhooks).omit({ id: true, createdAt: true });
+export const insertWebhookUrlHistorySchema = createInsertSchema(webhookUrlHistory).omit({ id: true, replacedAt: true });
 export const insertBotSettingsSchema = createInsertSchema(botSettings).omit({ id: true, updatedAt: true });
 export const insertWebhookEventLogSchema = createInsertSchema(webhookEventLogs).omit({ id: true, processedAt: true });
 export const insertTradeSchema = createInsertSchema(trades).omit({ id: true, executedAt: true });
@@ -443,6 +456,8 @@ export type InsertPostReaction = z.infer<typeof insertPostReactionSchema>;
 export type PostReaction = typeof postReactions.$inferSelect;
 export type InsertBotWebhook = z.infer<typeof insertBotWebhookSchema>;
 export type BotWebhook = typeof botWebhooks.$inferSelect;
+export type InsertWebhookUrlHistory = z.infer<typeof insertWebhookUrlHistorySchema>;
+export type WebhookUrlHistory = typeof webhookUrlHistory.$inferSelect;
 export type InsertBotSettings = z.infer<typeof insertBotSettingsSchema>;
 export type BotSettings = typeof botSettings.$inferSelect;
 export type InsertWebhookEventLog = z.infer<typeof insertWebhookEventLogSchema>;

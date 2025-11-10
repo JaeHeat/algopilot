@@ -1124,7 +1124,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const newSecret = generateWebhookSecret();
       const newAuthToken = generateWebhookSecret();
-      const webhook = await storage.regenerateWebhookSecret(req.params.id, newSecret, newAuthToken);
+      const webhook = await storage.regenerateWebhookSecret(req.params.id, newSecret, newAuthToken, userId);
       
       if (!webhook) {
         return res.status(404).json({ message: "Webhook not found for this bot" });
@@ -1140,6 +1140,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error regenerating webhook:", error);
       res.status(500).json({ message: "Failed to regenerate webhook" });
+    }
+  });
+
+  app.get("/api/creator/bots/:id/webhook-history", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const bot = await storage.getBotById(req.params.id);
+      
+      if (!bot) {
+        return res.status(404).json({ message: "Bot not found" });
+      }
+      
+      if (bot.creatorId !== userId) {
+        return res.status(403).json({ message: "Forbidden: Only bot creators can view webhook history" });
+      }
+      
+      const history = await storage.getWebhookUrlHistory(req.params.id);
+      
+      const historyWithUrls = history.map(h => ({
+        ...h,
+        webhookUrl: `${req.protocol}://${req.get('host')}/api/webhooks/${req.params.id}/${h.secret}?token=${h.authToken}`,
+      }));
+      
+      res.json(historyWithUrls);
+    } catch (error) {
+      console.error("Error fetching webhook history:", error);
+      res.status(500).json({ message: "Failed to fetch webhook history" });
+    }
+  });
+
+  app.post("/api/creator/bots/:id/webhook-history/:historyId/restore", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const bot = await storage.getBotById(req.params.id);
+      
+      if (!bot) {
+        return res.status(404).json({ message: "Bot not found" });
+      }
+      
+      if (bot.creatorId !== userId) {
+        return res.status(403).json({ message: "Forbidden: Only bot creators can restore webhook URLs" });
+      }
+      
+      const webhook = await storage.restoreWebhookUrl(req.params.id, req.params.historyId, userId);
+      
+      if (!webhook) {
+        return res.status(404).json({ message: "Webhook history not found" });
+      }
+      
+      const webhookUrl = `${req.protocol}://${req.get('host')}/api/webhooks/${req.params.id}/${webhook.secret}?token=${webhook.authToken}`;
+      
+      res.json({
+        secret: webhook.secret,
+        authToken: webhook.authToken,
+        webhookUrl,
+      });
+    } catch (error) {
+      console.error("Error restoring webhook:", error);
+      res.status(500).json({ message: "Failed to restore webhook" });
     }
   });
 

@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents, creatorPosts, postComments, postReactions, botWebhooks, botSettings, webhookEventLogs, trades, positions, userOnboarding, creatorApplications, featuredPlacements, botEvaluations, payouts } from "@shared/schema";
+import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents, creatorPosts, postComments, postReactions, botWebhooks, webhookUrlHistory, botSettings, webhookEventLogs, trades, positions, userOnboarding, creatorApplications, featuredPlacements, botEvaluations, payouts } from "@shared/schema";
 import { encryptCredential, decryptCredential } from "./encryption";
 import { randomBytes } from "crypto";
 import type { 
@@ -16,6 +16,7 @@ import type {
   PostComment, InsertPostComment,
   PostReaction, InsertPostReaction,
   BotWebhook, InsertBotWebhook,
+  WebhookUrlHistory, InsertWebhookUrlHistory,
   BotSettings, InsertBotSettings,
   WebhookEventLog, InsertWebhookEventLog,
   Trade, InsertTrade,
@@ -87,11 +88,15 @@ export interface IStorage {
   createBotWebhook(webhook: InsertBotWebhook): Promise<BotWebhook>;
   getWebhookByBotId(botId: string): Promise<BotWebhook | undefined>;
   getWebhookByBotAndSecret(botId: string, secret: string): Promise<BotWebhook | undefined>;
-  regenerateWebhookSecret(botId: string, newSecret: string, newAuthToken?: string): Promise<BotWebhook | undefined>;
+  regenerateWebhookSecret(botId: string, newSecret: string, newAuthToken?: string, userId?: string): Promise<BotWebhook | undefined>;
   populateWebhookAuthTokens(): Promise<number>;
   updateWebhookLastReceived(botId: string): Promise<void>;
   incrementWebhookFailureCount(botId: string): Promise<void>;
   resetWebhookFailureCount(botId: string): Promise<void>;
+  
+  saveWebhookUrlHistory(history: InsertWebhookUrlHistory): Promise<WebhookUrlHistory>;
+  getWebhookUrlHistory(botId: string, limit?: number): Promise<WebhookUrlHistory[]>;
+  restoreWebhookUrl(botId: string, historyId: string, userId: string): Promise<BotWebhook | undefined>;
   
   logWebhookEvent(log: InsertWebhookEventLog): Promise<WebhookEventLog>;
   getRecentWebhookEvents(botId: string, limit?: number): Promise<WebhookEventLog[]>;
@@ -734,17 +739,95 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async regenerateWebhookSecret(botId: string, newSecret: string, newAuthToken?: string): Promise<BotWebhook | undefined> {
-    const updateData: any = { secret: newSecret };
-    if (newAuthToken) {
-      updateData.authToken = newAuthToken;
-    }
+  async regenerateWebhookSecret(botId: string, newSecret: string, newAuthToken?: string, userId?: string): Promise<BotWebhook | undefined> {
+    return await db.transaction(async (tx) => {
+      const currentWebhook = await tx
+        .select()
+        .from(botWebhooks)
+        .where(eq(botWebhooks.botId, botId))
+        .limit(1)
+        .then(r => r[0]);
+      
+      if (currentWebhook) {
+        await tx.insert(webhookUrlHistory).values({
+          botId,
+          secret: currentWebhook.secret,
+          authToken: currentWebhook.authToken || undefined,
+          replacedBy: userId,
+        });
+      }
+      
+      const updateData: any = { secret: newSecret };
+      if (newAuthToken) {
+        updateData.authToken = newAuthToken;
+      }
+      const result = await tx
+        .update(botWebhooks)
+        .set(updateData)
+        .where(eq(botWebhooks.botId, botId))
+        .returning();
+      return result[0];
+    });
+  }
+  
+  async saveWebhookUrlHistory(history: InsertWebhookUrlHistory): Promise<WebhookUrlHistory> {
     const result = await db
-      .update(botWebhooks)
-      .set(updateData)
-      .where(eq(botWebhooks.botId, botId))
+      .insert(webhookUrlHistory)
+      .values(history)
       .returning();
     return result[0];
+  }
+  
+  async getWebhookUrlHistory(botId: string, limit: number = 10): Promise<WebhookUrlHistory[]> {
+    const result = await db
+      .select()
+      .from(webhookUrlHistory)
+      .where(eq(webhookUrlHistory.botId, botId))
+      .orderBy(desc(webhookUrlHistory.replacedAt))
+      .limit(limit);
+    return result;
+  }
+  
+  async restoreWebhookUrl(botId: string, historyId: string, userId: string): Promise<BotWebhook | undefined> {
+    return await db.transaction(async (tx) => {
+      const historyRecord = await tx
+        .select()
+        .from(webhookUrlHistory)
+        .where(eq(webhookUrlHistory.id, historyId))
+        .limit(1)
+        .then(r => r[0]);
+      
+      if (!historyRecord || historyRecord.botId !== botId) {
+        return undefined;
+      }
+      
+      const currentWebhook = await tx
+        .select()
+        .from(botWebhooks)
+        .where(eq(botWebhooks.botId, botId))
+        .limit(1)
+        .then(r => r[0]);
+      
+      if (currentWebhook) {
+        await tx.insert(webhookUrlHistory).values({
+          botId,
+          secret: currentWebhook.secret,
+          authToken: currentWebhook.authToken || undefined,
+          replacedBy: userId,
+        });
+      }
+      
+      const result = await tx
+        .update(botWebhooks)
+        .set({
+          secret: historyRecord.secret,
+          authToken: historyRecord.authToken,
+        })
+        .where(eq(botWebhooks.botId, botId))
+        .returning();
+      
+      return result[0];
+    });
   }
   
   async populateWebhookAuthTokens(): Promise<number> {
