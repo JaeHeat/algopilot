@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents, creatorPosts, postComments, postReactions, botWebhooks, webhookUrlHistory, botSettings, webhookEventLogs, trades, positions, userOnboarding, creatorApplications, featuredPlacements, botEvaluations, payouts } from "@shared/schema";
+import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents, creatorPosts, postComments, postReactions, botWebhooks, webhookUrlHistory, botSettings, discountCodes, webhookEventLogs, trades, positions, userOnboarding, creatorApplications, featuredPlacements, botEvaluations, payouts } from "@shared/schema";
 import { encryptCredential, decryptCredential } from "./encryption";
 import { randomBytes } from "crypto";
 import type { 
@@ -18,6 +18,7 @@ import type {
   BotWebhook, InsertBotWebhook,
   WebhookUrlHistory, InsertWebhookUrlHistory,
   BotSettings, InsertBotSettings,
+  DiscountCode, InsertDiscountCode,
   WebhookEventLog, InsertWebhookEventLog,
   Trade, InsertTrade,
   Position, InsertPosition,
@@ -97,6 +98,13 @@ export interface IStorage {
   saveWebhookUrlHistory(history: InsertWebhookUrlHistory): Promise<WebhookUrlHistory>;
   getWebhookUrlHistory(botId: string, limit?: number): Promise<WebhookUrlHistory[]>;
   restoreWebhookUrl(botId: string, historyId: string, userId: string): Promise<BotWebhook | undefined>;
+  
+  createDiscountCode(discountCode: InsertDiscountCode): Promise<DiscountCode>;
+  getDiscountCodesByBotId(botId: string): Promise<DiscountCode[]>;
+  getDiscountCodeByCode(code: string): Promise<DiscountCode | undefined>;
+  updateDiscountCode(id: string, updates: Partial<Omit<InsertDiscountCode, 'code' | 'botId' | 'creatorId'>>): Promise<DiscountCode | undefined>;
+  incrementDiscountCodeUses(id: string): Promise<DiscountCode | undefined>;
+  deactivateDiscountCode(id: string): Promise<DiscountCode | undefined>;
   
   logWebhookEvent(log: InsertWebhookEventLog): Promise<WebhookEventLog>;
   getRecentWebhookEvents(botId: string, limit?: number): Promise<WebhookEventLog[]>;
@@ -870,6 +878,58 @@ export class DbStorage implements IStorage {
       .update(botWebhooks)
       .set({ failureCount: 0 })
       .where(eq(botWebhooks.botId, botId));
+  }
+
+  async createDiscountCode(discountCode: InsertDiscountCode): Promise<DiscountCode> {
+    const result = await db.insert(discountCodes).values(discountCode).returning();
+    return result[0];
+  }
+  
+  async getDiscountCodesByBotId(botId: string): Promise<DiscountCode[]> {
+    const result = await db
+      .select()
+      .from(discountCodes)
+      .where(eq(discountCodes.botId, botId))
+      .orderBy(desc(discountCodes.createdAt));
+    return result;
+  }
+  
+  async getDiscountCodeByCode(code: string): Promise<DiscountCode | undefined> {
+    const result = await db
+      .select()
+      .from(discountCodes)
+      .where(eq(discountCodes.code, code.toUpperCase()))
+      .limit(1);
+    return result[0];
+  }
+  
+  async updateDiscountCode(id: string, updates: Partial<Omit<InsertDiscountCode, 'code' | 'botId' | 'creatorId'>>): Promise<DiscountCode | undefined> {
+    const result = await db
+      .update(discountCodes)
+      .set(updates)
+      .where(eq(discountCodes.id, id))
+      .returning();
+    return result[0];
+  }
+  
+  async incrementDiscountCodeUses(id: string): Promise<DiscountCode | undefined> {
+    const result = await db
+      .update(discountCodes)
+      .set({
+        currentUses: sql`${discountCodes.currentUses} + 1`,
+      })
+      .where(eq(discountCodes.id, id))
+      .returning();
+    return result[0];
+  }
+  
+  async deactivateDiscountCode(id: string): Promise<DiscountCode | undefined> {
+    const result = await db
+      .update(discountCodes)
+      .set({ isActive: false })
+      .where(eq(discountCodes.id, id))
+      .returning();
+    return result[0];
   }
 
   async logWebhookEvent(log: InsertWebhookEventLog): Promise<WebhookEventLog> {
