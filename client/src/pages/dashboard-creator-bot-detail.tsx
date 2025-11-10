@@ -276,7 +276,7 @@ export default function DashboardCreatorBotDetail() {
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold" data-testid="stat-price">${((bot.price || 0) / 100).toFixed(2)}/mo</div>
+                <div className="text-2xl font-bold" data-testid="stat-price">${parseFloat(bot.monthlyPrice || "0").toFixed(2)}/mo</div>
                 <p className="text-xs text-muted-foreground">Monthly subscription</p>
               </CardContent>
             </Card>
@@ -559,7 +559,7 @@ export default function DashboardCreatorBotDetail() {
                     <div>
                       <Label className="text-muted-foreground">Price</Label>
                       <p className="text-lg font-medium" data-testid="text-display-price">
-                        ${((bot.price || 0) / 100).toFixed(2)}/month
+                        ${parseFloat(bot.monthlyPrice || "0").toFixed(2)}/month
                       </p>
                     </div>
 
