@@ -16,8 +16,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { Bot, BotPerformance } from "@shared/schema";
-import { TrendingUp, Users, Target, Activity, TestTube } from "lucide-react";
+import { TrendingUp, Users, Target, Activity, TestTube, Tag } from "lucide-react";
 import { SubscriptionPaymentDialog } from "./subscription-payment-dialog";
+import { Input } from "@/components/ui/input";
 
 interface SubscribeDialogProps {
   bot: Bot & { performance: BotPerformance | null };
@@ -33,15 +34,29 @@ export function SubscribeDialog({ bot, open, onOpenChange }: SubscribeDialogProp
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [clientSecret, setClientSecret] = useState("");
   const [stripeSubscriptionId, setStripeSubscriptionId] = useState("");
+  const [discountCode, setDiscountCode] = useState("");
+  const [discountApplied, setDiscountApplied] = useState(false);
 
   const isCreator = user?.id === bot.creatorId;
 
   const createPaymentMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/create-subscription-payment", { botId: bot.id });
+      const payload: any = { botId: bot.id };
+      if (discountCode.trim()) {
+        payload.discountCode = discountCode.trim().toUpperCase();
+      }
+      const res = await apiRequest("POST", "/api/create-subscription-payment", payload);
       return await res.json();
     },
-    onSuccess: (data: { clientSecret?: string; subscriptionId: string; isFree?: boolean }) => {
+    onSuccess: (data: { clientSecret?: string; subscriptionId: string; isFree?: boolean; discountApplied?: boolean }) => {
+      if (data.discountApplied) {
+        setDiscountApplied(true);
+        toast({
+          title: "Discount Applied!",
+          description: "Your discount code has been applied to the subscription",
+        });
+      }
+      
       // Handle free subscriptions
       if (data.isFree) {
         queryClient.invalidateQueries({ queryKey: ["/api/subscriptions"] });
@@ -236,15 +251,36 @@ export function SubscribeDialog({ bot, open, onOpenChange }: SubscribeDialogProp
           </div>
 
           {!isCreator && (
-            <div className="bg-muted/50 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-semibold">Monthly Subscription</span>
-                <span className="text-2xl font-bold">${parseFloat(bot.monthlyPrice).toFixed(0)}</span>
+            <>
+              <div>
+                <label className="text-sm font-medium mb-2 flex items-center gap-2">
+                  <Tag className="h-4 w-4" />
+                  Discount Code (Optional)
+                </label>
+                <Input
+                  value={discountCode}
+                  onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
+                  placeholder="Enter code"
+                  className="font-mono uppercase"
+                  data-testid="input-discount-code"
+                />
+                {discountApplied && (
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                    Discount code will be applied at checkout
+                  </p>
+                )}
               </div>
-              <p className="text-xs text-muted-foreground">
-                You can cancel anytime. No hidden fees.
-              </p>
-            </div>
+              
+              <div className="bg-muted/50 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold">Monthly Subscription</span>
+                  <span className="text-2xl font-bold">${parseFloat(bot.monthlyPrice).toFixed(0)}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  You can cancel anytime. No hidden fees.
+                </p>
+              </div>
+            </>
           )}
 
           <div className="flex gap-3">
