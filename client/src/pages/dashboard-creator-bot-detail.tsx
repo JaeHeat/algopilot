@@ -73,8 +73,10 @@ export default function DashboardCreatorBotDetail() {
     mutationFn: async (updates: any) => {
       return apiRequest("PATCH", `/api/creator/bots/${botId}`, updates);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/creator/bots"] });
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: ["/api/creator/bots"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/bots"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/bots", botId] });
       setIsEditingDetails(false);
       toast({
         title: "Bot updated",

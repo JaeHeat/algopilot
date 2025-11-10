@@ -93,7 +93,7 @@ export default function Marketplace() {
     }) ?? [];
 
   const strategies = Array.from(new Set(bots?.map((bot) => bot.strategy) ?? []));
-  const categories = Array.from(new Set(bots?.map((bot) => bot.category) ?? []));
+  const allCategories = Object.keys(categoryLabels);
   const riskLevels = ["Low", "Medium", "High"];
 
   const getRankIcon = (index: number) => {
@@ -199,9 +199,9 @@ export default function Marketplace() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                {categories.map((category) => (
+                {allCategories.map((category) => (
                   <SelectItem key={category} value={category}>
-                    {categoryLabels[category] || category}
+                    {categoryLabels[category]}
                   </SelectItem>
                 ))}
               </SelectContent>

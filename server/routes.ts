@@ -1109,6 +1109,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/creator/bots/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const bot = await storage.getBotById(req.params.id);
+      
+      if (!bot) {
+        return res.status(404).json({ message: "Bot not found" });
+      }
+      
+      if (bot.creatorId !== userId) {
+        return res.status(403).json({ message: "Forbidden: Only bot creators can update bots" });
+      }
+      
+      const updateSchema = z.object({
+        name: z.string().min(1).max(100).optional(),
+        description: z.string().max(500).optional(),
+        price: z.number().int().min(0).optional(),
+        category: z.enum([
+          "scalping",
+          "day_trading",
+          "swing_trading",
+          "trend_following",
+          "mean_reversion",
+          "arbitrage",
+          "market_making",
+          "grid_trading"
+        ]).optional(),
+      });
+      
+      const validated = updateSchema.parse(req.body);
+      
+      const updatedBot = await storage.updateBot(req.params.id, validated);
+      
+      res.json(updatedBot);
+    } catch (error) {
+      console.error("Error updating bot:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to update bot" });
+    }
+  });
+
   app.patch("/api/creator/bots/:id/regenerate-webhook", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
