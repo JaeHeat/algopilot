@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { csrfProtection, getCsrfToken } from "./csrf";
-import { insertBotSchema, insertSubscriptionSchema, insertExchangeConnectionSchema, updateSubscriptionSettingsSchema, insertCreatorPostSchema, insertPostCommentSchema, insertPostReactionSchema, insertCreatorApplicationSchema, updateBotEvaluationProgressSchema } from "@shared/schema";
+import { insertBotSchema, insertSubscriptionSchema, insertExchangeConnectionSchema, updateSubscriptionSettingsSchema, insertCreatorPostSchema, insertPostCommentSchema, insertPostReactionSchema, insertCreatorApplicationSchema, updateBotEvaluationProgressSchema, insertDiscountCodeSchema } from "@shared/schema";
 import { z } from "zod";
 import Stripe from "stripe";
 import { randomBytes } from "crypto";
@@ -1199,6 +1199,217 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error restoring webhook:", error);
       res.status(500).json({ message: "Failed to restore webhook" });
+    }
+  });
+
+  // Discount Code Routes
+  app.post("/api/creator/bots/:id/discount-codes", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const bot = await storage.getBotById(req.params.id);
+      
+      if (!bot) {
+        return res.status(404).json({ message: "Bot not found" });
+      }
+      
+      if (bot.creatorId !== userId) {
+        return res.status(403).json({ message: "Forbidden: Only bot creators can create discount codes" });
+      }
+      
+      const validatedCode = insertDiscountCodeSchema.parse({
+        ...req.body,
+        code: req.body.code.toUpperCase(),
+        botId: req.params.id,
+        creatorId: userId,
+      });
+      
+      const existingCode = await storage.getDiscountCodeByCode(validatedCode.code);
+      if (existingCode) {
+        return res.status(400).json({ message: "Discount code already exists" });
+      }
+      
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+      
+      const couponParams: Stripe.CouponCreateParams = validatedCode.discountType === 'percentage'
+        ? {
+            percent_off: parseFloat(validatedCode.discountValue),
+            duration: 'repeating',
+            duration_in_months: 3,
+            name: `${bot.name} - ${validatedCode.code}`,
+          }
+        : {
+            amount_off: Math.round(parseFloat(validatedCode.discountValue) * 100),
+            currency: 'usd',
+            duration: 'repeating',
+            duration_in_months: 3,
+            name: `${bot.name} - ${validatedCode.code}`,
+          };
+      
+      const coupon = await stripe.coupons.create(couponParams);
+      
+      const promoCodeParams: Stripe.PromotionCodeCreateParams = {
+        coupon: coupon.id,
+        code: validatedCode.code,
+        active: validatedCode.isActive,
+      };
+      
+      if (validatedCode.maxUses) {
+        promoCodeParams.max_redemptions = validatedCode.maxUses;
+      }
+      
+      if (validatedCode.expiresAt) {
+        promoCodeParams.expires_at = Math.floor(new Date(validatedCode.expiresAt).getTime() / 1000);
+      }
+      
+      const promoCode = await stripe.promotionCodes.create(promoCodeParams);
+      
+      const discountCode = await storage.createDiscountCode({
+        ...validatedCode,
+        stripeCouponId: coupon.id,
+        stripePromotionCodeId: promoCode.id,
+      });
+      
+      res.json(discountCode);
+    } catch (error: any) {
+      console.error("Error creating discount code:", error);
+      if (error.type === 'StripeInvalidRequestError') {
+        return res.status(400).json({ message: error.message });
+      }
+      res.status(500).json({ message: "Failed to create discount code" });
+    }
+  });
+
+  app.get("/api/creator/bots/:id/discount-codes", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const bot = await storage.getBotById(req.params.id);
+      
+      if (!bot) {
+        return res.status(404).json({ message: "Bot not found" });
+      }
+      
+      if (bot.creatorId !== userId) {
+        return res.status(403).json({ message: "Forbidden: Only bot creators can view discount codes" });
+      }
+      
+      const discountCodes = await storage.getDiscountCodesByBotId(req.params.id);
+      res.json(discountCodes);
+    } catch (error) {
+      console.error("Error fetching discount codes:", error);
+      res.status(500).json({ message: "Failed to fetch discount codes" });
+    }
+  });
+
+  app.patch("/api/creator/bots/:id/discount-codes/:codeId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const bot = await storage.getBotById(req.params.id);
+      
+      if (!bot) {
+        return res.status(404).json({ message: "Bot not found" });
+      }
+      
+      if (bot.creatorId !== userId) {
+        return res.status(403).json({ message: "Forbidden: Only bot creators can update discount codes" });
+      }
+      
+      const updates = z.object({
+        isActive: z.boolean().optional(),
+        maxUses: z.number().int().positive().nullable().optional(),
+        expiresAt: z.date().nullable().optional(),
+      }).parse(req.body);
+      
+      const discountCode = await storage.updateDiscountCode(req.params.codeId, updates);
+      
+      if (!discountCode) {
+        return res.status(404).json({ message: "Discount code not found" });
+      }
+      
+      if (discountCode.stripePromotionCodeId && updates.isActive !== undefined) {
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+        await stripe.promotionCodes.update(discountCode.stripePromotionCodeId, {
+          active: updates.isActive,
+        });
+      }
+      
+      res.json(discountCode);
+    } catch (error) {
+      console.error("Error updating discount code:", error);
+      res.status(500).json({ message: "Failed to update discount code" });
+    }
+  });
+
+  app.delete("/api/creator/bots/:id/discount-codes/:codeId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const bot = await storage.getBotById(req.params.id);
+      
+      if (!bot) {
+        return res.status(404).json({ message: "Bot not found" });
+      }
+      
+      if (bot.creatorId !== userId) {
+        return res.status(403).json({ message: "Forbidden: Only bot creators can deactivate discount codes" });
+      }
+      
+      const discountCode = await storage.deactivateDiscountCode(req.params.codeId);
+      
+      if (!discountCode) {
+        return res.status(404).json({ message: "Discount code not found" });
+      }
+      
+      if (discountCode.stripePromotionCodeId) {
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+        await stripe.promotionCodes.update(discountCode.stripePromotionCodeId, {
+          active: false,
+        });
+      }
+      
+      res.json({ message: "Discount code deactivated successfully" });
+    } catch (error) {
+      console.error("Error deactivating discount code:", error);
+      res.status(500).json({ message: "Failed to deactivate discount code" });
+    }
+  });
+
+  app.post("/api/validate-discount-code", isAuthenticated, async (req: any, res) => {
+    try {
+      const { code, botId } = z.object({
+        code: z.string(),
+        botId: z.string(),
+      }).parse(req.body);
+      
+      const discountCode = await storage.getDiscountCodeByCode(code);
+      
+      if (!discountCode) {
+        return res.status(404).json({ message: "Discount code not found" });
+      }
+      
+      if (discountCode.botId !== botId) {
+        return res.status(400).json({ message: "Discount code is not valid for this bot" });
+      }
+      
+      if (!discountCode.isActive) {
+        return res.status(400).json({ message: "Discount code is no longer active" });
+      }
+      
+      if (discountCode.expiresAt && new Date(discountCode.expiresAt) < new Date()) {
+        return res.status(400).json({ message: "Discount code has expired" });
+      }
+      
+      if (discountCode.maxUses && discountCode.currentUses >= discountCode.maxUses) {
+        return res.status(400).json({ message: "Discount code has reached its usage limit" });
+      }
+      
+      res.json({
+        valid: true,
+        discountType: discountCode.discountType,
+        discountValue: discountCode.discountValue,
+        stripeCouponId: discountCode.stripeCouponId,
+      });
+    } catch (error) {
+      console.error("Error validating discount code:", error);
+      res.status(500).json({ message: "Failed to validate discount code" });
     }
   });
 
