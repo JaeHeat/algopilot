@@ -49,12 +49,24 @@ const createBotFormSchema = z.object({
   name: z.string().min(3, "Name must be at least 3 characters"),
   description: z.string().min(10, "Description must be at least 10 characters"),
   strategy: z.string().min(3, "Strategy is required"),
+  category: z.enum(["scalping", "day_trading", "swing_trading", "trend_following", "mean_reversion", "arbitrage", "market_making", "grid_trading"]),
   riskLevel: z.string().min(1, "Risk level is required"),
   monthlyPrice: z.string().min(1, "Monthly price is required"),
   strategyDescription: z.string().min(20, "Strategy description must be at least 20 characters"),
 });
 
 type CreateBotForm = z.infer<typeof createBotFormSchema>;
+
+const categoryLabels: Record<string, string> = {
+  scalping: "Scalping",
+  day_trading: "Day Trading",
+  swing_trading: "Swing Trading",
+  trend_following: "Trend Following",
+  mean_reversion: "Mean Reversion",
+  arbitrage: "Arbitrage",
+  market_making: "Market Making",
+  grid_trading: "Grid Trading",
+};
 
 function WebhookHistoryDialog({ bot }: { bot: any }) {
   const { toast } = useToast();
@@ -533,6 +545,7 @@ export default function DashboardCreator() {
       name: "",
       description: "",
       strategy: "",
+      category: "trend_following",
       riskLevel: "2",
       monthlyPrice: "99.00",
       strategyDescription: "",
@@ -669,6 +682,37 @@ export default function DashboardCreator() {
                       <FormControl>
                         <Input placeholder="e.g., Trend Following, Mean Reversion" {...field} data-testid="input-bot-strategy" />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="category"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Category</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-category">
+                            <SelectValue placeholder="Select category" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="scalping">Scalping</SelectItem>
+                          <SelectItem value="day_trading">Day Trading</SelectItem>
+                          <SelectItem value="swing_trading">Swing Trading</SelectItem>
+                          <SelectItem value="trend_following">Trend Following</SelectItem>
+                          <SelectItem value="mean_reversion">Mean Reversion</SelectItem>
+                          <SelectItem value="arbitrage">Arbitrage</SelectItem>
+                          <SelectItem value="market_making">Market Making</SelectItem>
+                          <SelectItem value="grid_trading">Grid Trading</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Choose the trading style that best describes this bot
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
