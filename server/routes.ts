@@ -1750,7 +1750,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/create-subscription-payment", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
-      const { botId } = z.object({ botId: z.string() }).parse(req.body);
+      const { botId, discountCode } = z.object({ 
+        botId: z.string(),
+        discountCode: z.string().optional()
+      }).parse(req.body);
       
       const bot = await storage.getBotById(botId);
       if (!bot) {
@@ -1776,6 +1779,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const priceAmount = Math.round(parseFloat(bot.monthlyPrice) * 100);
+      
+      let validatedDiscountCode = null;
+      let stripeCouponId = null;
+      
+      if (discountCode) {
+        const discount = await storage.getDiscountCodeByCode(discountCode);
+        
+        if (!discount) {
+          return res.status(404).json({ message: "Discount code not found" });
+        }
+        
+        if (discount.botId !== botId) {
+          return res.status(400).json({ message: "Discount code is not valid for this bot" });
+        }
+        
+        if (!discount.isActive) {
+          return res.status(400).json({ message: "Discount code is no longer active" });
+        }
+        
+        if (discount.expiresAt && new Date(discount.expiresAt) < new Date()) {
+          return res.status(400).json({ message: "Discount code has expired" });
+        }
+        
+        if (discount.maxUses && discount.currentUses >= discount.maxUses) {
+          return res.status(400).json({ message: "Discount code has reached its usage limit" });
+        }
+        
+        validatedDiscountCode = discount;
+        stripeCouponId = discount.stripeCouponId;
+      }
       
       // Handle free bots (no payment required)
       if (priceAmount === 0) {
@@ -1816,7 +1849,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
       });
       
-      const subscription = await stripe.subscriptions.create({
+      const subscriptionParams: Stripe.SubscriptionCreateParams = {
         customer: stripeCustomerId,
         items: [{
           price_data: {
@@ -1835,8 +1868,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         metadata: {
           botId: bot.id,
           userId: user.id,
+          discountCode: discountCode || '',
         },
-      });
+      };
+      
+      if (stripeCouponId) {
+        subscriptionParams.coupon = stripeCouponId;
+        subscriptionParams.metadata!.discountCodeId = validatedDiscountCode?.id || '';
+      }
+      
+      const subscription = await stripe.subscriptions.create(subscriptionParams);
       
       // Retrieve the invoice with payment intent expanded
       const invoiceId = typeof subscription.latest_invoice === 'string' 
@@ -1874,10 +1915,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
+      if (validatedDiscountCode) {
+        await storage.incrementDiscountCodeUses(validatedDiscountCode.id);
+      }
+      
       res.json({
         subscriptionId: subscription.id,
         clientSecret: paymentIntent.client_secret,
         amount: bot.monthlyPrice,
+        discountApplied: !!validatedDiscountCode,
+        discountCode: validatedDiscountCode?.code,
       });
     } catch (error: any) {
       console.error("Error creating subscription payment:", error);
