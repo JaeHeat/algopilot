@@ -176,6 +176,11 @@ export default function BotDetail() {
               <div className="flex flex-wrap gap-2 mb-6">
                 <Badge className={riskInfo.color} data-testid="badge-risk-level">{riskInfo.label}</Badge>
                 <Badge variant="outline" data-testid="badge-strategy">{bot.strategy}</Badge>
+                {bot.category && (
+                  <Badge variant="outline" className="bg-primary/5 border-primary/20" data-testid="badge-category">
+                    {bot.category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                  </Badge>
+                )}
                 <Badge variant="outline" data-testid="text-monthly-price">
                   ${parseFloat(bot.monthlyPrice).toFixed(0)}/mo
                 </Badge>

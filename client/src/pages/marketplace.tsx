@@ -296,6 +296,11 @@ export default function Marketplace() {
                     <Badge variant="outline" className="text-xs">
                       {bot.strategy}
                     </Badge>
+                    {bot.category && (
+                      <Badge variant="outline" className="text-xs bg-primary/5 border-primary/20">
+                        {categoryLabels[bot.category] || bot.category}
+                      </Badge>
+                    )}
                     <Badge variant="outline" className={`text-xs border ${getRiskBadgeColor(bot.riskLevel)}`}>
                       {bot.riskLevel} Risk
                     </Badge>
