@@ -4,7 +4,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Copy, RefreshCw, CheckCircle2, XCircle, Clock, Webhook, TrendingUp, Award, AlertCircle, Settings, BarChart3 } from "lucide-react";
+import { Plus, Copy, RefreshCw, CheckCircle2, XCircle, Clock, Webhook, TrendingUp, Award, AlertCircle, Settings, BarChart3, History } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +16,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Form,
   FormControl,
@@ -44,6 +54,153 @@ const createBotFormSchema = z.object({
 });
 
 type CreateBotForm = z.infer<typeof createBotFormSchema>;
+
+function WebhookHistoryDialog({ bot }: { bot: any }) {
+  const { toast } = useToast();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [confirmRestore, setConfirmRestore] = useState<string | null>(null);
+
+  const { data: history = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/creator/bots", bot.id, "webhook-history"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/creator/bots/${bot.id}/webhook-history`);
+      return await res.json();
+    },
+    enabled: dialogOpen,
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: async (historyId: string) => {
+      const res = await apiRequest("POST", `/api/creator/bots/${bot.id}/webhook-history/${historyId}/restore`, {});
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/creator/bots"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/creator/bots", bot.id, "webhook-history"] });
+      setConfirmRestore(null);
+      setDialogOpen(false);
+      toast({
+        title: "Webhook Restored",
+        description: "Previous webhook URL has been restored successfully",
+      });
+    },
+    onError: () => {
+      setConfirmRestore(null);
+      toast({
+        title: "Error",
+        description: "Failed to restore webhook URL",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const copyUrl = (url: string) => {
+    navigator.clipboard.writeText(url);
+    toast({
+      title: "Copied!",
+      description: "Webhook URL copied to clipboard",
+    });
+  };
+
+  return (
+    <>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogTrigger asChild>
+          <Button
+            variant="outline"
+            size="icon"
+            data-testid={`button-history-${bot.id}`}
+            aria-label="View webhook history"
+          >
+            <History className="h-4 w-4" />
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Webhook URL History</DialogTitle>
+            <DialogDescription>
+              View and restore previous webhook URLs for {bot.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 max-h-96 overflow-y-auto">
+            {isLoading && (
+              <div className="text-center py-8 text-muted-foreground">
+                Loading history...
+              </div>
+            )}
+            {!isLoading && history.length === 0 && (
+              <div className="text-center py-8 text-muted-foreground">
+                No previous webhook URLs found
+              </div>
+            )}
+            {!isLoading && history.map((entry: any) => (
+              <Card key={entry.id}>
+                <CardContent className="pt-4">
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs text-muted-foreground mb-1">
+                          {formatDistanceToNow(new Date(entry.replacedAt), { addSuffix: true })}
+                        </div>
+                        <div className="flex gap-2">
+                          <Input
+                            value={entry.webhookUrl}
+                            readOnly
+                            className="font-mono text-xs"
+                            title={entry.webhookUrl}
+                            data-testid={`input-history-url-${entry.id}`}
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => copyUrl(entry.webhookUrl)}
+                            aria-label="Copy webhook URL"
+                            data-testid={`button-copy-history-${entry.id}`}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => setConfirmRestore(entry.id)}
+                        disabled={restoreMutation.isPending}
+                        data-testid={`button-restore-${entry.id}`}
+                      >
+                        Restore
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!confirmRestore} onOpenChange={(open) => !open && setConfirmRestore(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore Webhook URL?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will replace your current webhook URL with the selected one. Your TradingView alerts will need to use the restored URL to send signals.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={restoreMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => confirmRestore && restoreMutation.mutate(confirmRestore)}
+              disabled={restoreMutation.isPending}
+            >
+              {restoreMutation.isPending ? "Restoring..." : "Restore"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
 
 export default function DashboardCreator() {
   const { toast } = useToast();
@@ -500,6 +657,7 @@ export default function DashboardCreator() {
                       >
                         <RefreshCw className={`h-4 w-4 ${regenerateWebhookMutation.isPending ? 'animate-spin' : ''}`} />
                       </Button>
+                      <WebhookHistoryDialog bot={bot} />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <Link href={`/dashboard/creator/bot/${bot.id}`}>
