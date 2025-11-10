@@ -1125,7 +1125,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updateSchema = z.object({
         name: z.string().min(1).max(100).optional(),
         description: z.string().max(500).optional(),
-        price: z.number().int().min(0).optional(),
+        monthlyPrice: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
         category: z.enum([
           "scalping",
           "day_trading",

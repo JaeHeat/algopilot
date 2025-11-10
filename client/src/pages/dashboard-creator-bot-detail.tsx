@@ -130,7 +130,7 @@ export default function DashboardCreatorBotDetail() {
     setEditForm({
       name: bot.name,
       description: bot.description || "",
-      price: (bot.price / 100).toString(),
+      price: bot.monthlyPrice,
       category: bot.category,
     });
     setIsEditingDetails(true);
@@ -140,7 +140,7 @@ export default function DashboardCreatorBotDetail() {
     updateBotMutation.mutate({
       name: editForm.name,
       description: editForm.description,
-      price: Math.round(parseFloat(editForm.price) * 100),
+      monthlyPrice: editForm.price,
       category: editForm.category,
     });
   };
