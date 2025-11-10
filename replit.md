@@ -27,9 +27,10 @@ The platform utilizes a modern web stack: React with TypeScript, Wouter, TanStac
 - **Creator Bot Detail Page**: Comprehensive bot management dashboard at `/dashboard/creator/bot/:id` with tabbed interface:
   - Overview tab: Performance metrics (trades, profit, drawdown, subscription price), quick action buttons to evaluation and settings
   - Evaluation tab: Real-time evaluation progress with visual progress bars for trade count, profit percentage, and maximum drawdown
-  - Details tab: Edit bot information including name, description, price, and category with validation
+  - Details tab: Edit bot information including name, description, monthlyPrice, and category with validation. Updates persist via PATCH endpoint with automatic cache invalidation using refetchQueries.
   - Updates tab: Future feature for bot updates and announcements
   All evaluation progress is calculated dynamically from actual trade data for tamper-proof accuracy.
+  Important: Bot prices stored as `monthlyPrice` (decimal) in database, not `price` (integer cents).
 - **Exchange Connection Management**: Secure management of API credentials using AES-256-GCM encryption with PBKDF2 key derivation. Credentials are encrypted at rest and decrypted transiently. Supports paper/live trading, spot/futures accounts, and testnet connections for Binance and Bybit.
 - **TradingView Integration**: Webhook-based integration for executing trade signals from TradingView alerts.
 - **Multi-Source Real-Time Price Fetching**: A 5-source cascading fallback system ensures reliable price data with server-side validation.
@@ -49,7 +50,7 @@ The platform utilizes a modern web stack: React with TypeScript, Wouter, TanStac
 - **Featured Placements**: Paid featured banner slots in the marketplace with analytics.
 - **Creator Payout System**: Automated earnings calculation (75% of revenue), creator dashboard, payout request functionality (min $100), admin review workflow, and Stripe Connect Express integration for automated payouts and hosted onboarding.
 - **Bot Settings Management**: Comprehensive bot configuration system with dedicated database table (bot_settings) using jsonb for flexible settings storage. Features tabbed UI (Trading, Risk Management, Signal Handling, Order Execution, Schedule) covering leverage (1-20x), position sizing modes (fixed/percentage/risk-based), risk management (stop loss/take profit/max daily loss), signal handling (strategy, filters, confirmations), order execution (types, slippage, retries), and trading schedule (hours, days). Accessible via Bot Settings button on creator dashboard.
-- **Bot Categorization System**: Bots are organized by trading style using PostgreSQL enum with 8 categories: Scalping, Day Trading, Swing Trading, Trend Following, Mean Reversion, Arbitrage, Market Making, and Grid Trading. Categories are indexed for efficient filtering and displayed in both creator forms and marketplace filters.
+- **Bot Categorization System**: Bots are organized by trading style using PostgreSQL enum with 8 categories: Scalping, Day Trading, Swing Trading, Trend Following, Mean Reversion, Arbitrage, Market Making, and Grid Trading. Categories are indexed for efficient filtering and displayed in both creator forms and marketplace filters. Full category editing support via PATCH `/api/creator/bots/:id` endpoint with proper validation and cache invalidation.
 - **Creator Discount Code System**: Full-featured promotional pricing system allowing creators to create, manage, and track discount codes for their bots. Features include:
   - Percentage-based or fixed-amount discounts
   - Expiration dates and usage limits
