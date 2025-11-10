@@ -1228,8 +1228,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Discount code already exists" });
       }
       
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-      
       const couponParams: Stripe.CouponCreateParams = validatedCode.discountType === 'percentage'
         ? {
             percent_off: parseFloat(validatedCode.discountValue),
@@ -1326,7 +1324,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       if (discountCode.stripePromotionCodeId && updates.isActive !== undefined) {
-        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
         await stripe.promotionCodes.update(discountCode.stripePromotionCodeId, {
           active: updates.isActive,
         });
@@ -1359,7 +1356,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       if (discountCode.stripePromotionCodeId) {
-        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
         await stripe.promotionCodes.update(discountCode.stripePromotionCodeId, {
           active: false,
         });
