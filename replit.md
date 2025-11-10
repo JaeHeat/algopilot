@@ -49,6 +49,17 @@ The platform utilizes a modern web stack: React with TypeScript, Wouter, TanStac
 - **Featured Placements**: Paid featured banner slots in the marketplace with analytics.
 - **Creator Payout System**: Automated earnings calculation (75% of revenue), creator dashboard, payout request functionality (min $100), admin review workflow, and Stripe Connect Express integration for automated payouts and hosted onboarding.
 - **Bot Settings Management**: Comprehensive bot configuration system with dedicated database table (bot_settings) using jsonb for flexible settings storage. Features tabbed UI (Trading, Risk Management, Signal Handling, Order Execution, Schedule) covering leverage (1-20x), position sizing modes (fixed/percentage/risk-based), risk management (stop loss/take profit/max daily loss), signal handling (strategy, filters, confirmations), order execution (types, slippage, retries), and trading schedule (hours, days). Accessible via Bot Settings button on creator dashboard.
+- **Bot Categorization System**: Bots are organized by trading style using PostgreSQL enum with 8 categories: Scalping, Day Trading, Swing Trading, Trend Following, Mean Reversion, Arbitrage, Market Making, and Grid Trading. Categories are indexed for efficient filtering and displayed in both creator forms and marketplace filters.
+- **Creator Discount Code System**: Full-featured promotional pricing system allowing creators to create, manage, and track discount codes for their bots. Features include:
+  - Percentage-based or fixed-amount discounts
+  - Expiration dates and usage limits
+  - Active/inactive status toggle
+  - Current usage tracking
+  - Stripe Coupon and Promotion Code integration for seamless payment processing
+  - Code validation during subscription checkout
+  - Copy-to-clipboard functionality
+  - Tooltip-enhanced UI for easy discovery
+  All discount codes are validated server-side with comprehensive checks for ownership, expiration, usage limits, and active status before application.
 - **Admin Panel**: Comprehensive dashboard for platform management, including statistics, user/creator management, and payout approvals.
 
 **System Design Choices:**

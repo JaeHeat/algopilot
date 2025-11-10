@@ -13,10 +13,22 @@ import { Link } from "wouter";
 
 type BotWithPerformance = Bot & { performance: BotPerformance | null };
 
+const categoryLabels: Record<string, string> = {
+  scalping: "Scalping",
+  day_trading: "Day Trading",
+  swing_trading: "Swing Trading",
+  trend_following: "Trend Following",
+  mean_reversion: "Mean Reversion",
+  arbitrage: "Arbitrage",
+  market_making: "Market Making",
+  grid_trading: "Grid Trading",
+};
+
 export default function Marketplace() {
   const { isAuthenticated } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [strategyFilter, setStrategyFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [riskFilter, setRiskFilter] = useState("all");
   const [sortBy, setSortBy] = useState("roi");
   const [selectedBot, setSelectedBot] = useState<BotWithPerformance | null>(null);
@@ -60,8 +72,9 @@ export default function Marketplace() {
       const matchesSearch = bot.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         bot.description.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStrategy = strategyFilter === "all" || bot.strategy === strategyFilter;
+      const matchesCategory = categoryFilter === "all" || bot.category === categoryFilter;
       const matchesRisk = riskFilter === "all" || bot.riskLevel === riskFilter;
-      return matchesSearch && matchesStrategy && matchesRisk;
+      return matchesSearch && matchesStrategy && matchesCategory && matchesRisk;
     })
     .sort((a, b) => {
       if (!a.performance || !b.performance) return 0;
@@ -80,6 +93,7 @@ export default function Marketplace() {
     }) ?? [];
 
   const strategies = Array.from(new Set(bots?.map((bot) => bot.strategy) ?? []));
+  const categories = Array.from(new Set(bots?.map((bot) => bot.category) ?? []));
   const riskLevels = ["Low", "Medium", "High"];
 
   const getRankIcon = (index: number) => {
@@ -153,7 +167,7 @@ export default function Marketplace() {
         </div>
 
         <div className="sticky top-0 bg-background/95 backdrop-blur-sm z-10 py-4 -mx-8 px-8 mb-6 border-b">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -174,6 +188,20 @@ export default function Marketplace() {
                 {strategies.map((strategy) => (
                   <SelectItem key={strategy} value={strategy}>
                     {strategy}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger data-testid="select-category-filter">
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {categories.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {categoryLabels[category] || category}
                   </SelectItem>
                 ))}
               </SelectContent>
