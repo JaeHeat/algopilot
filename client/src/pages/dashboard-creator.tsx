@@ -4,7 +4,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Copy, RefreshCw, CheckCircle2, XCircle, Clock, Webhook, TrendingUp, Award, AlertCircle, Settings, BarChart3, History } from "lucide-react";
+import { Plus, Copy, RefreshCw, CheckCircle2, XCircle, Clock, Webhook, TrendingUp, Award, AlertCircle, Settings, BarChart3, History, Tag, Percent, DollarSign } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -199,6 +199,315 @@ function WebhookHistoryDialog({ bot }: { bot: any }) {
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+function DiscountCodesDialog({ bot }: { bot: any }) {
+  const { toast } = useToast();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [createMode, setCreateMode] = useState(false);
+
+  const { data: discountCodes = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/creator/bots", bot.id, "discount-codes"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/creator/bots/${bot.id}/discount-codes`);
+      return await res.json();
+    },
+    enabled: dialogOpen,
+  });
+
+  const form = useForm({
+    defaultValues: {
+      code: "",
+      discountType: "percentage" as "percentage" | "fixed",
+      discountValue: "",
+      maxUses: "",
+      expiresAt: "",
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", `/api/creator/bots/${bot.id}/discount-codes`, {
+        code: data.code.toUpperCase(),
+        discountType: data.discountType,
+        discountValue: data.discountValue,
+        maxUses: data.maxUses ? parseInt(data.maxUses) : null,
+        expiresAt: data.expiresAt ? new Date(data.expiresAt).toISOString() : null,
+        isActive: true,
+      });
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/creator/bots", bot.id, "discount-codes"] });
+      form.reset();
+      setCreateMode(false);
+      toast({
+        title: "Discount Code Created",
+        description: "Your discount code has been created successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create discount code",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const toggleActiveMutation = useMutation({
+    mutationFn: async ({ codeId, isActive }: { codeId: string; isActive: boolean }) => {
+      const res = await apiRequest("PATCH", `/api/creator/bots/${bot.id}/discount-codes/${codeId}`, {
+        isActive,
+      });
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/creator/bots", bot.id, "discount-codes"] });
+      toast({
+        title: "Status Updated",
+        description: "Discount code status has been updated",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update discount code",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deactivateMutation = useMutation({
+    mutationFn: async (codeId: string) => {
+      const res = await apiRequest("DELETE", `/api/creator/bots/${bot.id}/discount-codes/${codeId}`, {});
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/creator/bots", bot.id, "discount-codes"] });
+      toast({
+        title: "Code Deactivated",
+        description: "Discount code has been deactivated",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to deactivate discount code",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const copyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    toast({
+      title: "Copied!",
+      description: "Discount code copied to clipboard",
+    });
+  };
+
+  return (
+    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <DialogTrigger asChild>
+        <Button
+          variant="outline"
+          size="icon"
+          data-testid={`button-discount-codes-${bot.id}`}
+          aria-label="Manage discount codes"
+        >
+          <Tag className="h-4 w-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Discount Codes</DialogTitle>
+          <DialogDescription>
+            Create and manage discount codes for {bot.name}
+          </DialogDescription>
+        </DialogHeader>
+
+        {!createMode ? (
+          <div className="space-y-4">
+            <Button
+              onClick={() => setCreateMode(true)}
+              data-testid="button-create-discount-code"
+              className="w-full"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Create New Discount Code
+            </Button>
+
+            {isLoading ? (
+              <div className="text-center py-8 text-muted-foreground">Loading...</div>
+            ) : discountCodes.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No discount codes created yet
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {discountCodes.map((code: any) => (
+                  <Card key={code.id}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <code className="text-lg font-mono font-semibold bg-muted px-2 py-1 rounded">
+                              {code.code}
+                            </code>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => copyCode(code.code)}
+                              data-testid={`button-copy-code-${code.id}`}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                            <Badge variant={code.isActive ? "default" : "secondary"}>
+                              {code.isActive ? "Active" : "Inactive"}
+                            </Badge>
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                            <div className="flex items-center gap-2">
+                              {code.discountType === "percentage" ? (
+                                <>
+                                  <Percent className="h-4 w-4 text-muted-foreground" />
+                                  <span>{code.discountValue}% off</span>
+                                </>
+                              ) : (
+                                <>
+                                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                                  <span>${code.discountValue} off</span>
+                                </>
+                              )}
+                            </div>
+                            <div className="text-muted-foreground">
+                              Uses: {code.currentUses}{code.maxUses ? ` / ${code.maxUses}` : " / ∞"}
+                            </div>
+                            {code.expiresAt && (
+                              <div className="text-muted-foreground col-span-2">
+                                Expires: {new Date(code.expiresAt).toLocaleDateString()}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => toggleActiveMutation.mutate({ codeId: code.id, isActive: !code.isActive })}
+                            disabled={toggleActiveMutation.isPending}
+                            data-testid={`button-toggle-${code.id}`}
+                          >
+                            {code.isActive ? "Deactivate" : "Activate"}
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <form onSubmit={form.handleSubmit((data) => createMutation.mutate(data))} className="space-y-4">
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Discount Code</label>
+                <Input
+                  {...form.register("code")}
+                  placeholder="SUMMER2025"
+                  className="font-mono uppercase"
+                  onChange={(e) => form.setValue("code", e.target.value.toUpperCase())}
+                  data-testid="input-discount-code"
+                  required
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Enter a unique code (letters and numbers only)
+                </p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Discount Type</label>
+                <Select
+                  value={form.watch("discountType")}
+                  onValueChange={(value: "percentage" | "fixed") => form.setValue("discountType", value)}
+                >
+                  <SelectTrigger data-testid="select-discount-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="percentage">Percentage Off</SelectItem>
+                    <SelectItem value="fixed">Fixed Amount Off</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">
+                  {form.watch("discountType") === "percentage" ? "Percentage (%)" : "Amount ($)"}
+                </label>
+                <Input
+                  {...form.register("discountValue")}
+                  type="number"
+                  step={form.watch("discountType") === "percentage" ? "1" : "0.01"}
+                  min={form.watch("discountType") === "percentage" ? "1" : "0.01"}
+                  max={form.watch("discountType") === "percentage" ? "100" : undefined}
+                  placeholder={form.watch("discountType") === "percentage" ? "20" : "10.00"}
+                  data-testid="input-discount-value"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Max Uses (Optional)</label>
+                  <Input
+                    {...form.register("maxUses")}
+                    type="number"
+                    min="1"
+                    placeholder="Unlimited"
+                    data-testid="input-max-uses"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">Expires At (Optional)</label>
+                  <Input
+                    {...form.register("expiresAt")}
+                    type="date"
+                    min={new Date().toISOString().split('T')[0]}
+                    data-testid="input-expires-at"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setCreateMode(false);
+                  form.reset();
+                }}
+                disabled={createMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={createMutation.isPending}
+                data-testid="button-submit-discount-code"
+              >
+                {createMutation.isPending ? "Creating..." : "Create Code"}
+              </Button>
+            </div>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -658,6 +967,7 @@ export default function DashboardCreator() {
                         <RefreshCw className={`h-4 w-4 ${regenerateWebhookMutation.isPending ? 'animate-spin' : ''}`} />
                       </Button>
                       <WebhookHistoryDialog bot={bot} />
+                      <DiscountCodesDialog bot={bot} />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <Link href={`/dashboard/creator/bot/${bot.id}`}>
