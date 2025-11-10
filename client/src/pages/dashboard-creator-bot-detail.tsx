@@ -39,6 +39,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+const categoryLabels: Record<string, string> = {
+  scalping: "Scalping",
+  day_trading: "Day Trading",
+  swing_trading: "Swing Trading",
+  trend_following: "Trend Following",
+  mean_reversion: "Mean Reversion",
+  arbitrage: "Arbitrage",
+  market_making: "Market Making",
+  grid_trading: "Grid Trading",
+};
+
 export default function DashboardCreatorBotDetail() {
   const [, params] = useRoute("/dashboard/creator/bot/:id");
   const [, navigate] = useLocation();
@@ -499,10 +510,13 @@ export default function DashboardCreatorBotDetail() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="scalping">Scalping</SelectItem>
-                          <SelectItem value="swing">Swing Trading</SelectItem>
-                          <SelectItem value="trend">Trend Following</SelectItem>
+                          <SelectItem value="day_trading">Day Trading</SelectItem>
+                          <SelectItem value="swing_trading">Swing Trading</SelectItem>
+                          <SelectItem value="trend_following">Trend Following</SelectItem>
+                          <SelectItem value="mean_reversion">Mean Reversion</SelectItem>
                           <SelectItem value="arbitrage">Arbitrage</SelectItem>
                           <SelectItem value="market_making">Market Making</SelectItem>
+                          <SelectItem value="grid_trading">Grid Trading</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -549,8 +563,8 @@ export default function DashboardCreatorBotDetail() {
 
                     <div>
                       <Label className="text-muted-foreground">Category</Label>
-                      <p className="text-lg font-medium capitalize" data-testid="text-display-category">
-                        {bot.category?.replace("_", " ") || "N/A"}
+                      <p className="text-lg font-medium" data-testid="text-display-category">
+                        {bot.category ? categoryLabels[bot.category] || bot.category : "N/A"}
                       </p>
                     </div>
                   </div>
