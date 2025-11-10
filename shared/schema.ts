@@ -236,6 +236,27 @@ export const botSettings = pgTable("bot_settings", {
   index("idx_bot_settings_bot_id").on(table.botId),
 ]);
 
+export const discountCodes = pgTable("discount_codes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: text("code").notNull().unique(),
+  botId: varchar("bot_id").notNull().references(() => bots.id),
+  creatorId: varchar("creator_id").notNull().references(() => users.id),
+  discountType: text("discount_type").notNull(),
+  discountValue: decimal("discount_value", { precision: 10, scale: 2 }).notNull(),
+  stripeCouponId: text("stripe_coupon_id"),
+  stripePromotionCodeId: text("stripe_promotion_code_id"),
+  maxUses: integer("max_uses"),
+  currentUses: integer("current_uses").notNull().default(0),
+  expiresAt: timestamp("expires_at"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_discount_codes_bot_id").on(table.botId),
+  index("idx_discount_codes_creator_id").on(table.creatorId),
+  index("idx_discount_codes_code").on(table.code),
+  index("idx_discount_codes_active").on(table.isActive),
+]);
+
 export const trades = pgTable("trades", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   subscriptionId: varchar("subscription_id").notNull().references(() => subscriptions.id),
@@ -388,6 +409,7 @@ export const insertPostReactionSchema = createInsertSchema(postReactions).omit({
 export const insertBotWebhookSchema = createInsertSchema(botWebhooks).omit({ id: true, createdAt: true });
 export const insertWebhookUrlHistorySchema = createInsertSchema(webhookUrlHistory).omit({ id: true, replacedAt: true });
 export const insertBotSettingsSchema = createInsertSchema(botSettings).omit({ id: true, updatedAt: true });
+export const insertDiscountCodeSchema = createInsertSchema(discountCodes).omit({ id: true, createdAt: true, currentUses: true });
 export const insertWebhookEventLogSchema = createInsertSchema(webhookEventLogs).omit({ id: true, processedAt: true });
 export const insertTradeSchema = createInsertSchema(trades).omit({ id: true, executedAt: true });
 export const insertPositionSchema = createInsertSchema(positions).omit({ id: true, openedAt: true, closedAt: true });
@@ -476,3 +498,5 @@ export type InsertBotEvaluation = z.infer<typeof insertBotEvaluationSchema>;
 export type BotEvaluation = typeof botEvaluations.$inferSelect;
 export type InsertPayout = z.infer<typeof insertPayoutSchema>;
 export type Payout = typeof payouts.$inferSelect;
+export type InsertDiscountCode = z.infer<typeof insertDiscountCodeSchema>;
+export type DiscountCode = typeof discountCodes.$inferSelect;
