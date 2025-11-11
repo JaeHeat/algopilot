@@ -7,7 +7,7 @@ AlgoPilot is a SaaS platform providing a marketplace for cryptocurrency trading 
 I prefer simple language and clear, concise explanations. I want iterative development with regular updates. Please ask before making major architectural changes or introducing new dependencies. Ensure all changes are well-documented, especially regarding security and data handling.
 
 ## System Architecture
-The platform utilizes a modern web stack: React with TypeScript, Wouter, TanStack Query, and Tailwind CSS with Shadcn UI for the frontend; an Express.js backend in TypeScript; and a PostgreSQL database managed via Neon and Drizzle ORM. Replit Auth handles authentication.
+The platform utilizes a modern web stack: React with TypeScript, Wouter, TanStack Query, and Tailwind CSS with Shadcn UI for the frontend; an Express.js backend in TypeScript; and a PostgreSQL database managed via Neon and Drizzle ORM. Email/password authentication with session-based auth provides secure user access.
 
 **UI/UX Decisions:**
 - Professional fintech blue color scheme.
@@ -16,10 +16,22 @@ The platform utilizes a modern web stack: React with TypeScript, Wouter, TanStac
 - Context-aware navigation and a Steam-inspired clean table layout for the marketplace with key metrics and sticky filters.
 
 **Technical Implementations & Feature Specifications:**
+- **Authentication System** (Migrated from Replit OAuth to Email/Password):
+  - Session-based auth with PostgreSQL session store (connect-pg-simple)
+  - Secure session cookies (httpOnly, secure in prod, sameSite: strict)
+  - 7-day session TTL with automatic renewal
+  - Session regeneration on login/register prevents fixation attacks
+  - Password hashing using bcrypt (12 rounds)
+  - Password reset flow with SHA-256 hashed tokens (1-hour expiry)
+  - Email notifications via Resend API
+  - Auth endpoints: POST /api/auth/register, /api/auth/login, /api/auth/logout, /api/auth/forgot-password, /api/auth/reset-password
+  - Auth pages: /auth/login, /auth/register, /auth/forgot-password, /auth/reset-password
+  - Legacy user support: Users from Replit OAuth era (no password) can set password via forgot-password flow
+  - Generic error messages prevent email enumeration
+  - All protected endpoints validate req.session.userId (migrated from req.user.claims.sub)
 - **Dashboard Routing**: Simplified routing at the DashboardLayout level with explicit route definitions. Important: Wouter wildcard routes (`:rest*`) may not always match nested paths - explicit routes must be registered in App.tsx for deeply nested dashboard paths (e.g., `/dashboard/creator/bot/:id/settings`).
 - **TradingView Webhook Authentication**: Multi-layer security featuring a 64-character hex URL secret, flexible token authentication (query parameter or header), optional timestamp validation for replay attack prevention, comprehensive logging, and rate limiting. Token regeneration and full webhook URL display for creators are supported.
 - **Stripe Webhook Implementation**: Secure webhook endpoint with signature verification, handling all critical subscription and payment events, and structured error logging.
-- **Authentication**: Secure user authentication via Replit Auth.
 - **Bot Marketplace & Detail Pages**: Allows browsing, filtering, subscribing to bots, displaying performance charts, trade logs, and creator profiles. Public access for unauthenticated browsing.
 - **Monetization Strategy**: Pay-per-bot marketplace model. Creators set prices, earn 75% revenue; platform takes 25% commission. Free creator application with review process.
 - **Payment & Subscription Management**: Secure Stripe integration for recurring subscriptions with granular settings.
@@ -74,10 +86,20 @@ The platform utilizes a modern web stack: React with TypeScript, Wouter, TanStac
 ## External Dependencies
 - **Database**: PostgreSQL (via Neon)
 - **ORM**: Drizzle ORM
-- **Authentication**: Replit Auth (OIDC)
+- **Authentication**: Email/password with bcrypt, session-based (connect-pg-simple)
 - **Payment Processing**: Stripe
 - **Charting Library**: Chart.js / React-Chartjs-2
 - **UI Components**: Shadcn UI
 - **Styling**: Tailwind CSS
 - **API Integrations**: Binance, Bybit
 - **Email Service**: Resend
+
+## Recent Changes (November 11, 2025)
+- **Authentication Migration**: Completed full migration from Replit OAuth to email/password authentication
+  - Backend: Updated 66 protected endpoints from req.user.claims.sub to req.session.userId
+  - Frontend: Implemented complete auth UI (login, register, forgot/reset password pages)
+  - Security: Session regeneration, bcrypt password hashing, token-based password reset
+  - Database: Added password field (nullable) to users table, password_reset_tokens table
+  - All components updated to use /auth/* routes instead of /api/login
+  - Logout bug fixed in dashboard-settings.tsx (proper POST endpoint + client-side navigation)
+  - Architect-reviewed and approved for production use
