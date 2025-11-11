@@ -102,4 +102,5 @@ The platform utilizes a modern web stack: React with TypeScript, Wouter, TanStac
   - Database: Added password field (nullable) to users table, password_reset_tokens table
   - All components updated to use /auth/* routes instead of /api/login
   - Logout bug fixed in dashboard-settings.tsx (proper POST endpoint + client-side navigation)
+  - Password reset email bug fixed: Corrected email URL path from /reset-password to /auth/reset-password
   - Architect-reviewed and approved for production use
