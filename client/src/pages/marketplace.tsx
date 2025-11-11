@@ -144,7 +144,7 @@ export default function Marketplace() {
               <span className="font-bold text-xl">AlgoPilot</span>
             </Link>
             <Button asChild data-testid="button-sign-in">
-              <a href="/api/login">Sign In</a>
+              <a href="/auth/login">Sign In</a>
             </Button>
           </div>
         </header>

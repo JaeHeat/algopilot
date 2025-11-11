@@ -74,7 +74,7 @@ export function LandingPricing() {
                 asChild
                 data-testid={`button-${plan.name.toLowerCase().replace(/\s+/g, '-')}-plan`}
               >
-                <a href="/api/login">{plan.name === "For Creators" ? "Apply to Create" : "Start Trading"}</a>
+                <a href="/auth/login">{plan.name === "For Creators" ? "Apply to Create" : "Start Trading"}</a>
               </Button>
               <ul className="space-y-3">
                 {plan.features.map((feature, j) => (

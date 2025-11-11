@@ -39,8 +39,11 @@ export default function Landing() {
           
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <Button asChild data-testid="button-sign-in">
-              <a href="/api/login">Sign In</a>
+            <Button asChild variant="outline" data-testid="button-sign-in">
+              <Link href="/auth/login">Sign In</Link>
+            </Button>
+            <Button asChild data-testid="button-get-started">
+              <Link href="/auth/register">Get Started</Link>
             </Button>
           </div>
         </div>
@@ -81,10 +84,10 @@ export default function Landing() {
             </p>
             <div className="flex flex-wrap gap-4 justify-center">
               <Button asChild size="lg" variant="secondary" className="gap-2" data-testid="button-cta-start">
-                <a href="/api/login">Start Free Trial</a>
+                <Link href="/auth/register">Start Free Trial</Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="backdrop-blur-sm bg-white/10 border-white/20 hover:bg-white/20" data-testid="button-cta-demo">
-                <a href="/marketplace">Book a Demo</a>
+                <Link href="/marketplace">Browse Marketplace</Link>
               </Button>
             </div>
           </div>

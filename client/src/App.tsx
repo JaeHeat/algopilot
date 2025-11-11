@@ -9,6 +9,10 @@ import Landing from "@/pages/landing";
 import Marketplace from "@/pages/marketplace";
 import BotDetail from "@/pages/bot-detail";
 import DashboardLayout from "@/pages/dashboard-layout";
+import AuthLogin from "@/pages/auth-login";
+import AuthRegister from "@/pages/auth-register";
+import AuthForgotPassword from "@/pages/auth-forgot-password";
+import AuthResetPassword from "@/pages/auth-reset-password";
 import TermsOfService from "@/pages/terms-of-service";
 import PrivacyPolicy from "@/pages/privacy-policy";
 import RiskDisclaimer from "@/pages/risk-disclaimer";
@@ -20,6 +24,12 @@ function Router() {
 
   return (
     <Switch>
+      {/* Auth pages - accessible to everyone */}
+      <Route path="/auth/login" component={AuthLogin} />
+      <Route path="/auth/register" component={AuthRegister} />
+      <Route path="/auth/forgot-password" component={AuthForgotPassword} />
+      <Route path="/auth/reset-password" component={AuthResetPassword} />
+      
       {/* Legal and help pages - accessible to everyone */}
       <Route path="/terms-of-service" component={TermsOfService} />
       <Route path="/privacy-policy" component={PrivacyPolicy} />

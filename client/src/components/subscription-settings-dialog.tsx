@@ -99,7 +99,7 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
           variant: "destructive",
         });
         setTimeout(() => {
-          window.location.href = "/api/login";
+          window.location.href = "/auth/login";
         }, 500);
         return;
       }
@@ -127,7 +127,7 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
     },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
-        window.location.href = "/api/login";
+        window.location.href = "/auth/login";
         return;
       }
       toast({
@@ -153,7 +153,7 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
     },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
-        window.location.href = "/api/login";
+        window.location.href = "/auth/login";
         return;
       }
       toast({
@@ -185,7 +185,7 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
     },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
-        window.location.href = "/api/login";
+        window.location.href = "/auth/login";
         return;
       }
       toast({
@@ -211,7 +211,7 @@ export function SubscriptionSettingsDialog({ subscription, open, onOpenChange }:
     },
     onError: (error: Error) => {
       if (isUnauthorizedError(error)) {
-        window.location.href = "/api/login";
+        window.location.href = "/auth/login";
         return;
       }
       toast({

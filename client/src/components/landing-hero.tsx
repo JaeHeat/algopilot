@@ -23,10 +23,10 @@ export function LandingHero() {
             
             <div className="flex flex-wrap gap-4">
               <Button asChild size="lg" className="gap-2" data-testid="button-get-started">
-                <a href="/api/login">
+                <Link href="/auth/register">
                   Get Started Free
                   <ArrowRight className="h-4 w-4" />
-                </a>
+                </Link>
               </Button>
               <Link href="/marketplace">
                 <Button size="lg" variant="outline" data-testid="button-view-bots">
