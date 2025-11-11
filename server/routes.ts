@@ -1,12 +1,15 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
 import { csrfProtection, getCsrfToken } from "./csrf";
-import { insertBotSchema, insertSubscriptionSchema, insertExchangeConnectionSchema, updateSubscriptionSettingsSchema, insertCreatorPostSchema, insertPostCommentSchema, insertPostReactionSchema, insertCreatorApplicationSchema, updateBotEvaluationProgressSchema, insertDiscountCodeSchema } from "@shared/schema";
+import { insertBotSchema, insertSubscriptionSchema, insertExchangeConnectionSchema, updateSubscriptionSettingsSchema, insertCreatorPostSchema, insertPostCommentSchema, insertPostReactionSchema, insertCreatorApplicationSchema, updateBotEvaluationProgressSchema, insertDiscountCodeSchema, registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } from "@shared/schema";
 import { z } from "zod";
 import Stripe from "stripe";
 import { randomBytes } from "crypto";
+import bcrypt from "bcrypt";
+import { Resend } from "resend";
+import session from "express-session";
+import connectPg from "connect-pg-simple";
 import { notifyTradeExecuted, notifyDrawdownBreach } from "./services/notifications";
 import { tradeExecutionService } from "./services/trade-execution";
 import { stripeConnectService } from "./services/stripe-connect";
@@ -60,13 +63,264 @@ if (!process.env.STRIPE_SECRET_KEY) {
 }
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
+// Session configuration
+function getSession() {
+  const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 7 days
+  const pgStore = connectPg(session);
+  const sessionStore = new pgStore({
+    conString: process.env.DATABASE_URL,
+    createTableIfMissing: false,
+    ttl: sessionTtl,
+    tableName: "sessions",
+  });
+  return session({
+    secret: process.env.SESSION_SECRET!,
+    store: sessionStore,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: sessionTtl,
+    },
+  });
+}
+
+// Authentication middleware
+const isAuthenticated = (req: any, res: any, next: any) => {
+  if (req.session && req.session.userId) {
+    return next();
+  }
+  return res.status(401).json({ message: "Unauthorized" });
+};
+
+// Initialize Resend for password reset emails
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+
 export async function registerRoutes(app: Express): Promise<Server> {
-  await setupAuth(app);
-  
+  // Set up session middleware
+  app.set("trust proxy", 1);
+  app.use(getSession());
   const migrated = await storage.populateWebhookAuthTokens();
   if (migrated > 0) {
     console.log(`[Migration] Populated auth tokens for ${migrated} webhooks`);
   }
+  
+  // Clean up expired password reset tokens periodically
+  setInterval(async () => {
+    await storage.deleteExpiredPasswordResetTokens();
+  }, 60 * 60 * 1000); // Every hour
+
+  // Register endpoint
+  app.post('/api/auth/register', async (req: any, res) => {
+    try {
+      const data = registerSchema.parse(req.body);
+      
+      // Check if user already exists
+      const existingUser = await storage.getUserByEmail(data.email);
+      if (existingUser) {
+        // Generic error to prevent email enumeration
+        return res.status(400).json({ message: "Registration failed. Please try again or use a different email." });
+      }
+      
+      // Hash password
+      const hashedPassword = await bcrypt.hash(data.password, 12);
+      
+      // Create user
+      const user = await storage.createUser(
+        data.email,
+        hashedPassword,
+        data.firstName,
+        data.lastName
+      );
+      
+      // Regenerate session to prevent session fixation
+      await new Promise<void>((resolve, reject) => {
+        req.session.regenerate((err: any) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+      
+      // Create session
+      req.session.userId = user.id;
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err: any) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+      
+      res.json({ user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role } });
+    } catch (error: any) {
+      console.error('[Register] Error:', error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      res.status(500).json({ message: "Registration failed" });
+    }
+  });
+
+  // Login endpoint
+  app.post('/api/auth/login', async (req: any, res) => {
+    try {
+      const data = loginSchema.parse(req.body);
+      
+      // Get user by email
+      const user = await storage.getUserByEmail(data.email);
+      if (!user) {
+        return res.status(401).json({ message: "Invalid email or password" });
+      }
+      
+      // Check if user has a password set
+      if (!user.password) {
+        return res.status(401).json({ 
+          message: "Please use the 'Forgot Password' link to set your password",
+          needsPasswordReset: true
+        });
+      }
+      
+      // Verify password
+      const isValid = await bcrypt.compare(data.password, user.password);
+      if (!isValid) {
+        return res.status(401).json({ message: "Invalid email or password" });
+      }
+      
+      // Regenerate session to prevent session fixation
+      await new Promise<void>((resolve, reject) => {
+        req.session.regenerate((err: any) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+      
+      // Create session
+      req.session.userId = user.id;
+      await new Promise<void>((resolve, reject) => {
+        req.session.save((err: any) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+      
+      res.json({ user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role } });
+    } catch (error: any) {
+      console.error('[Login] Error:', error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      res.status(500).json({ message: "Login failed" });
+    }
+  });
+
+  // Logout endpoint
+  app.post('/api/auth/logout', (req: any, res) => {
+    req.session.destroy((err: any) => {
+      if (err) {
+        console.error('[Logout] Error:', err);
+        return res.status(500).json({ message: "Logout failed" });
+      }
+      res.clearCookie('connect.sid', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict'
+      });
+      res.json({ message: "Logged out successfully" });
+    });
+  });
+
+  // Forgot password endpoint
+  app.post('/api/auth/forgot-password', async (req: any, res) => {
+    try {
+      const data = forgotPasswordSchema.parse(req.body);
+      
+      // Get user by email
+      const user = await storage.getUserByEmail(data.email);
+      if (!user) {
+        // Don't reveal if email exists or not
+        return res.json({ message: "If that email is registered, you will receive a password reset link" });
+      }
+      
+      // Generate reset token (32 random bytes)
+      const resetToken = randomBytes(32).toString('hex');
+      
+      // Token expires in 1 hour
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+      
+      // Save token (hashed) to database
+      await storage.createPasswordResetToken(user.id, resetToken, expiresAt);
+      
+      // Send email with reset link
+      if (resend) {
+        const resetUrl = `${process.env.REPLIT_DOMAINS?.split(',')[0] || 'http://localhost:5000'}/reset-password?token=${resetToken}`;
+        
+        try {
+          await resend.emails.send({
+            from: 'AlgoPilot <onboarding@resend.dev>',
+            to: user.email!,
+            subject: 'Reset Your Password - AlgoPilot',
+            html: `
+              <h1>Reset Your Password</h1>
+              <p>You requested to reset your password. Click the link below to set a new password:</p>
+              <p><a href="${resetUrl}">${resetUrl}</a></p>
+              <p>This link will expire in 1 hour.</p>
+              <p>If you didn't request this, you can safely ignore this email.</p>
+            `,
+          });
+        } catch (emailError) {
+          console.error('[Forgot Password] Email send error:', emailError);
+        }
+      }
+      
+      res.json({ message: "If that email is registered, you will receive a password reset link" });
+    } catch (error: any) {
+      console.error('[Forgot Password] Error:', error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      res.status(500).json({ message: "Request failed" });
+    }
+  });
+
+  // Reset password endpoint
+  app.post('/api/auth/reset-password', async (req: any, res) => {
+    try {
+      const data = resetPasswordSchema.parse(req.body);
+      
+      // Get reset token from database
+      const tokenData = await storage.getPasswordResetToken(data.token);
+      if (!tokenData) {
+        return res.status(400).json({ message: "Invalid or expired reset token" });
+      }
+      
+      // Check if token is expired
+      if (new Date() > tokenData.expiresAt) {
+        await storage.deletePasswordResetToken(data.token);
+        return res.status(400).json({ message: "Reset token has expired" });
+      }
+      
+      // Hash new password
+      const hashedPassword = await bcrypt.hash(data.password, 12);
+      
+      // Update user password
+      await storage.updateUserPassword(tokenData.userId, hashedPassword);
+      
+      // Delete used token
+      await storage.deletePasswordResetToken(data.token);
+      
+      // Invalidate all sessions for this user for security
+      // Note: This requires session store support - for now we just delete the token
+      
+      res.json({ message: "Password reset successfully. Please log in with your new password." });
+    } catch (error: any) {
+      console.error('[Reset Password] Error:', error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: "Invalid input", errors: error.errors });
+      }
+      res.status(500).json({ message: "Password reset failed" });
+    }
+  });
 
   // Stripe Webhook Endpoint (MUST be before CSRF protection - needs raw body for signature verification)
   app.post("/api/webhooks/stripe", async (req: any, res) => {
@@ -232,7 +486,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const user = await storage.getUser(userId);
       res.json(user);
     } catch (error) {
@@ -243,7 +497,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/onboarding", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       let onboarding = await storage.getUserOnboarding(userId);
       
       if (!onboarding) {
@@ -259,7 +513,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/onboarding/progress", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const validationResult = onboardingProgressSchema.safeParse(req.body);
       
       if (!validationResult.success) {
@@ -284,7 +538,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/onboarding/complete", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const completed = await storage.completeOnboarding(userId);
       res.json(completed);
     } catch (error) {
@@ -295,7 +549,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/onboarding/dismiss", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const dismissed = await storage.updateOnboardingProgress(userId, { hasDismissedChecklist: true });
       res.json(dismissed);
     } catch (error) {
@@ -306,7 +560,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/exchange-connections", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const connections = await storage.getUserExchangeConnections(userId);
       
       const sanitizedConnections = connections.map(conn => {
@@ -323,7 +577,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/exchange-connections", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       
       const validationResult = insertExchangeConnectionSchema.safeParse({
         ...req.body,
@@ -349,7 +603,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/exchange-connections/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const connectionId = req.params.id;
       
       const existingConnection = await storage.getExchangeConnectionById(connectionId);
@@ -386,7 +640,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/exchange-connections/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const connectionId = req.params.id;
       
       const connection = await storage.getExchangeConnectionById(connectionId);
@@ -404,7 +658,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/exchange-connections/:id/test", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const connectionId = req.params.id;
       
       const connection = await storage.getExchangeConnectionById(connectionId);
@@ -468,7 +722,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/creator-applications", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       
       const existingApplication = await storage.getCreatorApplication(userId);
       if (existingApplication) {
@@ -497,7 +751,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/creator-applications", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const application = await storage.getCreatorApplication(userId);
       res.json(application || null);
     } catch (error) {
@@ -508,7 +762,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/creator-applications/:userId/status", isAuthenticated, async (req: any, res) => {
     try {
-      const adminUserId = req.user.claims.sub;
+      const adminUserId = req.session.userId;
       
       const adminUser = await storage.getUser(adminUserId);
       if (!adminUser || adminUser.role !== 'admin') {
@@ -549,7 +803,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin Panel Routes
   app.get("/api/admin/stats", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const user = await storage.getUser(userId);
       
       if (!user || user.role !== 'admin') {
@@ -566,7 +820,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/admin/users", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const user = await storage.getUser(userId);
       
       if (!user || user.role !== 'admin') {
@@ -584,7 +838,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/admin/pending-applications", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const user = await storage.getUser(userId);
       
       if (!user || user.role !== 'admin') {
@@ -602,7 +856,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Creator Payout Routes
   app.get("/api/creator/earnings", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const user = await storage.getUser(userId);
       
       if (!user || user.role !== 'creator') {
@@ -619,7 +873,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/creator/payouts", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const user = await storage.getUser(userId);
       
       if (!user || user.role !== 'creator') {
@@ -636,7 +890,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/creator/payouts", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const user = await storage.getUser(userId);
       
       if (!user || user.role !== 'creator') {
@@ -699,7 +953,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Stripe Connect Routes for Creators
   app.post("/api/creator/stripe-connect/account", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const user = await storage.getUser(userId);
       
       if (!user || user.role !== 'creator') {
@@ -736,7 +990,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/creator/stripe-connect/onboarding-link", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const user = await storage.getUser(userId);
       
       if (!user || user.role !== 'creator') {
@@ -766,7 +1020,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/creator/stripe-connect/status", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const user = await storage.getUser(userId);
       
       if (!user || user.role !== 'creator') {
@@ -817,7 +1071,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/creator/stripe-connect/dashboard-link", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const user = await storage.getUser(userId);
       
       if (!user || user.role !== 'creator') {
@@ -839,7 +1093,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin Payout Routes
   app.get("/api/admin/payouts/pending", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const user = await storage.getUser(userId);
       
       if (!user || user.role !== 'admin') {
@@ -856,7 +1110,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/admin/payouts/:id/approve", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const user = await storage.getUser(userId);
       
       if (!user || user.role !== 'admin') {
@@ -935,7 +1189,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/admin/payouts/:id/reject", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const user = await storage.getUser(userId);
       
       if (!user || user.role !== 'admin') {
@@ -988,7 +1242,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/bots", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const validatedBot = insertBotSchema.parse({ ...req.body, creatorId: userId });
       const bot = await storage.createBot(validatedBot);
       res.json(bot);
@@ -1000,7 +1254,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/creator/bots", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const allBots = await storage.getAllBots();
       const creatorBots = allBots.filter(bot => bot.creatorId === userId);
       
@@ -1078,7 +1332,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/creator/bots", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const validatedBot = insertBotSchema.parse({ ...req.body, creatorId: userId });
       const bot = await storage.createBot(validatedBot);
       
@@ -1111,7 +1365,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/creator/bots/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const bot = await storage.getBotById(req.params.id);
       
       if (!bot) {
@@ -1154,7 +1408,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/creator/bots/:id/regenerate-webhook", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const bot = await storage.getBotById(req.params.id);
       
       if (!bot) {
@@ -1188,7 +1442,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/creator/bots/:id/webhook-history", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const bot = await storage.getBotById(req.params.id);
       
       if (!bot) {
@@ -1215,7 +1469,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/creator/bots/:id/webhook-history/:historyId/restore", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const bot = await storage.getBotById(req.params.id);
       
       if (!bot) {
@@ -1248,7 +1502,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Discount Code Routes
   app.post("/api/creator/bots/:id/discount-codes", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const bot = await storage.getBotById(req.params.id);
       
       if (!bot) {
@@ -1322,7 +1576,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/creator/bots/:id/discount-codes", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const bot = await storage.getBotById(req.params.id);
       
       if (!bot) {
@@ -1343,7 +1597,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/creator/bots/:id/discount-codes/:codeId", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const bot = await storage.getBotById(req.params.id);
       
       if (!bot) {
@@ -1381,7 +1635,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/creator/bots/:id/discount-codes/:codeId", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const bot = await storage.getBotById(req.params.id);
       
       if (!bot) {
@@ -1455,7 +1709,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Bot Settings Routes
   app.get("/api/creator/bots/:id/settings", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const bot = await storage.getBotById(req.params.id);
       
       if (!bot) {
@@ -1483,7 +1737,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/creator/bots/:id/settings", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const bot = await storage.getBotById(req.params.id);
       
       if (!bot) {
@@ -1510,7 +1764,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Bot Evaluation Routes
   app.post("/api/bots/:botId/evaluation/start", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const bot = await storage.getBotById(req.params.botId);
       
       if (!bot) {
@@ -1562,7 +1816,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/bots/:botId/evaluation/restart", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const bot = await storage.getBotById(req.params.botId);
       
       if (!bot) {
@@ -1619,7 +1873,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/creator/apply", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       
       const existingApplication = await storage.getCreatorApplication(userId);
       if (existingApplication) {
@@ -1644,7 +1898,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/creator/application/status", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const application = await storage.getCreatorApplication(userId);
       res.json(application || null);
     } catch (error) {
@@ -1665,7 +1919,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/bots/:botId/posts", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const bot = await storage.getBotById(req.params.botId);
       
       if (!bot) {
@@ -1692,7 +1946,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/posts/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const post = await storage.getPostById(req.params.id);
       
       if (!post) {
@@ -1723,7 +1977,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/posts/:postId/comments", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const validatedComment = insertPostCommentSchema.parse({
         ...req.body,
         postId: req.params.postId,
@@ -1740,7 +1994,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/comments/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const comment = await storage.getCommentById(req.params.id);
       
       if (!comment) {
@@ -1771,7 +2025,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/posts/:postId/reactions", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const validatedReaction = insertPostReactionSchema.parse({
         postId: req.params.postId,
         userId,
@@ -1788,7 +2042,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/create-subscription-payment", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const { botId, discountCode } = z.object({ 
         botId: z.string(),
         discountCode: z.string().optional()
@@ -1973,7 +2227,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/subscriptions", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const subscriptions = await storage.getUserSubscriptions(userId);
       res.json(subscriptions);
     } catch (error) {
@@ -1984,7 +2238,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/subscriptions", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       
       const user = await storage.getUser(userId);
       if (!user) {
@@ -2116,7 +2370,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/subscriptions/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const subscription = await storage.getSubscriptionById(req.params.id);
       
       if (!subscription) {
@@ -2145,7 +2399,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/subscriptions/:id/pause", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const subscription = await storage.getSubscriptionById(req.params.id);
       
       if (!subscription) {
@@ -2174,7 +2428,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/subscriptions/:id/resume", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const subscription = await storage.getSubscriptionById(req.params.id);
       
       if (!subscription) {
@@ -2244,7 +2498,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/subscriptions/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const subscription = await storage.getSubscriptionById(req.params.id);
       
       if (!subscription) {
@@ -2272,7 +2526,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/subscriptions/:id/reactivate", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const subscription = await storage.getSubscriptionById(req.params.id);
       
       if (!subscription) {
@@ -2300,7 +2554,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/subscriptions/:id/trades", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const subscription = await storage.getSubscriptionById(req.params.id);
       
       if (!subscription) {
@@ -2322,7 +2576,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/subscriptions/:id/positions", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const subscription = await storage.getSubscriptionById(req.params.id);
       
       if (!subscription) {
@@ -2343,7 +2597,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/subscriptions/:id/pnl", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const subscription = await storage.getSubscriptionById(req.params.id);
       
       if (!subscription) {
@@ -2389,7 +2643,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/user/trades", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 200;
       const trades = await storage.getAllUserTrades(userId, limit);
       res.json(trades);
@@ -2401,7 +2655,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/user/positions", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const positions = await storage.getAllUserPositions(userId);
       res.json(positions);
     } catch (error) {
@@ -2412,7 +2666,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/user/analytics", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const positions = await storage.getAllUserPositions(userId);
       
       // Count positions as trades: 1 position (open or closed) = 1 trade
@@ -2492,7 +2746,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/exchanges", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const connections = await storage.getUserExchangeConnections(userId);
       const sanitized = connections.map(c => ({
         id: c.id,
@@ -2509,7 +2763,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/exchanges", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       console.log("Creating exchange connection with data:", { ...req.body, userId });
       const validatedConnection = insertExchangeConnectionSchema.parse({ ...req.body, userId });
       const connection = await storage.createExchangeConnection(validatedConnection);
@@ -2532,7 +2786,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/exchanges/:id", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const connection = await storage.getExchangeConnectionById(req.params.id);
       
       if (!connection) {
@@ -2553,7 +2807,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/user/available-balance", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.session.userId;
       const totalBalance = await storage.getUserTotalAvailableBalance(userId);
       res.json({ totalBalance });
     } catch (error) {
@@ -2735,7 +2989,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/positions/:positionId/close", isAuthenticated, async (req: any, res) => {
-    const userId = req.user.claims.sub;
+    const userId = req.session.userId;
     const { positionId } = req.params;
     const { closePrice } = req.body;
 

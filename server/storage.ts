@@ -1,7 +1,7 @@
 import { db } from "./db";
-import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents, creatorPosts, postComments, postReactions, botWebhooks, webhookUrlHistory, botSettings, discountCodes, webhookEventLogs, trades, positions, userOnboarding, creatorApplications, featuredPlacements, botEvaluations, payouts } from "@shared/schema";
+import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents, creatorPosts, postComments, postReactions, botWebhooks, webhookUrlHistory, botSettings, discountCodes, webhookEventLogs, trades, positions, userOnboarding, creatorApplications, featuredPlacements, botEvaluations, payouts, passwordResetTokens } from "@shared/schema";
 import { encryptCredential, decryptCredential } from "./encryption";
-import { randomBytes } from "crypto";
+import { randomBytes, createHash } from "crypto";
 import type { 
   User, UpsertUser, 
   Bot, InsertBot,
@@ -37,6 +37,12 @@ export interface IStorage {
   getUserByStripeConnectAccountId(accountId: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
   updateUserStripeCustomerId(userId: string, stripeCustomerId: string): Promise<User | undefined>;
+  updateUserPassword(userId: string, hashedPassword: string): Promise<User | undefined>;
+  createUser(email: string, hashedPassword: string, firstName?: string, lastName?: string): Promise<User>;
+  createPasswordResetToken(userId: string, token: string, expiresAt: Date): Promise<void>;
+  getPasswordResetToken(token: string): Promise<{ userId: string; expiresAt: Date } | undefined>;
+  deletePasswordResetToken(token: string): Promise<void>;
+  deleteExpiredPasswordResetTokens(): Promise<void>;
   
   getAllBots(): Promise<Array<Bot & { performance: BotPerformance | null }>>;
   getBotById(id: string): Promise<(Bot & { creator: User }) | undefined>;
@@ -275,6 +281,85 @@ export class DbStorage implements IStorage {
       .where(eq(users.id, userId))
       .returning();
     return result[0];
+  }
+
+  async updateUserPassword(userId: string, hashedPassword: string): Promise<User | undefined> {
+    const result = await db
+      .update(users)
+      .set({ password: hashedPassword, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return result[0];
+  }
+
+  async createUser(email: string, hashedPassword: string, firstName?: string, lastName?: string): Promise<User> {
+    const result = await db
+      .insert(users)
+      .values({
+        email,
+        password: hashedPassword,
+        firstName,
+        lastName,
+        role: "subscriber",
+      })
+      .returning();
+
+    const user = result[0];
+
+    // Create default exchange connection for new users (paper trading)
+    const mockApiSecret = `secret_${user.id.substring(0, 8)}`;
+    await db.insert(exchangeConnections).values({
+      userId: user.id,
+      exchange: "Mock Exchange",
+      apiKey: `mock_${user.id.substring(0, 8)}`,
+      apiSecret: encryptCredential(mockApiSecret),
+      balance: "10000.00",
+      connectionType: "paper",
+      accountType: "spot",
+      isTestnet: false,
+      isActive: true,
+      connectionStatus: "valid",
+    });
+
+    return user;
+  }
+
+  async createPasswordResetToken(userId: string, token: string, expiresAt: Date): Promise<void> {
+    const hashedToken = createHash('sha256').update(token).digest('hex');
+    await db.insert(passwordResetTokens).values({
+      userId,
+      token: hashedToken,
+      expiresAt,
+    });
+  }
+
+  async getPasswordResetToken(token: string): Promise<{ userId: string; expiresAt: Date } | undefined> {
+    const hashedToken = createHash('sha256').update(token).digest('hex');
+    const result = await db
+      .select()
+      .from(passwordResetTokens)
+      .where(eq(passwordResetTokens.token, hashedToken))
+      .limit(1);
+    
+    if (!result[0]) return undefined;
+    
+    return {
+      userId: result[0].userId,
+      expiresAt: result[0].expiresAt,
+    };
+  }
+
+  async deletePasswordResetToken(token: string): Promise<void> {
+    const hashedToken = createHash('sha256').update(token).digest('hex');
+    await db
+      .delete(passwordResetTokens)
+      .where(eq(passwordResetTokens.token, hashedToken));
+  }
+
+  async deleteExpiredPasswordResetTokens(): Promise<void> {
+    await db
+      .delete(passwordResetTokens)
+      .where(sql`${passwordResetTokens.expiresAt} < NOW()`);
   }
 
   async getBotById(id: string): Promise<(Bot & { creator: User }) | undefined> {
