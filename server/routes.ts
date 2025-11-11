@@ -254,6 +254,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Send email with reset link
       if (resend) {
         const resetUrl = `${process.env.REPLIT_DOMAINS?.split(',')[0] || 'http://localhost:5000'}/auth/reset-password?token=${resetToken}`;
+        console.log('[Forgot Password] Sending reset email with URL:', resetUrl);
         
         try {
           await resend.emails.send({
