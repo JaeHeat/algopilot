@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
+import { logout } from "@/lib/auth";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +40,7 @@ import {
 export default function DashboardSettings() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [addExchangeOpen, setAddExchangeOpen] = useState(false);
   const [selectedExchange, setSelectedExchange] = useState("");
   const [apiKey, setApiKey] = useState("");
@@ -166,6 +169,25 @@ export default function DashboardSettings() {
   };
 
   const availableExchanges = ["Binance", "Bybit", "OKX", "Kraken", "Bitfinex"];
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      toast({
+        title: "Logged out",
+        description: "You've been successfully logged out.",
+      });
+      setLocation("/auth/login");
+    } catch (error) {
+      console.error("Logout error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to logout. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const getStatusIcon = (status: string | null) => {
     switch (status) {
@@ -346,7 +368,7 @@ export default function DashboardSettings() {
             </div>
             <Button
               variant="outline"
-              onClick={() => (window.location.href = "/api/logout")}
+              onClick={handleLogout}
               className="gap-2"
               data-testid="button-logout"
             >
