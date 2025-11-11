@@ -26,7 +26,8 @@ export const sessions = pgTable(
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  email: varchar("email").unique(),
+  email: varchar("email").notNull().unique(),
+  password: text("password"),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
@@ -37,6 +38,17 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_password_reset_tokens_user_id").on(table.userId),
+  index("idx_password_reset_tokens_expires_at").on(table.expiresAt),
+]);
 
 export const bots = pgTable("bots", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -431,6 +443,7 @@ export const insertCreatorApplicationSchema = createInsertSchema(creatorApplicat
 export const insertFeaturedPlacementSchema = createInsertSchema(featuredPlacements).omit({ id: true, createdAt: true });
 export const insertBotEvaluationSchema = createInsertSchema(botEvaluations).omit({ id: true, createdAt: true, updatedAt: true, startedAt: true, completedAt: true });
 export const insertPayoutSchema = createInsertSchema(payouts).omit({ id: true, createdAt: true, updatedAt: true, requestedAt: true, reviewedAt: true, completedAt: true });
+export const insertPasswordResetTokenSchema = createInsertSchema(passwordResetTokens).omit({ id: true, createdAt: true });
 
 export const updateBotEvaluationProgressSchema = z.object({
   currentTrades: z.number().int().nonnegative().optional(),
@@ -513,3 +526,5 @@ export type InsertPayout = z.infer<typeof insertPayoutSchema>;
 export type Payout = typeof payouts.$inferSelect;
 export type InsertDiscountCode = z.infer<typeof insertDiscountCodeSchema>;
 export type DiscountCode = typeof discountCodes.$inferSelect;
+export type InsertPasswordResetToken = z.infer<typeof insertPasswordResetTokenSchema>;
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
