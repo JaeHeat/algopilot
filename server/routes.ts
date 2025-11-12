@@ -3202,6 +3202,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       const activeSubscriptions = await storage.getActiveSubscriptionsByBot(botId);
+      console.log(`[Webhook] Found ${activeSubscriptions.length} active subscription(s) for bot ${botId}`);
       let executedTrades = 0;
       
       for (const subscription of activeSubscriptions) {
