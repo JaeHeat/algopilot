@@ -3138,25 +3138,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Unauthorized: Invalid authentication token" });
       }
       
-      if (payload.timestamp) {
-        // Auto-detect timestamp format: seconds (10 digits) vs milliseconds (13 digits)
-        const timestamp = payload.timestamp;
-        const requestTime = timestamp > 9999999999 ? timestamp : timestamp * 1000;
-        const currentTime = Date.now();
-        const timeDifference = Math.abs(currentTime - requestTime);
-        const maxAgeMs = 6 * 60 * 60 * 1000; // 6 hours (handles 4H timeframes + processing delays)
-        
-        if (timeDifference > maxAgeMs) {
-          await storage.logWebhookEvent({
-            botId,
-            payload,
-            headers: headers as any,
-            status: 'rejected',
-            error: `Timestamp too old or invalid (age: ${Math.floor(timeDifference / 1000)}s, max: ${Math.floor(maxAgeMs / 1000)}s)`,
-          });
-          return res.status(401).json({ message: "Unauthorized: Request timestamp expired or invalid" });
-        }
-      }
+      // Note: TradingView timestamp represents candle close time, not webhook send time
+      // We don't validate timestamp age since it can be hours old for higher timeframes
       
       await storage.updateWebhookLastReceived(botId);
       await storage.resetWebhookFailureCount(botId);
