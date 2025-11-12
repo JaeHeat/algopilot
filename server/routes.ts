@@ -3144,7 +3144,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const requestTime = timestamp > 9999999999 ? timestamp : timestamp * 1000;
         const currentTime = Date.now();
         const timeDifference = Math.abs(currentTime - requestTime);
-        const maxAgeMs = 5 * 60 * 1000;
+        const maxAgeMs = 60 * 60 * 1000; // 1 hour (increased from 5 minutes to handle TradingView delays)
         
         if (timeDifference > maxAgeMs) {
           await storage.logWebhookEvent({
