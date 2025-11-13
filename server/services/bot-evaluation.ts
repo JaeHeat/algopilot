@@ -91,50 +91,64 @@ async function handleEntrySignal(
 ): Promise<ProcessSignalResult> {
   const { symbol, side, price, quantity, fees, botId, storage } = params;
   
-  const existingPosition = await storage.getEvaluationPosition(evaluationRun.id, symbol);
-  
-  if (existingPosition) {
-    console.log(`[Evaluation] Position already exists for ${symbol}, skipping entry signal`);
+  try {
+    console.log(`[Evaluation] handleEntrySignal started for ${symbol}`);
+    
+    const existingPosition = await storage.getEvaluationPosition(evaluationRun.id, symbol);
+    console.log(`[Evaluation] Checked existing position:`, existingPosition ? 'found' : 'none');
+    
+    if (existingPosition) {
+      console.log(`[Evaluation] Position already exists for ${symbol}, skipping entry signal`);
+      return {
+        success: false,
+        message: `Position already open for ${symbol}`,
+      };
+    }
+    
+    console.log(`[Evaluation] Creating position for ${symbol}...`);
+    const position = await storage.createEvaluationPosition({
+      evaluationRunId: evaluationRun.id,
+      botId,
+      symbol,
+      side,
+      quantity: quantity.toFixed(8),
+      entryPrice: price.toFixed(8),
+      fees: fees.toFixed(8),
+    });
+    console.log(`[Evaluation] Position created: ${position.id}`);
+    
+    console.log(`[Evaluation] Creating entry trade for ${symbol}...`);
+    const trade = await storage.createEvaluationTrade({
+      evaluationRunId: evaluationRun.id,
+      positionId: position.id,
+      botId,
+      symbol,
+      side,
+      legType: 'entry',
+      quantity: quantity.toFixed(8),
+      price: price.toFixed(8),
+      fees: fees.toFixed(8),
+      balanceAfterTrade: parseFloat(evaluationRun.currentBalance).toFixed(8),
+    });
+    console.log(`[Evaluation] Trade created: ${trade.id}`);
+    
+    console.log(`[Evaluation] Updating run metrics...`);
+    await storage.updateEvaluationRunMetrics(evaluationRun.id, {
+      tradeCount: evaluationRun.tradeCount + 1,
+    });
+    console.log(`[Evaluation] Run metrics updated`);
+    
+    console.log(`[Evaluation] Opened ${side} position for ${symbol} @ ${price} (trade ${trade.id})`);
+    
     return {
-      success: false,
-      message: `Position already open for ${symbol}`,
+      success: true,
+      message: `Entry signal processed successfully`,
+      tradeId: trade.id,
     };
+  } catch (error) {
+    console.error(`[Evaluation] Error in handleEntrySignal for ${symbol}:`, error);
+    throw error;
   }
-  
-  const position = await storage.createEvaluationPosition({
-    evaluationRunId: evaluationRun.id,
-    botId,
-    symbol,
-    side,
-    quantity: quantity.toFixed(8),
-    entryPrice: price.toFixed(8),
-    fees: fees.toFixed(8),
-  });
-  
-  const trade = await storage.createEvaluationTrade({
-    evaluationRunId: evaluationRun.id,
-    positionId: position.id,
-    botId,
-    symbol,
-    side,
-    legType: 'entry',
-    quantity: quantity.toFixed(8),
-    price: price.toFixed(8),
-    fees: fees.toFixed(8),
-    balanceAfterTrade: parseFloat(evaluationRun.currentBalance).toFixed(8),
-  });
-  
-  await storage.updateEvaluationRunMetrics(evaluationRun.id, {
-    tradeCount: evaluationRun.tradeCount + 1,
-  });
-  
-  console.log(`[Evaluation] Opened ${side} position for ${symbol} @ ${price} (trade ${trade.id})`);
-  
-  return {
-    success: true,
-    message: `Entry signal processed successfully`,
-    tradeId: trade.id,
-  };
 }
 
 async function handleExitSignal(
