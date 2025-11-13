@@ -3201,6 +3201,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         time: validatedPayload.time || new Date().toISOString(),
       });
       
+      // Check if bot is in evaluation mode
+      const isInEvaluation = bot && (bot.evaluationStatus === 'not_started' || bot.evaluationStatus === 'in_evaluation');
+      
+      if (isInEvaluation) {
+        console.log(`[Webhook] Bot ${botId} is in evaluation mode - delegating to evaluation service`);
+        
+        const { processEvaluationSignal } = await import('./services/bot-evaluation');
+        const result = await processEvaluationSignal({
+          botId,
+          symbol,
+          action: action as 'buy' | 'sell' | 'long' | 'short',
+          price,
+          timestamp: validatedPayload.time,
+        }, storage);
+        
+        if (result.success) {
+          return res.json({
+            message: result.message,
+            mode: "evaluation",
+            tradeId: result.tradeId,
+          });
+        } else {
+          return res.status(400).json({
+            message: result.message,
+            error: result.error,
+          });
+        }
+      }
+      
       const activeSubscriptions = await storage.getActiveSubscriptionsByBot(botId);
       console.log(`[Webhook] Found ${activeSubscriptions.length} active subscription(s) for bot ${botId}`);
       let executedTrades = 0;

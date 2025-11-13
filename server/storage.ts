@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents, creatorPosts, postComments, postReactions, botWebhooks, webhookUrlHistory, botSettings, discountCodes, webhookEventLogs, trades, positions, userOnboarding, creatorApplications, featuredPlacements, botEvaluations, payouts, passwordResetTokens } from "@shared/schema";
+import { users, bots, botPerformance, subscriptions, exchangeConnections, botTradeLogs, botPerformanceHistory, subscriptionEvents, creatorPosts, postComments, postReactions, botWebhooks, webhookUrlHistory, botSettings, discountCodes, webhookEventLogs, trades, positions, userOnboarding, creatorApplications, featuredPlacements, botEvaluations, botEvaluationRuns, botEvaluationTrades, botEvaluationPositions, payouts, passwordResetTokens } from "@shared/schema";
 import { encryptCredential, decryptCredential } from "./encryption";
 import { randomBytes, createHash } from "crypto";
 import type { 
@@ -26,6 +26,9 @@ import type {
   CreatorApplication, InsertCreatorApplication,
   FeaturedPlacement, InsertFeaturedPlacement,
   BotEvaluation, InsertBotEvaluation,
+  BotEvaluationRun, InsertBotEvaluationRun,
+  BotEvaluationTrade, InsertBotEvaluationTrade,
+  BotEvaluationPosition, InsertBotEvaluationPosition,
   Payout, InsertPayout
 } from "@shared/schema";
 import { eq, and, desc, or, isNull, gt, sql, count } from "drizzle-orm";
@@ -154,6 +157,19 @@ export interface IStorage {
   updateEvaluationFromTrade(botId: string, pnl: number, newBalance: number, initialCapital: number): Promise<void>;
   checkAndUpdateEvaluationStatus(botId: string): Promise<{ status: string; passed: boolean; reason?: string }>;
   restartBotEvaluation(botId: string): Promise<void>;
+  
+  getActiveEvaluationRun(botId: string): Promise<BotEvaluationRun | undefined>;
+  createEvaluationRun(botId: string, startingBalance?: string): Promise<BotEvaluationRun>;
+  updateEvaluationRunMetrics(runId: string, metrics: Partial<BotEvaluationRun>): Promise<BotEvaluationRun | undefined>;
+  closeEvaluationRun(runId: string, status: string, failureReason?: string): Promise<BotEvaluationRun | undefined>;
+  
+  createEvaluationTrade(trade: InsertBotEvaluationTrade): Promise<BotEvaluationTrade>;
+  getEvaluationTrades(evaluationRunId: string, limit?: number): Promise<BotEvaluationTrade[]>;
+  
+  getEvaluationPosition(evaluationRunId: string, symbol: string): Promise<BotEvaluationPosition | undefined>;
+  createEvaluationPosition(position: InsertBotEvaluationPosition): Promise<BotEvaluationPosition>;
+  updateEvaluationPosition(id: string, updates: Partial<BotEvaluationPosition>): Promise<BotEvaluationPosition | undefined>;
+  closeEvaluationPosition(id: string, realizedPnl: string): Promise<BotEvaluationPosition | undefined>;
   
   getAdminStats(): Promise<{
     totalUsers: number;
@@ -1535,6 +1551,129 @@ export class DbStorage implements IStorage {
     this.getAllBots.clear();
     
     console.log(`[Evaluation] Bot ${botId} evaluation restarted - all trades cleared, status reset to in_evaluation`);
+  }
+
+  async getActiveEvaluationRun(botId: string): Promise<BotEvaluationRun | undefined> {
+    const result = await db
+      .select()
+      .from(botEvaluationRuns)
+      .where(
+        and(
+          eq(botEvaluationRuns.botId, botId),
+          eq(botEvaluationRuns.status, 'active')
+        )
+      )
+      .limit(1);
+    return result[0];
+  }
+
+  async createEvaluationRun(botId: string, startingBalance: string = "10000.00"): Promise<BotEvaluationRun> {
+    const result = await db
+      .insert(botEvaluationRuns)
+      .values({
+        botId,
+        startingBalance,
+        currentBalance: startingBalance,
+        peakEquity: startingBalance,
+      })
+      .returning();
+    
+    const newRun = result[0];
+    
+    await db
+      .update(botEvaluations)
+      .set({ activeRunId: newRun.id })
+      .where(eq(botEvaluations.botId, botId));
+    
+    console.log(`[Evaluation] Created new evaluation run ${newRun.id} for bot ${botId}`);
+    return newRun;
+  }
+
+  async updateEvaluationRunMetrics(runId: string, metrics: Partial<BotEvaluationRun>): Promise<BotEvaluationRun | undefined> {
+    const result = await db
+      .update(botEvaluationRuns)
+      .set(metrics)
+      .where(eq(botEvaluationRuns.id, runId))
+      .returning();
+    return result[0];
+  }
+
+  async closeEvaluationRun(runId: string, status: string, failureReason?: string): Promise<BotEvaluationRun | undefined> {
+    const result = await db
+      .update(botEvaluationRuns)
+      .set({
+        status,
+        failureReason,
+        completedAt: new Date(),
+      })
+      .where(eq(botEvaluationRuns.id, runId))
+      .returning();
+    
+    console.log(`[Evaluation] Closed evaluation run ${runId} with status ${status}`);
+    return result[0];
+  }
+
+  async createEvaluationTrade(trade: InsertBotEvaluationTrade): Promise<BotEvaluationTrade> {
+    const result = await db
+      .insert(botEvaluationTrades)
+      .values(trade)
+      .returning();
+    return result[0];
+  }
+
+  async getEvaluationTrades(evaluationRunId: string, limit: number = 100): Promise<BotEvaluationTrade[]> {
+    const result = await db
+      .select()
+      .from(botEvaluationTrades)
+      .where(eq(botEvaluationTrades.evaluationRunId, evaluationRunId))
+      .orderBy(desc(botEvaluationTrades.executedAt))
+      .limit(limit);
+    return result;
+  }
+
+  async getEvaluationPosition(evaluationRunId: string, symbol: string): Promise<BotEvaluationPosition | undefined> {
+    const result = await db
+      .select()
+      .from(botEvaluationPositions)
+      .where(
+        and(
+          eq(botEvaluationPositions.evaluationRunId, evaluationRunId),
+          eq(botEvaluationPositions.symbol, symbol),
+          eq(botEvaluationPositions.status, 'open')
+        )
+      )
+      .limit(1);
+    return result[0];
+  }
+
+  async createEvaluationPosition(position: InsertBotEvaluationPosition): Promise<BotEvaluationPosition> {
+    const result = await db
+      .insert(botEvaluationPositions)
+      .values(position)
+      .returning();
+    return result[0];
+  }
+
+  async updateEvaluationPosition(id: string, updates: Partial<BotEvaluationPosition>): Promise<BotEvaluationPosition | undefined> {
+    const result = await db
+      .update(botEvaluationPositions)
+      .set(updates)
+      .where(eq(botEvaluationPositions.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async closeEvaluationPosition(id: string, realizedPnl: string): Promise<BotEvaluationPosition | undefined> {
+    const result = await db
+      .update(botEvaluationPositions)
+      .set({
+        status: 'closed',
+        realizedPnl,
+        closedAt: new Date(),
+      })
+      .where(eq(botEvaluationPositions.id, id))
+      .returning();
+    return result[0];
   }
 
   async getAdminStats(): Promise<{

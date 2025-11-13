@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, decimal, timestamp, boolean, jsonb, index, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, decimal, timestamp, boolean, jsonb, index, uniqueIndex, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -369,6 +369,7 @@ export const featuredPlacements = pgTable("featured_placements", {
 export const botEvaluations = pgTable("bot_evaluations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   botId: varchar("bot_id").notNull().unique().references(() => bots.id),
+  activeRunId: varchar("active_run_id").references(() => botEvaluationRuns.id),
   status: text("status").notNull().default("in_progress"),
   requiredTrades: integer("required_trades").notNull().default(15),
   requiredProfitPercent: decimal("required_profit_percent", { precision: 10, scale: 2 }).notNull().default("8.00"),
@@ -385,6 +386,66 @@ export const botEvaluations = pgTable("bot_evaluations", {
 }, (table) => [
   index("idx_bot_evaluations_status").on(table.status),
   index("idx_bot_evaluations_bot_id").on(table.botId),
+]);
+
+export const botEvaluationRuns = pgTable("bot_evaluation_runs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  botId: varchar("bot_id").notNull().references(() => bots.id),
+  startingBalance: decimal("starting_balance", { precision: 15, scale: 2 }).notNull().default("10000.00"),
+  currentBalance: decimal("current_balance", { precision: 15, scale: 2 }).notNull().default("10000.00"),
+  peakEquity: decimal("peak_equity", { precision: 15, scale: 2 }).notNull().default("10000.00"),
+  cumulativeReturnPct: decimal("cumulative_return_pct", { precision: 10, scale: 4 }).notNull().default("0.0000"),
+  maxDrawdownPct: decimal("max_drawdown_pct", { precision: 10, scale: 4 }).notNull().default("0.0000"),
+  tradeCount: integer("trade_count").notNull().default(0),
+  riskPercentPerTrade: decimal("risk_percent_per_trade", { precision: 5, scale: 2 }).notNull().default("2.00"),
+  status: text("status").notNull().default("active"),
+  failureReason: text("failure_reason"),
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+}, (table) => [
+  index("idx_bot_evaluation_runs_bot_id").on(table.botId),
+  index("idx_bot_evaluation_runs_status").on(table.status),
+  uniqueIndex("idx_bot_evaluation_runs_active_unique").on(table.botId, table.status).where(sql`status = 'active'`),
+]);
+
+export const botEvaluationTrades = pgTable("bot_evaluation_trades", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  evaluationRunId: varchar("evaluation_run_id").notNull().references(() => botEvaluationRuns.id),
+  positionId: varchar("position_id").references(() => botEvaluationPositions.id),
+  botId: varchar("bot_id").notNull().references(() => bots.id),
+  symbol: text("symbol").notNull(),
+  side: text("side").notNull(),
+  legType: text("leg_type").notNull(),
+  quantity: decimal("quantity", { precision: 20, scale: 8 }).notNull(),
+  price: decimal("price", { precision: 20, scale: 8 }).notNull(),
+  fees: decimal("fees", { precision: 20, scale: 8 }).notNull().default("0.00000000"),
+  realizedPnl: decimal("realized_pnl", { precision: 20, scale: 8 }),
+  balanceAfterTrade: decimal("balance_after_trade", { precision: 20, scale: 8 }),
+  executedAt: timestamp("executed_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_bot_evaluation_trades_run_id").on(table.evaluationRunId),
+  index("idx_bot_evaluation_trades_bot_id").on(table.botId),
+  index("idx_bot_evaluation_trades_executed_at").on(table.executedAt.desc()),
+]);
+
+export const botEvaluationPositions = pgTable("bot_evaluation_positions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  evaluationRunId: varchar("evaluation_run_id").notNull().references(() => botEvaluationRuns.id),
+  botId: varchar("bot_id").notNull().references(() => bots.id),
+  symbol: text("symbol").notNull(),
+  side: text("side").notNull(),
+  quantity: decimal("quantity", { precision: 20, scale: 8 }).notNull(),
+  entryPrice: decimal("entry_price", { precision: 20, scale: 8 }).notNull(),
+  fees: decimal("fees", { precision: 20, scale: 8 }).notNull().default("0.00000000"),
+  status: text("status").notNull().default("open"),
+  realizedPnl: decimal("realized_pnl", { precision: 20, scale: 8 }),
+  openedAt: timestamp("opened_at").notNull().defaultNow(),
+  closedAt: timestamp("closed_at"),
+}, (table) => [
+  index("idx_bot_evaluation_positions_run_id").on(table.evaluationRunId),
+  index("idx_bot_evaluation_positions_bot_id").on(table.botId),
+  index("idx_bot_evaluation_positions_status").on(table.status),
+  uniqueIndex("idx_bot_evaluation_positions_unique_open").on(table.evaluationRunId, table.symbol, table.status).where(sql`status = 'open'`),
 ]);
 
 export const payouts = pgTable("payouts", {
@@ -442,6 +503,9 @@ export const insertUserOnboardingSchema = createInsertSchema(userOnboarding).omi
 export const insertCreatorApplicationSchema = createInsertSchema(creatorApplications).omit({ id: true, createdAt: true, updatedAt: true, reviewedAt: true });
 export const insertFeaturedPlacementSchema = createInsertSchema(featuredPlacements).omit({ id: true, createdAt: true });
 export const insertBotEvaluationSchema = createInsertSchema(botEvaluations).omit({ id: true, createdAt: true, updatedAt: true, startedAt: true, completedAt: true });
+export const insertBotEvaluationRunSchema = createInsertSchema(botEvaluationRuns).omit({ id: true, startedAt: true, completedAt: true });
+export const insertBotEvaluationTradeSchema = createInsertSchema(botEvaluationTrades).omit({ id: true, executedAt: true });
+export const insertBotEvaluationPositionSchema = createInsertSchema(botEvaluationPositions).omit({ id: true, openedAt: true, closedAt: true });
 export const insertPayoutSchema = createInsertSchema(payouts).omit({ id: true, createdAt: true, updatedAt: true, requestedAt: true, reviewedAt: true, completedAt: true });
 export const insertPasswordResetTokenSchema = createInsertSchema(passwordResetTokens).omit({ id: true, createdAt: true });
 
@@ -549,6 +613,12 @@ export type InsertFeaturedPlacement = z.infer<typeof insertFeaturedPlacementSche
 export type FeaturedPlacement = typeof featuredPlacements.$inferSelect;
 export type InsertBotEvaluation = z.infer<typeof insertBotEvaluationSchema>;
 export type BotEvaluation = typeof botEvaluations.$inferSelect;
+export type InsertBotEvaluationRun = z.infer<typeof insertBotEvaluationRunSchema>;
+export type BotEvaluationRun = typeof botEvaluationRuns.$inferSelect;
+export type InsertBotEvaluationTrade = z.infer<typeof insertBotEvaluationTradeSchema>;
+export type BotEvaluationTrade = typeof botEvaluationTrades.$inferSelect;
+export type InsertBotEvaluationPosition = z.infer<typeof insertBotEvaluationPositionSchema>;
+export type BotEvaluationPosition = typeof botEvaluationPositions.$inferSelect;
 export type InsertPayout = z.infer<typeof insertPayoutSchema>;
 export type Payout = typeof payouts.$inferSelect;
 export type InsertDiscountCode = z.infer<typeof insertDiscountCodeSchema>;
