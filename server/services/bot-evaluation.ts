@@ -41,7 +41,8 @@ export async function processEvaluationSignal(
     
     const normalizedAction = action.toLowerCase();
     
-    if (normalizedAction === 'buy' || normalizedAction === 'long') {
+    // Entry signals: buy, long, entry
+    if (normalizedAction === 'buy' || normalizedAction === 'long' || normalizedAction === 'entry') {
       return await handleEntrySignal(evaluationRun, {
         symbol,
         side: normalizedAction,
@@ -51,7 +52,9 @@ export async function processEvaluationSignal(
         botId,
         storage
       });
-    } else if (normalizedAction === 'sell' || normalizedAction === 'short') {
+    } 
+    // Exit signals: sell, short, exit
+    else if (normalizedAction === 'sell' || normalizedAction === 'short' || normalizedAction === 'exit') {
       return await handleExitSignal(evaluationRun, {
         symbol,
         side: normalizedAction,
