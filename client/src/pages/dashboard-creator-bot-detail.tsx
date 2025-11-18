@@ -69,6 +69,17 @@ export default function DashboardCreatorBotDetail() {
 
   const bot = creatorBots.find((b) => b.id === botId);
 
+  // Fetch evaluation data with trades
+  const { data: evaluationData } = useQuery<{
+    run: any;
+    trades: any[];
+    evaluation: any;
+  }>({
+    queryKey: ["/api/creator/bots", botId, "evaluation"],
+    enabled: !!botId,
+    refetchInterval: 10000, // Refetch every 10 seconds for real-time updates
+  });
+
   const updateBotMutation = useMutation({
     mutationFn: async (updates: any) => {
       return apiRequest("PATCH", `/api/creator/bots/${botId}`, updates);
@@ -117,7 +128,20 @@ export default function DashboardCreatorBotDetail() {
 
   const isLive = bot.evaluationStatus === "live";
   const isInEvaluation = bot.evaluationStatus === "in_evaluation";
-  const progress = bot.evaluationProgress || {
+  
+  // Use real-time evaluation data if available, otherwise use bot progress
+  const evaluationRun = evaluationData?.run;
+  const evaluation = evaluationData?.evaluation;
+  const trades = evaluationData?.trades || [];
+  
+  const progress = evaluationRun && evaluation ? {
+    tradeCount: parseInt(evaluationRun.tradeCount) / 2, // Divide by 2 because each trade has entry + exit
+    profitPercentage: parseFloat(evaluationRun.cumulativeReturnPct),
+    maxDrawdown: parseFloat(evaluationRun.maxDrawdownPct),
+    requiredTrades: evaluation.requiredTrades,
+    requiredProfit: parseFloat(evaluation.requiredProfitPercent),
+    requiredMaxDrawdown: parseFloat(evaluation.requiredMaxDrawdownPercent),
+  } : bot.evaluationProgress || {
     tradeCount: 0,
     profitPercentage: 0,
     maxDrawdown: 0,
@@ -443,6 +467,70 @@ export default function DashboardCreatorBotDetail() {
               )}
             </CardContent>
           </Card>
+
+          {/* Evaluation Trades Table */}
+          {trades.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Evaluation Trades</CardTitle>
+                <CardDescription>
+                  All signals and trades executed during evaluation
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="border-b">
+                      <tr className="text-left">
+                        <th className="pb-3 font-medium">Time</th>
+                        <th className="pb-3 font-medium">Symbol</th>
+                        <th className="pb-3 font-medium">Type</th>
+                        <th className="pb-3 font-medium">Side</th>
+                        <th className="pb-3 font-medium text-right">Price</th>
+                        <th className="pb-3 font-medium text-right">Quantity</th>
+                        <th className="pb-3 font-medium text-right">P&L</th>
+                        <th className="pb-3 font-medium text-right">Balance</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {trades.map((trade: any) => (
+                        <tr key={trade.id} className="hover-elevate" data-testid={`trade-row-${trade.id}`}>
+                          <td className="py-3 text-muted-foreground">
+                            {new Date(trade.executedAt).toLocaleString()}
+                          </td>
+                          <td className="py-3 font-medium">{trade.symbol}</td>
+                          <td className="py-3">
+                            <Badge variant={trade.legType === 'entry' ? 'default' : 'secondary'} data-testid={`badge-type-${trade.id}`}>
+                              {trade.legType === 'entry' ? 'Open' : 'Close'}
+                            </Badge>
+                          </td>
+                          <td className="py-3">
+                            <Badge variant="outline" data-testid={`badge-side-${trade.id}`}>
+                              {trade.side}
+                            </Badge>
+                          </td>
+                          <td className="py-3 text-right">${parseFloat(trade.price).toFixed(2)}</td>
+                          <td className="py-3 text-right">{parseFloat(trade.quantity).toFixed(4)}</td>
+                          <td className="py-3 text-right">
+                            {trade.realizedPnl ? (
+                              <span className={parseFloat(trade.realizedPnl) >= 0 ? 'text-green-500' : 'text-red-500'}>
+                                {parseFloat(trade.realizedPnl) >= 0 ? '+' : ''}${parseFloat(trade.realizedPnl).toFixed(2)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </td>
+                          <td className="py-3 text-right text-muted-foreground">
+                            ${parseFloat(trade.balanceAfterTrade).toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* Bot Details Tab */}

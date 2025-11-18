@@ -1763,6 +1763,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Bot Evaluation Routes
+  app.get("/api/creator/bots/:id/evaluation", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const bot = await storage.getBotById(req.params.id);
+      
+      if (!bot) {
+        return res.status(404).json({ message: "Bot not found" });
+      }
+      
+      if (bot.creatorId !== userId) {
+        return res.status(403).json({ message: "Forbidden: Only bot creators can view evaluation data" });
+      }
+      
+      const evaluationRun = await storage.getActiveEvaluationRun(req.params.id);
+      const evaluation = await storage.getBotEvaluation(req.params.id);
+      
+      if (!evaluationRun || !evaluation) {
+        return res.json({
+          run: null,
+          trades: [],
+          evaluation: null,
+        });
+      }
+      
+      const trades = await storage.getEvaluationTrades(evaluationRun.id);
+      
+      res.json({
+        run: evaluationRun,
+        trades,
+        evaluation,
+      });
+    } catch (error) {
+      console.error("Error fetching evaluation data:", error);
+      res.status(500).json({ message: "Failed to fetch evaluation data" });
+    }
+  });
+
   app.post("/api/bots/:botId/evaluation/start", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.session.userId;
