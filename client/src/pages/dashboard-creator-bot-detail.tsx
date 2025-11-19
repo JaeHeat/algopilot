@@ -306,6 +306,58 @@ export default function DashboardCreatorBotDetail() {
             </Card>
           </div>
 
+          {/* Open Positions */}
+          {isInEvaluation && trades.filter((t: any) => t.legType === 'entry' && !trades.find((exit: any) => exit.positionId === t.positionId && exit.legType === 'exit')).length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Open Positions</CardTitle>
+                <CardDescription>
+                  Positions awaiting exit signals
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {trades
+                    .filter((entry: any) => 
+                      entry.legType === 'entry' && 
+                      !trades.find((exit: any) => 
+                        exit.positionId === entry.positionId && exit.legType === 'exit'
+                      )
+                    )
+                    .map((position: any) => (
+                      <div 
+                        key={position.id} 
+                        className="flex items-center justify-between p-3 rounded-lg border hover-elevate"
+                        data-testid={`open-position-${position.id}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex flex-col">
+                            <span className="font-semibold">{position.symbol}</span>
+                            <span className="text-xs text-muted-foreground">
+                              Opened {new Date(position.executedAt).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <div className="text-sm font-medium">
+                              Entry: ${parseFloat(position.price).toFixed(2)}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Qty: {parseFloat(position.quantity).toFixed(4)}
+                            </div>
+                          </div>
+                          <Badge variant="outline" data-testid={`badge-position-open-${position.id}`}>
+                            Open
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Quick Actions */}
           <div className="grid gap-4 md:grid-cols-2">
             <Card>
