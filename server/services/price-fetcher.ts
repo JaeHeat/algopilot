@@ -29,22 +29,25 @@ export class PriceFetcher {
 
   private static async fetchPrice(symbol: string): Promise<number | null> {
     const sources = [
-      () => this.fetchFromBinance(symbol),
-      () => this.fetchFromBybit(symbol),
-      () => this.fetchFromCoinGecko(symbol),
+      { name: 'Binance', fn: () => this.fetchFromBinance(symbol) },
+      { name: 'Bybit', fn: () => this.fetchFromBybit(symbol) },
+      { name: 'CoinGecko', fn: () => this.fetchFromCoinGecko(symbol) },
     ];
 
-    for (const fetchFn of sources) {
+    for (const source of sources) {
       try {
-        const price = await fetchFn();
+        const price = await source.fn();
         if (price !== null) {
+          console.log(`[PriceFetcher] Successfully fetched ${symbol} price from ${source.name}: $${price}`);
           return price;
         }
-      } catch (error) {
+      } catch (error: any) {
+        console.log(`[PriceFetcher] ${source.name} failed for ${symbol}:`, error.message);
         continue;
       }
     }
 
+    console.log(`[PriceFetcher] All sources failed for ${symbol}`);
     return null;
   }
 

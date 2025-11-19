@@ -1816,6 +1816,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const evaluationRun = await storage.getActiveEvaluationRun(req.params.id);
       if (!evaluationRun) {
+        console.log(`[Prices] No active evaluation run for bot ${req.params.id}`);
         return res.json({ prices: {} });
       }
       
@@ -1829,6 +1830,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const symbolSet = new Set(openPositions.map((p: any) => p.symbol));
       const symbols = Array.from(symbolSet);
       
+      console.log(`[Prices] Found ${openPositions.length} open positions with symbols:`, symbols);
+      
       if (symbols.length === 0) {
         return res.json({ prices: {} });
       }
@@ -1840,9 +1843,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         prices[symbol] = price;
       });
       
+      console.log(`[Prices] Returning prices:`, prices);
       res.json({ prices });
     } catch (error) {
-      console.error("Error fetching current prices:", error);
+      console.error("[Prices] Error fetching current prices:", error);
       res.status(500).json({ message: "Failed to fetch prices" });
     }
   });

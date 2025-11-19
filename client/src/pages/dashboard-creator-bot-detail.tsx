@@ -83,7 +83,7 @@ export default function DashboardCreatorBotDetail() {
   // Fetch current prices for open positions
   const { data: pricesData } = useQuery<{ prices: Record<string, number> }>({
     queryKey: ["/api/creator/bots", botId, "evaluation", "prices"],
-    enabled: !!botId && bot?.evaluationStatus === "in_evaluation",
+    enabled: !!botId && !!bot,
     refetchInterval: 10000, // Refetch every 10 seconds for real-time prices
   });
 
