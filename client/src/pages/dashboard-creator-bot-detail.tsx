@@ -80,6 +80,13 @@ export default function DashboardCreatorBotDetail() {
     refetchInterval: 10000, // Refetch every 10 seconds for real-time updates
   });
 
+  // Fetch current prices for open positions
+  const { data: pricesData } = useQuery<{ prices: Record<string, number> }>({
+    queryKey: ["/api/creator/bots", botId, "evaluation", "prices"],
+    enabled: !!botId && bot?.evaluationStatus === "in_evaluation",
+    refetchInterval: 10000, // Refetch every 10 seconds for real-time prices
+  });
+
   const updateBotMutation = useMutation({
     mutationFn: async (updates: any) => {
       return apiRequest("PATCH", `/api/creator/bots/${botId}`, updates);
@@ -324,35 +331,61 @@ export default function DashboardCreatorBotDetail() {
                         exit.positionId === entry.positionId && exit.legType === 'exit'
                       )
                     )
-                    .map((position: any) => (
-                      <div 
-                        key={position.id} 
-                        className="flex items-center justify-between p-3 rounded-lg border hover-elevate"
-                        data-testid={`open-position-${position.id}`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="flex flex-col">
-                            <span className="font-semibold">{position.symbol}</span>
-                            <span className="text-xs text-muted-foreground">
-                              Opened {new Date(position.executedAt).toLocaleString()}
-                            </span>
+                    .map((position: any) => {
+                      const currentPrice = pricesData?.prices?.[position.symbol];
+                      const entryPrice = parseFloat(position.price);
+                      const quantity = parseFloat(position.quantity);
+                      
+                      let unrealizedPnl = null;
+                      let unrealizedPnlPct = null;
+                      
+                      if (currentPrice) {
+                        const entryValue = entryPrice * quantity;
+                        const currentValue = currentPrice * quantity;
+                        unrealizedPnl = currentValue - entryValue;
+                        unrealizedPnlPct = (unrealizedPnl / entryValue) * 100;
+                      }
+                      
+                      return (
+                        <div 
+                          key={position.id} 
+                          className="flex items-center justify-between p-3 rounded-lg border hover-elevate"
+                          data-testid={`open-position-${position.id}`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="flex flex-col">
+                              <span className="font-semibold">{position.symbol}</span>
+                              <span className="text-xs text-muted-foreground">
+                                Opened {new Date(position.executedAt).toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="text-right">
+                              <div className="text-sm font-medium">
+                                Entry: ${entryPrice.toFixed(2)}
+                                {currentPrice && (
+                                  <span className="text-muted-foreground ml-1">
+                                    → ${currentPrice.toFixed(2)}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                Qty: {quantity.toFixed(4)}
+                              </div>
+                              {unrealizedPnl !== null && (
+                                <div className={`text-sm font-semibold ${unrealizedPnl >= 0 ? 'text-green-500' : 'text-red-500'}`} data-testid={`unrealized-pnl-${position.id}`}>
+                                  {unrealizedPnl >= 0 ? '+' : ''}{unrealizedPnl.toFixed(2)} ({unrealizedPnlPct!.toFixed(2)}%)
+                                </div>
+                              )}
+                            </div>
+                            <Badge variant="outline" data-testid={`badge-position-open-${position.id}`}>
+                              Open
+                            </Badge>
                           </div>
                         </div>
-                        <div className="flex items-center gap-4">
-                          <div className="text-right">
-                            <div className="text-sm font-medium">
-                              Entry: ${parseFloat(position.price).toFixed(2)}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              Qty: {parseFloat(position.quantity).toFixed(4)}
-                            </div>
-                          </div>
-                          <Badge variant="outline" data-testid={`badge-position-open-${position.id}`}>
-                            Open
-                          </Badge>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                 </div>
               </CardContent>
             </Card>

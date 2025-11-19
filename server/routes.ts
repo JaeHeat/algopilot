@@ -13,6 +13,7 @@ import connectPg from "connect-pg-simple";
 import { notifyTradeExecuted, notifyDrawdownBreach } from "./services/notifications";
 import { tradeExecutionService } from "./services/trade-execution";
 import { stripeConnectService } from "./services/stripe-connect";
+import { PriceFetcher } from "./services/price-fetcher";
 
 const priceValidator = z.string().or(z.number()).refine(
   (val) => {
@@ -1797,6 +1798,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching evaluation data:", error);
       res.status(500).json({ message: "Failed to fetch evaluation data" });
+    }
+  });
+
+  app.get("/api/creator/bots/:id/evaluation/prices", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const bot = await storage.getBotById(req.params.id);
+      
+      if (!bot) {
+        return res.status(404).json({ message: "Bot not found" });
+      }
+      
+      if (bot.creatorId !== userId) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      
+      const evaluationRun = await storage.getActiveEvaluationRun(req.params.id);
+      if (!evaluationRun) {
+        return res.json({ prices: {} });
+      }
+      
+      const trades = await storage.getEvaluationTrades(evaluationRun.id);
+      
+      const openPositions = trades.filter((entry: any) => 
+        entry.legType === 'entry' && 
+        !trades.find((exit: any) => exit.positionId === entry.positionId && exit.legType === 'exit')
+      );
+      
+      const symbolSet = new Set(openPositions.map((p: any) => p.symbol));
+      const symbols = Array.from(symbolSet);
+      
+      if (symbols.length === 0) {
+        return res.json({ prices: {} });
+      }
+      
+      const priceMap = await PriceFetcher.getCurrentPrices(symbols);
+      
+      const prices: Record<string, number> = {};
+      priceMap.forEach((price, symbol) => {
+        prices[symbol] = price;
+      });
+      
+      res.json({ prices });
+    } catch (error) {
+      console.error("Error fetching current prices:", error);
+      res.status(500).json({ message: "Failed to fetch prices" });
     }
   });
 
