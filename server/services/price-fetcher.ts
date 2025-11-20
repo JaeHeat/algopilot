@@ -100,6 +100,7 @@ export class PriceFetcher {
       const coinId = coinMap[normalizedSymbol];
       
       if (!coinId) {
+        console.log(`[PriceFetcher] CoinGecko: No mapping for ${symbol}`);
         return null;
       }
 
@@ -108,11 +109,21 @@ export class PriceFetcher {
           ids: coinId,
           vs_currencies: 'usd',
         },
-        timeout: 3000,
+        timeout: 5000,
+        headers: {
+          'Accept': 'application/json',
+        }
       });
 
-      return response.data[coinId]?.usd || null;
-    } catch (error) {
+      const price = response.data[coinId]?.usd;
+      if (!price) {
+        console.log(`[PriceFetcher] CoinGecko: No price in response for ${coinId}`, response.data);
+        return null;
+      }
+      
+      return price;
+    } catch (error: any) {
+      console.log(`[PriceFetcher] CoinGecko error for ${symbol}:`, error.response?.status, error.response?.data || error.message);
       return null;
     }
   }
