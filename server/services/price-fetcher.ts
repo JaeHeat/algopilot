@@ -96,7 +96,10 @@ export class PriceFetcher {
         'SOLUSDT': 'solana',
       };
 
-      const normalizedSymbol = symbol.replace('USD', 'USDT');
+      let normalizedSymbol = symbol.toUpperCase();
+      if (!normalizedSymbol.endsWith('USDT') && normalizedSymbol.endsWith('USD')) {
+        normalizedSymbol = normalizedSymbol.replace(/USD$/, 'USDT');
+      }
       const coinId = coinMap[normalizedSymbol];
       
       if (!coinId) {
