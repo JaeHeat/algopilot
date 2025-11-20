@@ -160,6 +160,7 @@ export default function DashboardBotSettings() {
                   <SelectContent>
                     <SelectItem value="fixed_amount">Fixed Amount</SelectItem>
                     <SelectItem value="percent_of_balance">Percent of Balance</SelectItem>
+                    <SelectItem value="risk_based">Risk-Based (% of Balance per Trade)</SelectItem>
                     <SelectItem value="kelly_criterion">Kelly Criterion</SelectItem>
                   </SelectContent>
                 </Select>
@@ -179,6 +180,10 @@ export default function DashboardBotSettings() {
                 <p className="text-sm text-muted-foreground">
                   {getValue("positionSizingStrategy") === "percent_of_balance" 
                     ? "Percentage of balance to use per trade (e.g., 10 = 10%)"
+                    : getValue("positionSizingStrategy") === "risk_based"
+                    ? "Risk percentage per trade (e.g., 2 = 2% risk per trade)"
+                    : getValue("positionSizingStrategy") === "kelly_criterion"
+                    ? "Kelly fraction as percentage (e.g., 25 = 25% of Kelly)"
                     : "Fixed dollar amount per trade"}
                 </p>
               </div>

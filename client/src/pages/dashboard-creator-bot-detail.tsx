@@ -62,6 +62,7 @@ export default function DashboardCreatorBotDetail() {
     price: "",
     category: "",
   });
+  const [positionToClose, setPositionToClose] = useState<string | null>(null);
 
   const { data: creatorBots = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/creator/bots"],
@@ -105,6 +106,28 @@ export default function DashboardCreatorBotDetail() {
       toast({
         title: "Error",
         description: "Failed to update bot. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const closePositionMutation = useMutation({
+    mutationFn: async (positionId: string) => {
+      return apiRequest("POST", `/api/creator/bots/${botId}/evaluation/positions/${positionId}/close`, {});
+    },
+    onSuccess: async (data: any) => {
+      await queryClient.refetchQueries({ queryKey: ["/api/creator/bots", botId, "evaluation"] });
+      await queryClient.refetchQueries({ queryKey: ["/api/creator/bots"] });
+      setPositionToClose(null);
+      toast({
+        title: "Position closed",
+        description: `Closed ${data.position.symbol} with P&L: $${data.position.realizedPnl}`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to close position. Please try again.",
         variant: "destructive",
       });
     },
@@ -349,7 +372,7 @@ export default function DashboardCreatorBotDetail() {
                       return (
                         <div 
                           key={position.id} 
-                          className="flex items-center justify-between p-3 rounded-lg border hover-elevate"
+                          className="flex items-center justify-between gap-2 p-3 rounded-lg border hover-elevate"
                           data-testid={`open-position-${position.id}`}
                         >
                           <div className="flex items-center gap-3">
@@ -382,6 +405,15 @@ export default function DashboardCreatorBotDetail() {
                             <Badge variant="outline" data-testid={`badge-position-open-${position.id}`}>
                               Open
                             </Badge>
+                            <Button 
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => setPositionToClose(position.positionId)}
+                              data-testid={`button-close-position-${position.id}`}
+                            >
+                              <X className="h-4 w-4 mr-1" />
+                              Close
+                            </Button>
                           </div>
                         </div>
                       );
@@ -783,6 +815,35 @@ export default function DashboardCreatorBotDetail() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Close Position Confirmation Dialog */}
+      <Dialog open={!!positionToClose} onOpenChange={(open) => !open && setPositionToClose(null)}>
+        <DialogContent data-testid="dialog-close-position">
+          <DialogHeader>
+            <DialogTitle>Close Position?</DialogTitle>
+            <DialogDescription>
+              This will close the position at the current market price. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setPositionToClose(null)}
+              data-testid="button-cancel-close"
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => positionToClose && closePositionMutation.mutate(positionToClose)}
+              disabled={closePositionMutation.isPending}
+              data-testid="button-confirm-close"
+            >
+              {closePositionMutation.isPending ? "Closing..." : "Close Position"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

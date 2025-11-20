@@ -1347,6 +1347,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'active',
       });
       
+      await storage.createBotSettings({
+        botId: bot.id,
+        leverage: 1,
+        positionSizingStrategy: 'risk_based',
+        positionSizeValue: '2.00',
+        maxDrawdownPercentage: '10.00',
+      });
+      
       const webhookUrl = `${req.protocol}://${req.get('host')}/api/webhooks/${bot.id}/${webhook.secret}?token=${webhook.authToken}`;
       
       res.json({
@@ -1848,6 +1856,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("[Prices] Error fetching current prices:", error);
       res.status(500).json({ message: "Failed to fetch prices" });
+    }
+  });
+
+  app.post("/api/creator/bots/:id/evaluation/positions/:positionId/close", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const { id: botId, positionId } = req.params;
+      
+      const bot = await storage.getBotById(botId);
+      if (!bot) {
+        return res.status(404).json({ message: "Bot not found" });
+      }
+      
+      if (bot.creatorId !== userId) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+      
+      const evaluationRun = await storage.getActiveEvaluationRun(botId);
+      if (!evaluationRun) {
+        return res.status(404).json({ message: "No active evaluation run found" });
+      }
+      
+      const position = await storage.getEvaluationPositionById(positionId);
+      if (!position) {
+        return res.status(404).json({ message: "Position not found" });
+      }
+      
+      if (position.evaluationRunId !== evaluationRun.id) {
+        return res.status(403).json({ message: "Position does not belong to this evaluation run" });
+      }
+      
+      if (position.status !== 'open') {
+        return res.status(400).json({ message: "Position is already closed" });
+      }
+      
+      const priceMap = await PriceFetcher.getCurrentPrices([position.symbol]);
+      const currentPrice = priceMap.get(position.symbol);
+      
+      if (!currentPrice) {
+        return res.status(500).json({ message: `Failed to fetch current price for ${position.symbol}` });
+      }
+      
+      const entryPrice = parseFloat(position.entryPrice);
+      const positionQty = parseFloat(position.quantity);
+      const entryFees = parseFloat(position.fees);
+      const exitFees = positionQty * currentPrice * 0.001;
+      
+      let realizedPnl = 0;
+      if (position.side === 'long' || position.side === 'buy') {
+        realizedPnl = ((currentPrice - entryPrice) * positionQty) - entryFees - exitFees;
+      } else {
+        realizedPnl = ((entryPrice - currentPrice) * positionQty) - entryFees - exitFees;
+      }
+      
+      await storage.closeEvaluationPosition(position.id, realizedPnl.toFixed(8));
+      
+      const currentBalance = parseFloat(evaluationRun.currentBalance);
+      const newBalance = currentBalance + realizedPnl;
+      
+      const trade = await storage.createEvaluationTrade({
+        evaluationRunId: evaluationRun.id,
+        positionId: position.id,
+        botId,
+        symbol: position.symbol,
+        side: position.side === 'long' || position.side === 'buy' ? 'sell' : 'buy',
+        legType: 'exit',
+        quantity: positionQty.toFixed(8),
+        price: currentPrice.toFixed(8),
+        fees: exitFees.toFixed(8),
+        realizedPnl: realizedPnl.toFixed(8),
+        balanceAfterTrade: newBalance.toFixed(8),
+      });
+      
+      const startingBalance = parseFloat(evaluationRun.startingBalance);
+      const cumulativeReturnPct = ((newBalance - startingBalance) / startingBalance) * 100;
+      
+      const peakEquity = parseFloat(evaluationRun.peakEquity);
+      const newPeakEquity = Math.max(peakEquity, newBalance);
+      
+      const drawdownFromPeak = ((newPeakEquity - newBalance) / newPeakEquity) * 100;
+      const currentMaxDrawdown = parseFloat(evaluationRun.maxDrawdownPct);
+      const newMaxDrawdown = Math.max(currentMaxDrawdown, drawdownFromPeak);
+      
+      await storage.updateEvaluationRunMetrics(evaluationRun.id, {
+        currentBalance: newBalance.toFixed(2),
+        peakEquity: newPeakEquity.toFixed(2),
+        cumulativeReturnPct: cumulativeReturnPct.toFixed(4),
+        maxDrawdownPct: newMaxDrawdown.toFixed(4),
+        tradeCount: evaluationRun.tradeCount + 1,
+      });
+      
+      console.log(`[Manual Close] Closed ${position.side} position for ${position.symbol} @ ${currentPrice} | P&L: ${realizedPnl.toFixed(2)}`);
+      
+      res.json({ 
+        success: true,
+        message: "Position closed successfully",
+        position: {
+          id: position.id,
+          symbol: position.symbol,
+          closePrice: currentPrice,
+          realizedPnl: realizedPnl.toFixed(2),
+        },
+        trade: {
+          id: trade.id,
+        }
+      });
+    } catch (error) {
+      console.error("[Manual Close] Error closing position:", error);
+      res.status(500).json({ message: "Failed to close position" });
     }
   });
 

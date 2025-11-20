@@ -167,6 +167,7 @@ export interface IStorage {
   getEvaluationTrades(evaluationRunId: string, limit?: number): Promise<BotEvaluationTrade[]>;
   
   getEvaluationPosition(evaluationRunId: string, symbol: string): Promise<BotEvaluationPosition | undefined>;
+  getEvaluationPositionById(id: string): Promise<BotEvaluationPosition | undefined>;
   createEvaluationPosition(position: InsertBotEvaluationPosition): Promise<BotEvaluationPosition>;
   updateEvaluationPosition(id: string, updates: Partial<BotEvaluationPosition>): Promise<BotEvaluationPosition | undefined>;
   closeEvaluationPosition(id: string, realizedPnl: string): Promise<BotEvaluationPosition | undefined>;
@@ -1642,6 +1643,15 @@ export class DbStorage implements IStorage {
           eq(botEvaluationPositions.status, 'open')
         )
       )
+      .limit(1);
+    return result[0];
+  }
+
+  async getEvaluationPositionById(id: string): Promise<BotEvaluationPosition | undefined> {
+    const result = await db
+      .select()
+      .from(botEvaluationPositions)
+      .where(eq(botEvaluationPositions.id, id))
       .limit(1);
     return result[0];
   }

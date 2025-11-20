@@ -32,10 +32,33 @@ export async function processEvaluationSignal(
       evaluationRun = await storage.createEvaluationRun(botId);
     }
     
-    const riskPercent = parseFloat(evaluationRun.riskPercentPerTrade);
+    const botSettings = await storage.getBotSettings(botId);
+    
+    let riskPercent = parseFloat(evaluationRun.riskPercentPerTrade);
     const currentBalance = parseFloat(evaluationRun.currentBalance);
     
-    const positionSize = (currentBalance * riskPercent) / 100;
+    let positionSize = 0;
+    
+    if (botSettings) {
+      const strategy = botSettings.positionSizingStrategy;
+      
+      if (strategy === 'percent_of_balance') {
+        const percentage = parseFloat(botSettings.positionSizeValue);
+        positionSize = (currentBalance * percentage) / 100;
+      } else if (strategy === 'risk_based') {
+        const riskAmount = (currentBalance * parseFloat(botSettings.positionSizeValue)) / 100;
+        positionSize = riskAmount;
+        riskPercent = parseFloat(botSettings.positionSizeValue);
+      } else if (strategy === 'kelly_criterion') {
+        const kellyFraction = parseFloat(botSettings.positionSizeValue) / 100;
+        positionSize = currentBalance * kellyFraction;
+      } else {
+        positionSize = parseFloat(botSettings.positionSizeValue);
+      }
+    } else {
+      positionSize = (currentBalance * riskPercent) / 100;
+    }
+    
     const quantity = positionSize / price;
     const fees = positionSize * 0.001;
     
