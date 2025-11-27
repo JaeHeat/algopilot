@@ -3415,12 +3415,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`[Webhook] Bot ${botId} is in evaluation mode - delegating to evaluation service`);
         
         const { processEvaluationSignal } = await import('./services/bot-evaluation');
+        
+        // Parse stop loss and take profit from webhook
+        const stopLoss = validatedPayload.sl ? (typeof validatedPayload.sl === 'string' ? parseFloat(validatedPayload.sl) : validatedPayload.sl) : null;
+        const takeProfit = validatedPayload.tp ? (typeof validatedPayload.tp === 'string' ? parseFloat(validatedPayload.tp) : validatedPayload.tp) : null;
+        
         const result = await processEvaluationSignal({
           botId,
           symbol,
           action: action as 'buy' | 'sell' | 'long' | 'short' | 'entry' | 'exit',
           positionSide: positionSide as 'long' | 'short' | null,
           price,
+          stopLoss,
+          takeProfit,
           timestamp: validatedPayload.time,
         }, storage);
         
