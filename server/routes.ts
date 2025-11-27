@@ -3392,6 +3392,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedPayload = validationResult.data;
       const symbol = validatedPayload.symbol.toUpperCase();
       const action = (validatedPayload.action || validatedPayload.side)!.toLowerCase();
+      const positionSide = validatedPayload.side?.toLowerCase() || null;
       
       // Normalize price field - accept price, entry, or exit
       const priceValue = validatedPayload.price || validatedPayload.entry || validatedPayload.exit;
@@ -3402,6 +3403,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[Webhook] Received trade signal for bot ${botId}:`, {
         symbol,
         action,
+        positionSide,
         price,
         time: validatedPayload.time || new Date().toISOString(),
       });
@@ -3416,7 +3418,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const result = await processEvaluationSignal({
           botId,
           symbol,
-          action: action as 'buy' | 'sell' | 'long' | 'short',
+          action: action as 'buy' | 'sell' | 'long' | 'short' | 'entry' | 'exit',
+          positionSide: positionSide as 'long' | 'short' | null,
           price,
           timestamp: validatedPayload.time,
         }, storage);

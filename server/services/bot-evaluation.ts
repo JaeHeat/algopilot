@@ -4,7 +4,8 @@ import type { Bot, BotEvaluationRun } from "@shared/schema";
 interface EvaluationSignal {
   botId: string;
   symbol: string;
-  action: 'buy' | 'sell' | 'long' | 'short';
+  action: 'buy' | 'sell' | 'long' | 'short' | 'entry' | 'exit';
+  positionSide?: 'long' | 'short' | null;
   price: number;
   timestamp?: string;
 }
@@ -20,7 +21,7 @@ export async function processEvaluationSignal(
   signal: EvaluationSignal,
   storage: IStorage
 ): Promise<ProcessSignalResult> {
-  const { botId, symbol, action, price } = signal;
+  const { botId, symbol, action, positionSide, price } = signal;
   
   console.log(`[Evaluation] Processing signal for bot ${botId}: ${action} ${symbol} @ ${price}`);
   
@@ -66,9 +67,15 @@ export async function processEvaluationSignal(
     
     // Entry signals: buy, long, entry
     if (normalizedAction === 'buy' || normalizedAction === 'long' || normalizedAction === 'entry') {
+      // Determine the actual position side: prefer explicit positionSide from webhook, else infer from action
+      const actualSide = positionSide === 'short' ? 'short' : 
+                         positionSide === 'long' ? 'long' :
+                         normalizedAction === 'buy' ? 'long' :
+                         normalizedAction === 'long' ? 'long' : 'long'; // Default to long
+      
       return await handleEntrySignal(evaluationRun, {
         symbol,
-        side: normalizedAction,
+        side: actualSide,
         price,
         quantity,
         fees,
