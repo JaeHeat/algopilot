@@ -135,14 +135,20 @@ export default function BotDetail() {
   };
 
   const closedTrades = trades.filter(t => t.status === "closed");
-  const winningTrades = closedTrades.filter(t => parseFloat(t.pnlPercentage || "0") > 0);
-  const losingTrades = closedTrades.filter(t => parseFloat(t.pnlPercentage || "0") < 0);
+  const EVALUATION_CAPITAL = 10000; // $10,000 evaluation capital
+  
+  // Use dollar PnL (pnlValue field) for win/loss determination - more accurate than percentage
+  const winningTrades = closedTrades.filter(t => parseFloat(t.pnlValue || "0") > 0);
+  const losingTrades = closedTrades.filter(t => parseFloat(t.pnlValue || "0") < 0);
   const winRate = closedTrades.length > 0 ? ((winningTrades.length / closedTrades.length) * 100).toFixed(1) : "0.0";
+  
+  // Calculate total P&L as percentage of evaluation capital
+  const totalPnlDollars = closedTrades.reduce((sum, t) => sum + parseFloat(t.pnlValue || "0"), 0);
   const avgPnl = closedTrades.length > 0 
-    ? (closedTrades.reduce((sum, t) => sum + parseFloat(t.pnlPercentage || "0"), 0) / closedTrades.length).toFixed(2)
+    ? ((totalPnlDollars / EVALUATION_CAPITAL) * 100 / closedTrades.length).toFixed(2)
     : "0.00";
 
-  // Calculate advanced analytics
+  // Calculate advanced analytics using dollar PnL values
   const analytics = (() => {
     if (closedTrades.length === 0) {
       return {
@@ -157,20 +163,25 @@ export default function BotDetail() {
       };
     }
 
-    const totalGains = winningTrades.reduce((sum, t) => sum + parseFloat(t.pnlPercentage || "0"), 0);
-    const totalLosses = Math.abs(losingTrades.reduce((sum, t) => sum + parseFloat(t.pnlPercentage || "0"), 0));
+    // Use dollar amounts for profit factor calculation
+    const totalGainsDollars = winningTrades.reduce((sum, t) => sum + parseFloat(t.pnlValue || "0"), 0);
+    const totalLossesDollars = Math.abs(losingTrades.reduce((sum, t) => sum + parseFloat(t.pnlValue || "0"), 0));
     
     const winRateNum = (winningTrades.length / closedTrades.length) * 100;
     const lossRate = (losingTrades.length / closedTrades.length) * 100;
-    const profitFactor = totalLosses > 0 ? totalGains / totalLosses : totalGains > 0 ? Infinity : 0;
-    const avgWin = winningTrades.length > 0 ? totalGains / winningTrades.length : 0;
-    const avgLoss = losingTrades.length > 0 ? totalLosses / losingTrades.length : 0;
     
-    // Edge/EV = (Win% × Avg Win) - (Loss% × Avg Loss)
+    // Profit Factor = Total $ Gains / Total $ Losses
+    const profitFactor = totalLossesDollars > 0 ? totalGainsDollars / totalLossesDollars : totalGainsDollars > 0 ? Infinity : 0;
+    
+    // Average win/loss as percentage of evaluation capital
+    const avgWin = winningTrades.length > 0 ? (totalGainsDollars / winningTrades.length / EVALUATION_CAPITAL) * 100 : 0;
+    const avgLoss = losingTrades.length > 0 ? (totalLossesDollars / losingTrades.length / EVALUATION_CAPITAL) * 100 : 0;
+    
+    // Edge/EV = (Win% × Avg Win%) - (Loss% × Avg Loss%) - result is expected return per trade as % of capital
     const edgeEV = ((winRateNum / 100) * avgWin) - ((lossRate / 100) * avgLoss);
     
-    // Sharpe Ratio calculation
-    const returns = closedTrades.map(t => parseFloat(t.pnlPercentage || "0"));
+    // Sharpe Ratio calculation using account-relative returns
+    const returns = closedTrades.map(t => (parseFloat(t.pnlValue || "0") / EVALUATION_CAPITAL) * 100);
     const meanReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
     const variance = returns.reduce((sum, r) => sum + Math.pow(r - meanReturn, 2), 0) / returns.length;
     const stdDev = Math.sqrt(variance);

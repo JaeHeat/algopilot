@@ -2944,9 +2944,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const evalPositions = await storage.getEvaluationPositionsByRunId(evaluation.id, limit);
           const formattedTrades = evalPositions.map(p => {
             const entryValue = parseFloat(p.entryPrice) * parseFloat(p.quantity);
-            const pnlValue = p.realizedPnl ? parseFloat(p.realizedPnl) : null;
-            const pnlPercentage = pnlValue !== null && entryValue > 0 
-              ? ((pnlValue / entryValue) * 100).toFixed(4) 
+            const pnl = p.realizedPnl ? parseFloat(p.realizedPnl) : null;
+            const pnlPercentage = pnl !== null && entryValue > 0 
+              ? ((pnl / entryValue) * 100).toFixed(4) 
               : null;
             
             return {
@@ -2958,7 +2958,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               exitPrice: null,
               quantity: p.quantity,
               positionSize: (parseFloat(p.entryPrice) * parseFloat(p.quantity)).toFixed(2),
-              pnl: p.realizedPnl,
+              pnlValue: p.realizedPnl,
               pnlPercentage,
               fees: p.fees,
               status: p.status,
