@@ -168,6 +168,7 @@ export interface IStorage {
   
   getEvaluationPosition(evaluationRunId: string, symbol: string): Promise<BotEvaluationPosition | undefined>;
   getEvaluationPositionById(id: string): Promise<BotEvaluationPosition | undefined>;
+  getEvaluationPositionsByRunId(evaluationRunId: string, limit?: number): Promise<BotEvaluationPosition[]>;
   createEvaluationPosition(position: InsertBotEvaluationPosition): Promise<BotEvaluationPosition>;
   updateEvaluationPosition(id: string, updates: Partial<BotEvaluationPosition>): Promise<BotEvaluationPosition | undefined>;
   closeEvaluationPosition(id: string, realizedPnl: string): Promise<BotEvaluationPosition | undefined>;
@@ -1654,6 +1655,16 @@ export class DbStorage implements IStorage {
       .where(eq(botEvaluationPositions.id, id))
       .limit(1);
     return result[0];
+  }
+
+  async getEvaluationPositionsByRunId(evaluationRunId: string, limit: number = 100): Promise<BotEvaluationPosition[]> {
+    const result = await db
+      .select()
+      .from(botEvaluationPositions)
+      .where(eq(botEvaluationPositions.evaluationRunId, evaluationRunId))
+      .orderBy(desc(botEvaluationPositions.openedAt))
+      .limit(limit);
+    return result;
   }
 
   async createEvaluationPosition(position: InsertBotEvaluationPosition): Promise<BotEvaluationPosition> {

@@ -2931,7 +2931,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/bots/:id/trades", async (req, res) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
-      const trades = await storage.getBotTradeLogs(req.params.id, limit);
+      const botId = req.params.id;
+      
+      const bot = await storage.getBotById(botId);
+      if (!bot) {
+        return res.status(404).json({ message: "Bot not found" });
+      }
+      
+      if (bot.evaluationStatus === "in_evaluation" || bot.evaluationStatus === "evaluation_failed") {
+        const evaluation = await storage.getActiveEvaluationRun(botId);
+        if (evaluation) {
+          const evalPositions = await storage.getEvaluationPositionsByRunId(evaluation.id, limit);
+          const formattedTrades = evalPositions.map(p => {
+            const entryValue = parseFloat(p.entryPrice) * parseFloat(p.quantity);
+            const pnlValue = p.realizedPnl ? parseFloat(p.realizedPnl) : null;
+            const pnlPercentage = pnlValue !== null && entryValue > 0 
+              ? ((pnlValue / entryValue) * 100).toFixed(4) 
+              : null;
+            
+            return {
+              id: p.id,
+              botId: p.botId,
+              symbol: p.symbol,
+              side: p.side,
+              entryPrice: p.entryPrice,
+              exitPrice: null,
+              quantity: p.quantity,
+              positionSize: (parseFloat(p.entryPrice) * parseFloat(p.quantity)).toFixed(2),
+              pnl: p.realizedPnl,
+              pnlPercentage,
+              fees: p.fees,
+              status: p.status,
+              entryTime: p.openedAt,
+              exitTime: p.closedAt,
+              durationMinutes: p.closedAt && p.openedAt 
+                ? Math.round((new Date(p.closedAt).getTime() - new Date(p.openedAt).getTime()) / 60000)
+                : null,
+            };
+          });
+          return res.json(formattedTrades);
+        }
+      }
+      
+      const trades = await storage.getBotTradeLogs(botId, limit);
       res.json(trades);
     } catch (error) {
       console.error("Error fetching bot trades:", error);
