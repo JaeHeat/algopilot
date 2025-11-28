@@ -97,6 +97,11 @@ export class PriceFetcher {
       };
 
       let normalizedSymbol = symbol.toUpperCase();
+      // Strip perpetual contract suffixes (.P for Bybit perpetuals)
+      normalizedSymbol = normalizedSymbol.replace(/\.P$/, '');
+      // Strip PERP suffix (used by some exchanges)
+      normalizedSymbol = normalizedSymbol.replace(/PERP$/, '');
+      // Normalize USD endings to USDT
       if (!normalizedSymbol.endsWith('USDT') && normalizedSymbol.endsWith('USD')) {
         normalizedSymbol = normalizedSymbol.replace(/USD$/, 'USDT');
       }
