@@ -8,7 +8,7 @@ interface PriceResult {
 
 export class PriceFetcher {
   private static priceCache = new Map<string, { price: number; timestamp: number }>();
-  private static CACHE_TTL = 10000; // 10 seconds
+  private static CACHE_TTL = 30000; // 30 seconds to reduce rate limiting
 
   static async getCurrentPrice(symbol: string): Promise<number | null> {
     const normalizedSymbol = symbol.toUpperCase();

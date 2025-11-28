@@ -10,7 +10,7 @@ import { SubscribeDialog } from "@/components/subscribe-dialog";
 import { PostFeed } from "@/components/post-feed";
 import { PostComposer } from "@/components/post-composer";
 import { useState } from "react";
-import { ArrowLeft, TrendingUp, TrendingDown, Shield, CheckCircle, Clock, DollarSign } from "lucide-react";
+import { ArrowLeft, TrendingUp, TrendingDown, Shield, CheckCircle, Clock, DollarSign, Trophy, Zap, BarChart3, Target } from "lucide-react";
 import { Line } from "react-chartjs-2";
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from "chart.js";
 import type { Bot, User, BotTradeLog, BotPerformanceHistory, BotPerformance, Subscription } from "@shared/schema";
@@ -136,10 +136,57 @@ export default function BotDetail() {
 
   const closedTrades = trades.filter(t => t.status === "closed");
   const winningTrades = closedTrades.filter(t => parseFloat(t.pnlPercentage || "0") > 0);
+  const losingTrades = closedTrades.filter(t => parseFloat(t.pnlPercentage || "0") < 0);
   const winRate = closedTrades.length > 0 ? ((winningTrades.length / closedTrades.length) * 100).toFixed(1) : "0.0";
   const avgPnl = closedTrades.length > 0 
     ? (closedTrades.reduce((sum, t) => sum + parseFloat(t.pnlPercentage || "0"), 0) / closedTrades.length).toFixed(2)
     : "0.00";
+
+  // Calculate advanced analytics
+  const analytics = (() => {
+    if (closedTrades.length === 0) {
+      return {
+        winRateNum: 0,
+        profitFactor: 0,
+        avgWin: 0,
+        avgLoss: 0,
+        edgeEV: 0,
+        sharpeRatio: 0,
+        totalWins: 0,
+        totalLosses: 0,
+      };
+    }
+
+    const totalGains = winningTrades.reduce((sum, t) => sum + parseFloat(t.pnlPercentage || "0"), 0);
+    const totalLosses = Math.abs(losingTrades.reduce((sum, t) => sum + parseFloat(t.pnlPercentage || "0"), 0));
+    
+    const winRateNum = (winningTrades.length / closedTrades.length) * 100;
+    const lossRate = (losingTrades.length / closedTrades.length) * 100;
+    const profitFactor = totalLosses > 0 ? totalGains / totalLosses : totalGains > 0 ? Infinity : 0;
+    const avgWin = winningTrades.length > 0 ? totalGains / winningTrades.length : 0;
+    const avgLoss = losingTrades.length > 0 ? totalLosses / losingTrades.length : 0;
+    
+    // Edge/EV = (Win% × Avg Win) - (Loss% × Avg Loss)
+    const edgeEV = ((winRateNum / 100) * avgWin) - ((lossRate / 100) * avgLoss);
+    
+    // Sharpe Ratio calculation
+    const returns = closedTrades.map(t => parseFloat(t.pnlPercentage || "0"));
+    const meanReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+    const variance = returns.reduce((sum, r) => sum + Math.pow(r - meanReturn, 2), 0) / returns.length;
+    const stdDev = Math.sqrt(variance);
+    const sharpeRatio = stdDev > 0 ? (meanReturn / stdDev) * Math.sqrt(252) : 0; // Annualized
+
+    return {
+      winRateNum,
+      profitFactor,
+      avgWin,
+      avgLoss,
+      edgeEV,
+      sharpeRatio,
+      totalWins: winningTrades.length,
+      totalLosses: losingTrades.length,
+    };
+  })();
 
   return (
     <div className="container max-w-6xl mx-auto p-8">
@@ -211,6 +258,54 @@ export default function BotDetail() {
                     <p className="text-2xl font-bold text-red-600" data-testid="text-max-drawdown">
                       -{parseFloat(bot.performance.maxDrawdown).toFixed(1)}%
                     </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Advanced Analytics */}
+              {closedTrades.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 p-4 rounded-lg bg-muted/30">
+                  <div className="flex items-start gap-2">
+                    <Trophy className="h-4 w-4 text-muted-foreground mt-1" />
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Win Rate</p>
+                      <p className={`text-lg font-bold ${analytics.winRateNum >= 50 ? 'text-green-600' : 'text-amber-600'}`} data-testid="text-analytics-win-rate">
+                        {analytics.winRateNum.toFixed(1)}%
+                      </p>
+                      <p className="text-xs text-muted-foreground">{analytics.totalWins}W / {analytics.totalLosses}L</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Zap className="h-4 w-4 text-muted-foreground mt-1" />
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Profit Factor</p>
+                      <p className={`text-lg font-bold ${analytics.profitFactor >= 1.5 ? 'text-green-600' : analytics.profitFactor >= 1 ? 'text-amber-600' : 'text-red-600'}`} data-testid="text-profit-factor">
+                        {analytics.profitFactor === Infinity ? 'N/A' : analytics.profitFactor.toFixed(2)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {analytics.profitFactor >= 1.5 ? 'Excellent' : analytics.profitFactor >= 1 ? 'Profitable' : 'Needs work'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Target className="h-4 w-4 text-muted-foreground mt-1" />
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Edge (EV)</p>
+                      <p className={`text-lg font-bold ${analytics.edgeEV >= 0 ? 'text-green-600' : 'text-red-600'}`} data-testid="text-edge-ev">
+                        {analytics.edgeEV >= 0 ? '+' : ''}{analytics.edgeEV.toFixed(2)}%
+                      </p>
+                      <p className="text-xs text-muted-foreground">Per trade expected</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <BarChart3 className="h-4 w-4 text-muted-foreground mt-1" />
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Sharpe Ratio</p>
+                      <p className={`text-lg font-bold ${analytics.sharpeRatio >= 1 ? 'text-green-600' : analytics.sharpeRatio >= 0.5 ? 'text-amber-600' : 'text-red-600'}`} data-testid="text-analytics-sharpe">
+                        {analytics.sharpeRatio.toFixed(2)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Risk-adjusted return</p>
+                    </div>
                   </div>
                 </div>
               )}

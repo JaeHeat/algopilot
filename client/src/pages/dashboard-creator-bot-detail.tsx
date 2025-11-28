@@ -31,8 +31,6 @@ import {
   Percent,
   Trophy,
   Zap,
-  ArrowUpRight,
-  ArrowDownRight,
 } from "lucide-react";
 import {
   Dialog,
@@ -217,8 +215,8 @@ export default function DashboardCreatorBotDetail() {
         profitFactor: 0,
         avgWin: 0,
         avgLoss: 0,
-        bestTrade: 0,
-        worstTrade: 0,
+        edgeEV: 0,
+        sharpeRatio: 0,
         totalWins: 0,
         totalLosses: 0,
       };
@@ -235,17 +233,32 @@ export default function DashboardCreatorBotDetail() {
     const avgWin = winningTrades.length > 0 ? totalGains / winningTrades.length : 0;
     const avgLoss = losingTrades.length > 0 ? totalLosses / losingTrades.length : 0;
     
-    const pnlValues = exitTrades.map((t: any) => parseFloat(t.realizedPnl));
-    const bestTrade = Math.max(...pnlValues);
-    const worstTrade = Math.min(...pnlValues);
+    const lossRate = (losingTrades.length / exitTrades.length) * 100;
+    
+    // Edge/EV = (Win% × Avg Win) - (Loss% × Avg Loss)
+    // Using realized PnL values for calculation
+    const avgWinPct = winningTrades.length > 0 
+      ? winningTrades.reduce((sum: number, t: any) => sum + (parseFloat(t.realizedPnl) / 100), 0) / winningTrades.length 
+      : 0;
+    const avgLossPct = losingTrades.length > 0 
+      ? Math.abs(losingTrades.reduce((sum: number, t: any) => sum + (parseFloat(t.realizedPnl) / 100), 0)) / losingTrades.length 
+      : 0;
+    const edgeEV = ((winRate / 100) * avgWinPct) - ((lossRate / 100) * avgLossPct);
+    
+    // Sharpe Ratio calculation
+    const returns = exitTrades.map((t: any) => parseFloat(t.realizedPnl));
+    const meanReturn = returns.reduce((a: number, b: number) => a + b, 0) / returns.length;
+    const variance = returns.reduce((sum: number, r: number) => sum + Math.pow(r - meanReturn, 2), 0) / returns.length;
+    const stdDev = Math.sqrt(variance);
+    const sharpeRatio = stdDev > 0 ? (meanReturn / stdDev) * Math.sqrt(252) : 0; // Annualized
 
     return {
       winRate,
       profitFactor,
       avgWin,
       avgLoss,
-      bestTrade,
-      worstTrade,
+      edgeEV,
+      sharpeRatio,
       totalWins: winningTrades.length,
       totalLosses: losingTrades.length,
     };
@@ -418,30 +431,30 @@ export default function DashboardCreatorBotDetail() {
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Best Trade</CardTitle>
-                  <ArrowUpRight className="h-4 w-4 text-green-500" />
+                  <CardTitle className="text-sm font-medium">Edge (EV)</CardTitle>
+                  <Target className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-green-500" data-testid="stat-best-trade">
-                    +${analytics.bestTrade.toFixed(2)}
+                  <div className={`text-2xl font-bold ${analytics.edgeEV >= 0 ? 'text-green-500' : 'text-red-500'}`} data-testid="stat-edge-ev">
+                    {analytics.edgeEV >= 0 ? '+' : ''}{analytics.edgeEV.toFixed(2)}%
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Avg Win: ${analytics.avgWin.toFixed(2)}
+                    Expected per trade
                   </p>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Worst Trade</CardTitle>
-                  <ArrowDownRight className="h-4 w-4 text-red-500" />
+                  <CardTitle className="text-sm font-medium">Sharpe Ratio</CardTitle>
+                  <BarChart3 className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-red-500" data-testid="stat-worst-trade">
-                    ${analytics.worstTrade.toFixed(2)}
+                  <div className={`text-2xl font-bold ${analytics.sharpeRatio >= 1 ? 'text-green-500' : analytics.sharpeRatio >= 0.5 ? 'text-amber-500' : 'text-red-500'}`} data-testid="stat-sharpe-ratio">
+                    {analytics.sharpeRatio.toFixed(2)}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Avg Loss: -${analytics.avgLoss.toFixed(2)}
+                    {analytics.sharpeRatio >= 1 ? 'Excellent' : analytics.sharpeRatio >= 0.5 ? 'Good' : 'Needs improvement'}
                   </p>
                 </CardContent>
               </Card>
