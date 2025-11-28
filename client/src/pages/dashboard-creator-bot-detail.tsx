@@ -29,6 +29,10 @@ import {
   Award,
   Clock,
   Percent,
+  Trophy,
+  Zap,
+  ArrowUpRight,
+  ArrowDownRight,
 } from "lucide-react";
 import {
   Dialog,
@@ -204,6 +208,49 @@ export default function DashboardCreatorBotDetail() {
     progress.profitPercentage >= progress.requiredProfit &&
     progress.maxDrawdown <= progress.requiredMaxDrawdown;
 
+  // Calculate advanced analytics from trades
+  const analytics = (() => {
+    const exitTrades = trades.filter((t: any) => t.legType === 'exit');
+    if (exitTrades.length === 0) {
+      return {
+        winRate: 0,
+        profitFactor: 0,
+        avgWin: 0,
+        avgLoss: 0,
+        bestTrade: 0,
+        worstTrade: 0,
+        totalWins: 0,
+        totalLosses: 0,
+      };
+    }
+
+    const winningTrades = exitTrades.filter((t: any) => parseFloat(t.realizedPnl) > 0);
+    const losingTrades = exitTrades.filter((t: any) => parseFloat(t.realizedPnl) < 0);
+    
+    const totalGains = winningTrades.reduce((sum: number, t: any) => sum + parseFloat(t.realizedPnl), 0);
+    const totalLosses = Math.abs(losingTrades.reduce((sum: number, t: any) => sum + parseFloat(t.realizedPnl), 0));
+    
+    const winRate = (winningTrades.length / exitTrades.length) * 100;
+    const profitFactor = totalLosses > 0 ? totalGains / totalLosses : totalGains > 0 ? Infinity : 0;
+    const avgWin = winningTrades.length > 0 ? totalGains / winningTrades.length : 0;
+    const avgLoss = losingTrades.length > 0 ? totalLosses / losingTrades.length : 0;
+    
+    const pnlValues = exitTrades.map((t: any) => parseFloat(t.realizedPnl));
+    const bestTrade = Math.max(...pnlValues);
+    const worstTrade = Math.min(...pnlValues);
+
+    return {
+      winRate,
+      profitFactor,
+      avgWin,
+      avgLoss,
+      bestTrade,
+      worstTrade,
+      totalWins: winningTrades.length,
+      totalLosses: losingTrades.length,
+    };
+  })();
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -335,6 +382,71 @@ export default function DashboardCreatorBotDetail() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Analytics Stats */}
+          {trades.filter((t: any) => t.legType === 'exit').length > 0 && (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Win Rate</CardTitle>
+                  <Trophy className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className={`text-2xl font-bold ${analytics.winRate >= 50 ? 'text-green-500' : 'text-amber-500'}`} data-testid="stat-win-rate">
+                    {analytics.winRate.toFixed(1)}%
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {analytics.totalWins}W / {analytics.totalLosses}L
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Profit Factor</CardTitle>
+                  <Zap className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className={`text-2xl font-bold ${analytics.profitFactor >= 1.5 ? 'text-green-500' : analytics.profitFactor >= 1 ? 'text-amber-500' : 'text-red-500'}`} data-testid="stat-profit-factor">
+                    {analytics.profitFactor === Infinity ? '∞' : analytics.profitFactor.toFixed(2)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {analytics.profitFactor >= 1.5 ? 'Excellent' : analytics.profitFactor >= 1 ? 'Profitable' : 'Needs improvement'}
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Best Trade</CardTitle>
+                  <ArrowUpRight className="h-4 w-4 text-green-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-500" data-testid="stat-best-trade">
+                    +${analytics.bestTrade.toFixed(2)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Avg Win: ${analytics.avgWin.toFixed(2)}
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Worst Trade</CardTitle>
+                  <ArrowDownRight className="h-4 w-4 text-red-500" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-red-500" data-testid="stat-worst-trade">
+                    ${analytics.worstTrade.toFixed(2)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Avg Loss: -${analytics.avgLoss.toFixed(2)}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
           {/* Open Positions */}
           {isInEvaluation && trades.filter((t: any) => t.legType === 'entry' && !trades.find((exit: any) => exit.positionId === t.positionId && exit.legType === 'exit')).length > 0 && (
