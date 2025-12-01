@@ -1,5 +1,6 @@
 import type { IStorage } from "../storage";
 import type { Bot, BotEvaluationRun } from "@shared/schema";
+import { wsManager } from "./websocket-manager";
 
 interface EvaluationSignal {
   botId: string;
@@ -205,6 +206,32 @@ async function handleEntrySignal(
     
     console.log(`[Evaluation] Opened ${side} position for ${symbol} @ ${price} (trade ${trade.id})`);
     
+    // Publish WebSocket notification for position opened
+    const bot = await storage.getBotById(botId);
+    if (bot) {
+      await wsManager.publishPositionOpened({
+        botId,
+        botName: bot.name,
+        positionId: position.id,
+        symbol,
+        side: side as 'long' | 'short',
+        entryPrice: price,
+        quantity,
+      }, storage);
+      
+      await wsManager.publishTradeExecuted({
+        botId,
+        botName: bot.name,
+        tradeId: trade.id,
+        symbol,
+        side: side as 'long' | 'short',
+        price,
+        quantity,
+        legType: 'entry',
+        positionId: position.id,
+      }, storage);
+    }
+    
     return {
       success: true,
       message: `Entry signal processed successfully`,
@@ -290,6 +317,52 @@ async function handleExitSignal(
   
   console.log(`[Evaluation] Closed ${existingPosition.side} position for ${symbol} @ ${price} | P&L: ${realizedPnl.toFixed(2)} | Return: ${cumulativeReturnPct.toFixed(2)}% | Drawdown: ${newMaxDrawdown.toFixed(2)}%`);
   
+  // Publish WebSocket notification for position closed
+  const bot = await storage.getBotById(botId);
+  if (bot) {
+    const pnlPercentage = (realizedPnl / (entryPrice * positionQty)) * 100;
+    
+    await wsManager.publishPositionClosed({
+      botId,
+      botName: bot.name,
+      positionId: existingPosition.id,
+      symbol,
+      side: existingPosition.side as 'long' | 'short',
+      entryPrice,
+      quantity: positionQty,
+      exitPrice: price,
+      pnlValue: realizedPnl,
+      pnlPercentage,
+    }, storage);
+    
+    await wsManager.publishTradeExecuted({
+      botId,
+      botName: bot.name,
+      tradeId: trade.id,
+      symbol,
+      side: side as 'buy' | 'sell' | 'long' | 'short',
+      price,
+      quantity: positionQty,
+      pnlValue: realizedPnl,
+      pnlPercentage,
+      legType: 'exit',
+      positionId: existingPosition.id,
+    }, storage);
+    
+    // Also publish evaluation progress update
+    await wsManager.publishEvaluationProgress({
+      botId,
+      botName: bot.name,
+      totalTrades: evaluationRun.tradeCount + 1,
+      profitPercentage: cumulativeReturnPct,
+      maxDrawdown: newMaxDrawdown,
+      evaluationStatus: bot.evaluationStatus || 'in_evaluation',
+      requiredTrades: 10,
+      requiredProfit: 10,
+      maxAllowedDrawdown: 5,
+    }, storage);
+  }
+  
   const freshRun = await storage.getActiveEvaluationRun(botId);
   if (freshRun) {
     await checkEvaluationStatus(freshRun.id, botId, storage, {
@@ -326,16 +399,21 @@ async function checkEvaluationStatus(
   if (maxDrawdownPct > MAX_DRAWDOWN_PCT) {
     console.log(`[Evaluation] Bot ${botId} FAILED - Max drawdown exceeded: ${maxDrawdownPct.toFixed(2)}% > ${MAX_DRAWDOWN_PCT}%`);
     
+    const failureReason = `Maximum drawdown exceeded: ${maxDrawdownPct.toFixed(2)}% (limit: ${MAX_DRAWDOWN_PCT}%)`;
+    
     await storage.closeEvaluationRun(
       evaluationRunId,
       'failed',
-      `Maximum drawdown exceeded: ${maxDrawdownPct.toFixed(2)}% (limit: ${MAX_DRAWDOWN_PCT}%)`
+      failureReason
     );
     
     await storage.updateBot(botId, { 
       evaluationStatus: 'failed',
-      failureReason: `Maximum drawdown exceeded: ${maxDrawdownPct.toFixed(2)}% (limit: ${MAX_DRAWDOWN_PCT}%)`
+      failureReason,
     });
+    
+    // Publish WebSocket notification for evaluation failure
+    await wsManager.publishEvaluationStatus(botId, 'failed', failureReason, storage);
     
     return;
   }
@@ -343,16 +421,21 @@ async function checkEvaluationStatus(
   if (tradeCount >= MAX_TRADES_WITHOUT_PROFIT && cumulativeReturnPct < REQUIRED_PROFIT_PCT) {
     console.log(`[Evaluation] Bot ${botId} FAILED - Did not reach profit target after ${MAX_TRADES_WITHOUT_PROFIT} trades`);
     
+    const failureReason = `Failed to reach ${REQUIRED_PROFIT_PCT}% profit after ${MAX_TRADES_WITHOUT_PROFIT} trades`;
+    
     await storage.closeEvaluationRun(
       evaluationRunId,
       'failed',
-      `Failed to reach ${REQUIRED_PROFIT_PCT}% profit after ${MAX_TRADES_WITHOUT_PROFIT} trades`
+      failureReason
     );
     
     await storage.updateBot(botId, {
       evaluationStatus: 'failed',
-      failureReason: `Failed to reach ${REQUIRED_PROFIT_PCT}% profit after ${MAX_TRADES_WITHOUT_PROFIT} trades`
+      failureReason,
     });
+    
+    // Publish WebSocket notification for evaluation failure
+    await wsManager.publishEvaluationStatus(botId, 'failed', failureReason, storage);
     
     return;
   }
@@ -370,6 +453,9 @@ async function checkEvaluationStatus(
       evaluationStatus: 'passed',
       isActive: true
     });
+    
+    // Publish WebSocket notification for evaluation passed
+    await wsManager.publishEvaluationStatus(botId, 'passed', undefined, storage);
     
     return;
   }

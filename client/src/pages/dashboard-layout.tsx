@@ -2,9 +2,11 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { NotificationsDropdown } from "@/components/notifications-dropdown";
+import { RealtimeIndicator } from "@/components/realtime-indicator";
 import { User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Route, Switch, Link, Router } from "wouter";
+import { useGlobalRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
 import DashboardOverview from "./dashboard-overview";
 import DashboardMyBots from "./dashboard-my-bots";
 import DashboardMyTrades from "./dashboard-my-trades";
@@ -20,6 +22,8 @@ import BotDetail from "./bot-detail";
 import NotFound from "./not-found";
 
 export default function DashboardLayout() {
+  useGlobalRealtimeUpdates();
+  
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "4rem",
@@ -33,6 +37,7 @@ export default function DashboardLayout() {
           <header className="flex items-center justify-between px-6 h-16 border-b border-border">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
             <div className="flex items-center gap-2">
+              <RealtimeIndicator />
               <NotificationsDropdown />
               <ThemeToggle />
               <Button variant="ghost" size="icon" asChild data-testid="button-profile">

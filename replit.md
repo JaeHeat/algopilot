@@ -94,6 +94,21 @@ The platform utilizes a modern web stack: React with TypeScript, Wouter, TanStac
 - **API Integrations**: Binance, Bybit
 - **Email Service**: Resend
 
+## Recent Changes (December 1, 2025)
+- **Real-Time WebSocket Updates**: Implemented live trade notifications and dashboard updates
+  - Backend: WebSocket server (ws) integrated with Express and session authentication
+  - Session-aware connection handling with automatic user/bot subscription management
+  - Event types: trade.executed, evaluation.progress, evaluation.status, position.opened, position.closed
+  - JSON-based heartbeat/ping-pong protocol for connection health monitoring (30s interval)
+  - Auto-reconnection with exponential backoff on client (max 10 attempts, max 30s delay)
+  - botCreators map populated on connection and bot creation for proper event routing
+  - Client resubscribes to all bots on reconnect via resubscribeAll()
+  - Server syncs ownedBots/subscribedBots in pong responses for state recovery
+  - Frontend: WebSocketContext provider with typed message handling
+  - useRealtimeUpdates hook for automatic query invalidation and toast notifications
+  - RealtimeIndicator component shows connection status in dashboard header
+  - CSP headers updated to allow ws: and wss: connections
+
 ## Recent Changes (November 11, 2025)
 - **Authentication Migration**: Completed full migration from Replit OAuth to email/password authentication
   - Backend: Updated 66 protected endpoints from req.user.claims.sub to req.session.userId

@@ -14,7 +14,7 @@ app.use(helmet({
       scriptSrc: ["'self'", "https://js.stripe.com", "'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https://api.stripe.com", "https://*.stripe.com"],
+      connectSrc: ["'self'", "https://api.stripe.com", "https://*.stripe.com", "ws:", "wss:"],
       frameSrc: ["'self'", "https://js.stripe.com", "https://hooks.stripe.com"],
       fontSrc: ["'self'", "data:"],
     },

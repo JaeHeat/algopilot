@@ -14,6 +14,7 @@ import { notifyTradeExecuted, notifyDrawdownBreach } from "./services/notificati
 import { tradeExecutionService } from "./services/trade-execution";
 import { stripeConnectService } from "./services/stripe-connect";
 import { PriceFetcher } from "./services/price-fetcher";
+import { wsManager } from "./services/websocket-manager";
 
 const priceValidator = z.string().or(z.number()).refine(
   (val) => {
@@ -65,27 +66,29 @@ if (!process.env.STRIPE_SECRET_KEY) {
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 // Session configuration
+const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 7 days
+const pgStore = connectPg(session);
+const sessionStore = new pgStore({
+  conString: process.env.DATABASE_URL,
+  createTableIfMissing: false,
+  ttl: sessionTtl,
+  tableName: "sessions",
+});
+const sessionMiddleware = session({
+  secret: process.env.SESSION_SECRET!,
+  store: sessionStore,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: sessionTtl,
+  },
+});
+
 function getSession() {
-  const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 7 days
-  const pgStore = connectPg(session);
-  const sessionStore = new pgStore({
-    conString: process.env.DATABASE_URL,
-    createTableIfMissing: false,
-    ttl: sessionTtl,
-    tableName: "sessions",
-  });
-  return session({
-    secret: process.env.SESSION_SECRET!,
-    store: sessionStore,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: sessionTtl,
-    },
-  });
+  return sessionMiddleware;
 }
 
 // Authentication middleware
@@ -1354,6 +1357,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         positionSizeValue: '2.00',
         maxDrawdownPercentage: '10.00',
       });
+      
+      wsManager.registerCreatorBot(bot.id, userId);
       
       const webhookUrl = `${req.protocol}://${req.get('host')}/api/webhooks/${bot.id}/${webhook.secret}?token=${webhook.authToken}`;
       
@@ -3897,5 +3902,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+  
+  // Initialize WebSocket server for real-time updates
+  wsManager.initialize(httpServer, sessionMiddleware, storage);
+  
   return httpServer;
 }

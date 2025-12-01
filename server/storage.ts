@@ -48,6 +48,7 @@ export interface IStorage {
   deleteExpiredPasswordResetTokens(): Promise<void>;
   
   getAllBots(): Promise<Array<Bot & { performance: BotPerformance | null }>>;
+  getBotsByCreatorId(creatorId: string): Promise<Bot[]>;
   getBotById(id: string): Promise<(Bot & { creator: User }) | undefined>;
   createBot(bot: InsertBot): Promise<Bot>;
   updateBot(id: string, bot: Partial<InsertBot>): Promise<Bot | undefined>;
@@ -378,6 +379,13 @@ export class DbStorage implements IStorage {
     await db
       .delete(passwordResetTokens)
       .where(sql`${passwordResetTokens.expiresAt} < NOW()`);
+  }
+
+  async getBotsByCreatorId(creatorId: string): Promise<Bot[]> {
+    return db
+      .select()
+      .from(bots)
+      .where(eq(bots.creatorId, creatorId));
   }
 
   async getBotById(id: string): Promise<(Bot & { creator: User }) | undefined> {
