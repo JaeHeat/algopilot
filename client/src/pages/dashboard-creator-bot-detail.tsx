@@ -483,6 +483,7 @@ export default function DashboardCreatorBotDetail() {
                       const currentPrice = pricesData?.prices?.[position.symbol];
                       const entryPrice = parseFloat(position.price);
                       const quantity = parseFloat(position.quantity);
+                      const isShort = position.side === 'short' || position.side === 'sell';
                       
                       let unrealizedPnl = null;
                       let unrealizedPnlPct = null;
@@ -490,7 +491,9 @@ export default function DashboardCreatorBotDetail() {
                       if (currentPrice) {
                         const entryValue = entryPrice * quantity;
                         const currentValue = currentPrice * quantity;
-                        unrealizedPnl = currentValue - entryValue;
+                        // For longs: profit when price goes up (currentValue - entryValue)
+                        // For shorts: profit when price goes down (entryValue - currentValue)
+                        unrealizedPnl = isShort ? (entryValue - currentValue) : (currentValue - entryValue);
                         unrealizedPnlPct = (unrealizedPnl / entryValue) * 100;
                       }
                       
@@ -501,6 +504,12 @@ export default function DashboardCreatorBotDetail() {
                           data-testid={`open-position-${position.id}`}
                         >
                           <div className="flex items-center gap-3">
+                            <Badge 
+                              variant="outline" 
+                              className={isShort ? 'bg-red-500/10 text-red-600 border-red-500/20' : 'bg-green-500/10 text-green-600 border-green-500/20'}
+                            >
+                              {isShort ? 'Short' : 'Long'}
+                            </Badge>
                             <div className="flex flex-col">
                               <span className="font-semibold">{position.symbol}</span>
                               <span className="text-xs text-muted-foreground">
