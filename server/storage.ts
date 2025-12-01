@@ -1530,12 +1530,28 @@ export class DbStorage implements IStorage {
   }
 
   async restartBotEvaluation(botId: string): Promise<void> {
-    // Delete all evaluation trades for this bot
-    await db
-      .delete(botTradeLogs)
-      .where(eq(botTradeLogs.botId, botId));
+    // Get active evaluation run to delete associated trades/positions
+    const activeRun = await this.getActiveEvaluationRun(botId);
     
-    console.log(`[Evaluation] Deleted all trades for bot ${botId}`);
+    if (activeRun) {
+      // Delete all evaluation positions for this run
+      await db
+        .delete(botEvaluationPositions)
+        .where(eq(botEvaluationPositions.evaluationRunId, activeRun.id));
+      
+      // Delete all evaluation trades for this run
+      await db
+        .delete(botEvaluationTrades)
+        .where(eq(botEvaluationTrades.evaluationRunId, activeRun.id));
+      
+      // Close the old evaluation run
+      await db
+        .update(botEvaluationRuns)
+        .set({ status: 'cancelled', completedAt: new Date() })
+        .where(eq(botEvaluationRuns.id, activeRun.id));
+    }
+    
+    console.log(`[Evaluation] Deleted all evaluation trades and positions for bot ${botId}`);
     
     // Reset bot evaluation record
     await this.updateBotEvaluation(botId, {
@@ -1560,7 +1576,10 @@ export class DbStorage implements IStorage {
     // Invalidate cache
     this.getAllBots.clear();
     
-    console.log(`[Evaluation] Bot ${botId} evaluation restarted - all trades cleared, status reset to in_evaluation`);
+    // Create a new evaluation run for a fresh start
+    await this.createEvaluationRun(botId);
+    
+    console.log(`[Evaluation] Bot ${botId} evaluation restarted - all trades cleared, new run created, status reset to in_evaluation`);
   }
 
   async getActiveEvaluationRun(botId: string): Promise<BotEvaluationRun | undefined> {

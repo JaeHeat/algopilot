@@ -10,7 +10,13 @@ export function generateCsrfToken(): string {
 }
 
 export function csrfProtection(req: Request, res: Response, next: NextFunction) {
+  // Skip CSRF for TradingView webhooks - they use their own auth (secret + token)
   if (req.path.startsWith('/webhooks/')) {
+    return next();
+  }
+  
+  // Also skip for the full /api/webhooks path (when applied via app.use('/api', csrfProtection))
+  if (req.originalUrl.includes('/api/webhooks/')) {
     return next();
   }
   
