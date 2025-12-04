@@ -1307,8 +1307,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             profitPercentage: closedTrades.length > 0 ? totalPnlPercentage * 100 : 0,
             maxDrawdown: maxDrawdown,
             requiredTrades: 10,
-            requiredProfit: 10,
-            requiredMaxDrawdown: 5,
+            requiredProfit: 8,
+            requiredMaxDrawdown: 12,
           };
           
           return {

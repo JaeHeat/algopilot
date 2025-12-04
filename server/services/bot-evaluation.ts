@@ -358,8 +358,8 @@ async function handleExitSignal(
       maxDrawdown: newMaxDrawdown,
       evaluationStatus: bot.evaluationStatus || 'in_evaluation',
       requiredTrades: 10,
-      requiredProfit: 10,
-      maxAllowedDrawdown: 5,
+      requiredProfit: 8,
+      maxAllowedDrawdown: 12,
     }, storage);
   }
   
@@ -392,8 +392,8 @@ async function checkEvaluationStatus(
   const { tradeCount, cumulativeReturnPct, maxDrawdownPct } = metrics;
   
   const REQUIRED_TRADES = 10;
-  const REQUIRED_PROFIT_PCT = 10;
-  const MAX_DRAWDOWN_PCT = 5;
+  const REQUIRED_PROFIT_PCT = 8;
+  const MAX_DRAWDOWN_PCT = 12;
   const MAX_TRADES_WITHOUT_PROFIT = 50;
   
   if (maxDrawdownPct > MAX_DRAWDOWN_PCT) {

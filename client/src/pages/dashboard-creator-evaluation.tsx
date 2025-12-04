@@ -215,7 +215,7 @@ export default function DashboardCreatorEvaluation() {
                 Current Progress
               </CardTitle>
               <CardDescription>
-                All three requirements must be met independently. You need at least 10 trades, cumulative profit of +10%, AND maximum drawdown under 5%.
+                All three requirements must be met independently. You need at least 10 trades, cumulative profit of +8%, AND maximum drawdown under 12%.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
