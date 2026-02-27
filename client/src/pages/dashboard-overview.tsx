@@ -2,13 +2,13 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { MetricCard } from "@/components/metric-card";
 import { PerformanceChart } from "@/components/performance-chart";
-import { TradeTable } from "@/components/trade-table";
 import { SubscriptionCard } from "@/components/subscription-card";
 import { SubscriptionSettingsDialog } from "@/components/subscription-settings-dialog";
 import { WelcomeModal } from "@/components/welcome-modal";
 import { OnboardingChecklist } from "@/components/onboarding-checklist";
-import { DollarSign, TrendingUp, Bot, Target } from "lucide-react";
+import { TrendingUp, TrendingDown, Bot, Target, Activity, Clock } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Subscription, Bot as BotType, BotPerformance, UserOnboarding } from "@shared/schema";
 import { useEffect, useState, useMemo } from "react";
@@ -16,18 +16,16 @@ import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { useLocation, Link } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { format, formatDistanceToNow } from "date-fns";
 
 type SubscriptionWithBot = Subscription & { bot: BotType; performance: BotPerformance | null };
-
-type Timeframe = '24h' | '7d' | '1m' | '3m' | '6m' | '1y';
 
 export default function DashboardOverview() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
   const [selectedSubscription, setSelectedSubscription] = useState<SubscriptionWithBot | null>(null);
   const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
-  const [selectedTimeframe, setSelectedTimeframe] = useState<Timeframe>('1m');
   const [showWelcomeModal, setShowWelcomeModal] = useState(false);
 
   const { data: subscriptions, isLoading, error } = useQuery<SubscriptionWithBot[]>({
@@ -38,6 +36,55 @@ export default function DashboardOverview() {
 
   const { data: onboarding } = useQuery<UserOnboarding>({
     queryKey: ["/api/onboarding"],
+    enabled: isAuthenticated,
+  });
+
+  const { data: analytics } = useQuery<{
+    totalTrades: number;
+    closedTrades: number;
+    openPositions: number;
+    totalPnl: string;
+    unrealizedPnl: string;
+    combinedPnl: string;
+    winningTrades: number;
+    losingTrades: number;
+    winRate: string;
+    profitFactor: string;
+    bestTrade: { symbol: string; pnl: string; date: string } | null;
+    worstTrade: { symbol: string; pnl: string; date: string } | null;
+  }>({
+    queryKey: ["/api/user/analytics"],
+    enabled: isAuthenticated,
+  });
+
+  const { data: recentTrades = [] } = useQuery<Array<{
+    id: string;
+    symbol: string;
+    side: string;
+    quantity: string;
+    price: string;
+    fees: string;
+    pnl: string | null;
+    executedAt: string;
+    bot: { name: string };
+  }>>({
+    queryKey: ["/api/user/trades"],
+    enabled: isAuthenticated,
+  });
+
+  const { data: userPositions = [] } = useQuery<Array<{
+    id: string;
+    symbol: string;
+    positionType: string;
+    quantity: string;
+    entryPrice: string;
+    currentPrice: string;
+    unrealizedPnl: string;
+    status: string;
+    openedAt: string;
+    closedAt: string | null;
+  }>>({
+    queryKey: ["/api/user/positions"],
     enabled: isAuthenticated,
   });
 
@@ -117,70 +164,36 @@ export default function DashboardOverview() {
     }
   }, [subscriptions]);
 
-  const { labels: chartLabels, data: chartData } = useMemo(() => {
-    const baseValue = 10000;
-    
-    switch (selectedTimeframe) {
-      case '24h': {
-        const hours = Array.from({ length: 24 }, (_, i) => {
-          const hour = i;
-          return hour === 0 ? '12am' : hour < 12 ? `${hour}am` : hour === 12 ? '12pm' : `${hour - 12}pm`;
-        });
-        const data = Array.from({ length: 24 }, (_, i) => {
-          const volatility = 100 + Math.sin(i / 4) * 50 + Math.sin(i / 2) * 30;
-          return baseValue + i * 15 + volatility;
-        });
-        return { labels: hours, data };
-      }
-      case '7d': {
-        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-        const data = [10000, 10200, 10500, 10800, 11200, 11500, 11800];
-        return { labels: days, data };
-      }
-      case '1m': {
-        const labels = Array.from({ length: 30 }, (_, i) => `Day ${i + 1}`);
-        const data = Array.from({ length: 30 }, (_, i) => {
-          return baseValue + i * 50 + Math.sin(i / 3) * 200 + Math.cos(i / 4) * 100;
-        });
-        return { labels, data };
-      }
-      case '3m': {
-        const weeks = Array.from({ length: 12 }, (_, i) => `W${i + 1}`);
-        const data = Array.from({ length: 12 }, (_, i) => {
-          return baseValue + i * 200 + Math.sin(i / 2) * 300;
-        });
-        return { labels: weeks, data };
-      }
-      case '6m': {
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-        const data = [10000, 10500, 11200, 11800, 12500, 13200];
-        return { labels: months, data };
-      }
-      case '1y': {
-        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        const data = [10000, 10500, 10200, 11000, 11500, 11200, 12000, 12800, 12500, 13200, 13800, 14500];
-        return { labels: months, data };
-      }
-      default:
-        return { labels: [], data: [] };
+  const { chartLabels, chartData, hasChartData } = useMemo(() => {
+    const closedPositions = userPositions
+      .filter(p => p.status === 'closed' && p.closedAt)
+      .sort((a, b) => new Date(a.closedAt!).getTime() - new Date(b.closedAt!).getTime());
+
+    if (closedPositions.length === 0) {
+      return { chartLabels: [], chartData: [], hasChartData: false };
     }
-  }, [selectedTimeframe]);
-  
-  const mockTrades = [
-    { id: "1", pair: "BTC/USDT", type: "BUY" as const, amount: 0.0523, price: 43250, profit: 245.50, timestamp: "2 mins ago" },
-    { id: "2", pair: "ETH/USDT", type: "SELL" as const, amount: 1.2341, price: 2250, profit: 89.20, timestamp: "5 mins ago" },
-    { id: "3", pair: "BTC/USDT", type: "SELL" as const, amount: 0.0312, price: 43180, profit: -32.10, timestamp: "12 mins ago" },
-    { id: "4", pair: "SOL/USDT", type: "BUY" as const, amount: 12.5000, price: 98, profit: 156.75, timestamp: "18 mins ago" },
-    { id: "5", pair: "AVAX/USDT", type: "BUY" as const, amount: 25.4200, price: 35, profit: 78.30, timestamp: "25 mins ago" },
-  ];
+
+    let equity = 10000;
+    const points: number[] = [equity];
+    const labels: string[] = ['Start'];
+
+    for (const pos of closedPositions) {
+      equity += parseFloat(pos.unrealizedPnl);
+      points.push(Math.max(0, equity));
+      labels.push(format(new Date(pos.closedAt!), 'MMM d'));
+    }
+
+    return { chartLabels: labels, chartData: points, hasChartData: true };
+  }, [userPositions]);
+
+  const exitTrades = useMemo(() => {
+    return recentTrades
+      .filter(t => t.pnl !== null)
+      .slice(0, 10);
+  }, [recentTrades]);
 
   const activeSubscriptions = subscriptions?.filter(sub => !sub.isPaused) || [];
-  
-  const avgRoi = activeSubscriptions.reduce((sum, sub) => {
-    const roi = sub.performance ? parseFloat(sub.performance.totalRoi) : 0;
-    return sum + roi;
-  }, 0);
-  
+
   const avgWinRate = activeSubscriptions.reduce((sum, sub) => {
     const winRate = sub.performance ? parseFloat(sub.performance.winRate) : 0;
     return sum + winRate;
@@ -188,7 +201,18 @@ export default function DashboardOverview() {
 
   const activeBotCount = activeSubscriptions.length;
   const calculatedAvgWinRate = activeBotCount > 0 ? (avgWinRate / activeBotCount).toFixed(0) : "0";
-  
+
+  const totalPnl = analytics ? parseFloat(analytics.totalPnl) : 0;
+  const unrealizedPnl = analytics ? parseFloat(analytics.unrealizedPnl) : 0;
+  const combinedPnl = totalPnl + unrealizedPnl;
+  const analyticsWinRate = analytics ? parseFloat(analytics.winRate) : 0;
+
+  const getSideColor = (side: string) => {
+    const s = side.toLowerCase();
+    if (s === 'buy' || s === 'long') return 'text-success';
+    return 'text-destructive';
+  };
+
   if (authLoading || isLoading) {
     return (
       <div className="space-y-6">
@@ -220,18 +244,18 @@ export default function DashboardOverview() {
       
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <MetricCard
-          title="Total Portfolio Value"
-          value="$45,231"
-          change="+12.5% this month"
-          icon={DollarSign}
-          trend="up"
+          title="Realized P&L"
+          value={`${totalPnl >= 0 ? '+' : ''}$${Math.abs(totalPnl).toFixed(2)}`}
+          change={analytics ? `${analytics.closedTrades} closed trade${analytics.closedTrades !== 1 ? 's' : ''}` : "No trades yet"}
+          icon={TrendingUp}
+          trend={totalPnl > 0 ? "up" : totalPnl < 0 ? "down" : undefined}
         />
         <MetricCard
-          title="24h P&L"
-          value="+$1,234"
-          change="+2.7% today"
-          icon={TrendingUp}
-          trend="up"
+          title="Unrealized P&L"
+          value={`${unrealizedPnl >= 0 ? '+' : ''}$${Math.abs(unrealizedPnl).toFixed(2)}`}
+          change={analytics ? `${analytics.openPositions} open position${analytics.openPositions !== 1 ? 's' : ''}` : "No open positions"}
+          icon={Activity}
+          trend={unrealizedPnl > 0 ? "up" : unrealizedPnl < 0 ? "down" : undefined}
         />
         <MetricCard
           title="Active Bots"
@@ -240,44 +264,48 @@ export default function DashboardOverview() {
           icon={Bot}
         />
         <MetricCard
-          title="Avg Win Rate"
-          value={`${calculatedAvgWinRate}%`}
-          change="Across all bots"
+          title="Win Rate"
+          value={analytics ? `${analyticsWinRate.toFixed(0)}%` : `${calculatedAvgWinRate}%`}
+          change={analytics ? `${analytics.winningTrades}W / ${analytics.losingTrades}L` : "Across all bots"}
           icon={Target}
-          trend={parseFloat(calculatedAvgWinRate) > 65 ? "up" : undefined}
+          trend={analyticsWinRate > 55 ? "up" : undefined}
         />
       </div>
       
       <Card className="p-6">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="font-semibold">Portfolio Equity Curve</h3>
-          <div className="flex gap-1">
-            {(['24h', '7d', '1m', '3m', '6m', '1y'] as Timeframe[]).map((tf) => (
-              <Button
-                key={tf}
-                variant={selectedTimeframe === tf ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setSelectedTimeframe(tf)}
-                data-testid={`button-timeframe-${tf}`}
-                className="min-w-[60px]"
-              >
-                {tf}
-              </Button>
-            ))}
+          <div>
+            <h3 className="font-semibold">Portfolio Equity Curve</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">Based on your real closed positions</p>
           </div>
+          {combinedPnl !== 0 && (
+            <div className={`text-sm font-semibold ${combinedPnl >= 0 ? 'text-success' : 'text-destructive'}`}>
+              {combinedPnl >= 0 ? '+' : ''}${Math.abs(combinedPnl).toFixed(2)} total
+            </div>
+          )}
         </div>
-        <PerformanceChart
-          title=""
-          data={chartData}
-          labels={chartLabels}
-          showCard={false}
-        />
+        {hasChartData ? (
+          <PerformanceChart
+            title=""
+            data={chartData}
+            labels={chartLabels}
+            showCard={false}
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <Activity className="h-10 w-10 text-muted-foreground mb-3" />
+            <p className="font-medium text-muted-foreground">No trading history yet</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Your equity curve will appear here once you have closed positions
+            </p>
+          </div>
+        )}
       </Card>
       
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-2xl font-bold">Active Bots</h2>
-          <Button variant="ghost" size="sm" onClick={() => setLocation("/my-bots")} data-testid="button-view-all-bots">
+          <Button variant="ghost" size="sm" onClick={() => setLocation("/dashboard/my-bots")} data-testid="button-view-all-bots">
             View All Bots
           </Button>
         </div>
@@ -305,8 +333,71 @@ export default function DashboardOverview() {
           </div>
         )}
       </div>
-      
-      <TradeTable trades={mockTrades} />
+
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold">Recent Trades</h3>
+          <Button variant="ghost" size="sm" onClick={() => setLocation("/dashboard/my-trades")} data-testid="button-view-all-trades">
+            View All
+          </Button>
+        </div>
+        {exitTrades.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border text-sm text-muted-foreground">
+                  <th className="text-left py-3 font-medium">Pair</th>
+                  <th className="text-left py-3 font-medium">Bot</th>
+                  <th className="text-left py-3 font-medium">Side</th>
+                  <th className="text-right py-3 font-medium">Qty</th>
+                  <th className="text-right py-3 font-medium">Price</th>
+                  <th className="text-right py-3 font-medium">P&L</th>
+                  <th className="text-right py-3 font-medium">Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {exitTrades.map((trade) => {
+                  const pnl = parseFloat(trade.pnl || "0");
+                  return (
+                    <tr
+                      key={trade.id}
+                      className="border-b border-border last:border-0"
+                      data-testid={`row-trade-${trade.id}`}
+                    >
+                      <td className="py-3 font-medium text-sm">{trade.symbol}</td>
+                      <td className="py-3 text-sm text-muted-foreground">{trade.bot?.name || '—'}</td>
+                      <td className="py-3">
+                        <Badge variant={trade.side.toLowerCase() === 'buy' ? "default" : "secondary"} className="text-xs">
+                          {trade.side.toUpperCase()}
+                        </Badge>
+                      </td>
+                      <td className="py-3 text-right text-sm tabular-nums">{parseFloat(trade.quantity).toFixed(4)}</td>
+                      <td className="py-3 text-right text-sm tabular-nums">${parseFloat(trade.price).toLocaleString()}</td>
+                      <td className={`py-3 text-right text-sm font-semibold tabular-nums ${pnl >= 0 ? 'text-success' : 'text-destructive'}`}>
+                        {pnl >= 0 ? '+' : ''}${Math.abs(pnl).toFixed(2)}
+                      </td>
+                      <td className="py-3 text-right text-xs text-muted-foreground">
+                        <div className="flex items-center justify-end gap-1">
+                          <Clock className="h-3 w-3" />
+                          {formatDistanceToNow(new Date(trade.executedAt), { addSuffix: true })}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Activity className="h-10 w-10 text-muted-foreground mb-3" />
+            <p className="font-medium text-muted-foreground">No trades yet</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Completed trades will appear here once your bots execute
+            </p>
+          </div>
+        )}
+      </Card>
       
       {selectedSubscription && (
         <SubscriptionSettingsDialog

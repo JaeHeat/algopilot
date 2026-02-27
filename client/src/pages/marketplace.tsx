@@ -5,11 +5,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, TrendingUp, ArrowLeft, Trophy, Medal, Award, Star, Bot as BotIcon } from "lucide-react";
+import { Search, TrendingUp, ArrowLeft, Trophy, Medal, Award, Star, Bot as BotIcon, LogIn } from "lucide-react";
 import type { Bot, BotPerformance, UserOnboarding } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 
 type BotWithPerformance = Bot & { performance: BotPerformance | null };
 
@@ -26,6 +26,7 @@ const categoryLabels: Record<string, string> = {
 
 export default function Marketplace() {
   const { isAuthenticated } = useAuth();
+  const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [strategyFilter, setStrategyFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -362,6 +363,19 @@ export default function Marketplace() {
                       <Star className="h-3 w-3" />
                       Subscribed
                     </Badge>
+                  ) : !isAuthenticated ? (
+                    <Button
+                      size="sm"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setLocation("/auth/register");
+                      }}
+                      data-testid={`button-subscribe-${index + 1}`}
+                    >
+                      <LogIn className="h-3.5 w-3.5 mr-1" />
+                      Sign Up
+                    </Button>
                   ) : (
                     <Button 
                       size="sm"

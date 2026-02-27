@@ -4,21 +4,58 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, Award, TrendingUp, AlertCircle, CheckCircle2, XCircle, Target, BarChart3, RefreshCw } from "lucide-react";
+import { ArrowLeft, Award, TrendingUp, AlertCircle, CheckCircle2, XCircle, Target, BarChart3, RefreshCw, History, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
+import { format, formatDistanceToNow } from "date-fns";
 
 export default function DashboardCreatorEvaluation() {
   const [, params] = useRoute("/dashboard/creator/evaluation/:botId");
   const botId = params?.botId;
+  const { toast } = useToast();
 
   const { data: creatorBots = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/creator/bots"],
   });
 
+  const { data: evaluationData } = useQuery<{
+    run: any;
+    trades: any[];
+    evaluation: any;
+  }>({
+    queryKey: ["/api/creator/bots", botId, "evaluation"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/creator/bots/${botId}/evaluation`);
+      return await res.json();
+    },
+    enabled: !!botId,
+    refetchInterval: 15000,
+  });
+
   const bot = creatorBots.find((b) => b.id === botId);
+
+  const restartMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", `/api/bots/${botId}/evaluation/restart`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/creator/bots"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/creator/bots", botId, "evaluation"] });
+      toast({
+        title: "Evaluation restarted",
+        description: "All previous trades have been cleared. You can now start fresh.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to restart evaluation",
+        description: error.message || "An error occurred",
+        variant: "destructive",
+      });
+    },
+  });
 
   if (isLoading) {
     return (
@@ -43,46 +80,31 @@ export default function DashboardCreatorEvaluation() {
     );
   }
 
-  const { toast } = useToast();
-  
   const isLive = bot.evaluationStatus === "live";
   const isInEvaluation = bot.evaluationStatus === "in_evaluation";
   const isFailed = bot.evaluationStatus === "failed";
-  const progress = bot.evaluationProgress || { 
-    tradeCount: 0, 
-    profitPercentage: 0, 
+  const progress = bot.evaluationProgress || {
+    tradeCount: 0,
+    profitPercentage: 0,
     maxDrawdown: 0,
-    requiredTrades: 10, 
-    requiredProfit: 10,
-    requiredMaxDrawdown: 5,
+    requiredTrades: 10,
+    requiredProfit: 8,
+    requiredMaxDrawdown: 12,
   };
+
   const tradeProgress = (progress.tradeCount / progress.requiredTrades) * 100;
   const profitProgress = Math.max(0, (progress.profitPercentage / progress.requiredProfit) * 100);
-  const drawdownProgress = progress.maxDrawdown <= progress.requiredMaxDrawdown ? 100 : 0;
-  const meetsRequirements = 
-    progress.tradeCount >= progress.requiredTrades && 
+  const drawdownUsedPct = progress.requiredMaxDrawdown > 0
+    ? (progress.maxDrawdown / progress.requiredMaxDrawdown) * 100
+    : 0;
+  const drawdownPassing = progress.maxDrawdown <= progress.requiredMaxDrawdown;
+
+  const meetsRequirements =
+    progress.tradeCount >= progress.requiredTrades &&
     progress.profitPercentage >= progress.requiredProfit &&
     progress.maxDrawdown <= progress.requiredMaxDrawdown;
 
-  const restartMutation = useMutation({
-    mutationFn: async () => {
-      return await apiRequest("POST", `/api/bots/${botId}/evaluation/restart`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/creator/bots"] });
-      toast({
-        title: "Evaluation restarted",
-        description: "All previous trades have been cleared. You can now start fresh.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Failed to restart evaluation",
-        description: error.message || "An error occurred",
-        variant: "destructive",
-      });
-    },
-  });
+  const completedTrades = evaluationData?.trades?.filter((t: any) => t.legType === 'exit') || [];
 
   return (
     <div className="space-y-6">
@@ -128,7 +150,7 @@ export default function DashboardCreatorEvaluation() {
       {isFailed ? (
         <Card className="border-destructive">
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-2">
                 <XCircle className="h-5 w-5 text-destructive" />
                 <CardTitle className="text-destructive">Evaluation Failed</CardTitle>
@@ -215,13 +237,13 @@ export default function DashboardCreatorEvaluation() {
                 Current Progress
               </CardTitle>
               <CardDescription>
-                All three requirements must be met independently. You need at least 10 trades, cumulative profit of +8%, AND maximum drawdown under 12%.
+                All three requirements must be met independently. You need at least {progress.requiredTrades} trades, cumulative profit of +{progress.requiredProfit}%, AND maximum drawdown under {progress.requiredMaxDrawdown}%.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="space-y-4">
+              <div className="space-y-5">
                 <div>
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center justify-between mb-2">
                     <div>
                       <p className="font-semibold">Trade Count</p>
                       <p className="text-sm text-muted-foreground">
@@ -229,7 +251,7 @@ export default function DashboardCreatorEvaluation() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-2xl font-bold">
+                      <p className="text-2xl font-bold tabular-nums">
                         {progress.tradeCount} / {progress.requiredTrades}
                       </p>
                       {progress.tradeCount >= progress.requiredTrades && (
@@ -240,11 +262,11 @@ export default function DashboardCreatorEvaluation() {
                       )}
                     </div>
                   </div>
-                  <Progress value={Math.min(100, tradeProgress)} className="h-3" data-testid="progress-trades" />
+                  <Progress value={Math.min(100, tradeProgress)} className="h-2.5" data-testid="progress-trades" />
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center justify-between mb-2">
                     <div>
                       <p className="font-semibold">Total Profitability</p>
                       <p className="text-sm text-muted-foreground">
@@ -252,7 +274,7 @@ export default function DashboardCreatorEvaluation() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className={`text-2xl font-bold ${progress.profitPercentage >= progress.requiredProfit ? 'text-success' : progress.profitPercentage >= 0 ? 'text-foreground' : 'text-destructive'}`}>
+                      <p className={`text-2xl font-bold tabular-nums ${progress.profitPercentage >= progress.requiredProfit ? 'text-success' : progress.profitPercentage >= 0 ? 'text-foreground' : 'text-destructive'}`}>
                         {progress.profitPercentage > 0 ? '+' : ''}{progress.profitPercentage.toFixed(2)}%
                       </p>
                       {progress.profitPercentage >= progress.requiredProfit && (
@@ -263,28 +285,28 @@ export default function DashboardCreatorEvaluation() {
                       )}
                     </div>
                   </div>
-                  <Progress value={Math.min(100, profitProgress)} className="h-3" data-testid="progress-profit" />
+                  <Progress value={Math.min(100, profitProgress)} className="h-2.5" data-testid="progress-profit" />
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center justify-between mb-2">
                     <div>
                       <p className="font-semibold">Maximum Drawdown</p>
                       <p className="text-sm text-muted-foreground">
-                        Must stay under {progress.requiredMaxDrawdown}% drawdown
+                        Must stay under {progress.requiredMaxDrawdown}% — currently at {progress.maxDrawdown.toFixed(2)}%
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className={`text-2xl font-bold ${progress.maxDrawdown <= progress.requiredMaxDrawdown ? 'text-success' : 'text-destructive'}`}>
-                        {progress.maxDrawdown.toFixed(2)}%
+                      <p className={`text-2xl font-bold tabular-nums ${drawdownPassing ? 'text-success' : 'text-destructive'}`}>
+                        {progress.maxDrawdown.toFixed(2)}% / {progress.requiredMaxDrawdown}%
                       </p>
-                      {progress.maxDrawdown <= progress.requiredMaxDrawdown && (
+                      {drawdownPassing && progress.tradeCount > 0 && (
                         <Badge variant="default" className="gap-1 mt-1">
                           <CheckCircle2 className="h-3 w-3" />
-                          Complete
+                          Passing
                         </Badge>
                       )}
-                      {progress.maxDrawdown > progress.requiredMaxDrawdown && progress.tradeCount > 0 && (
+                      {!drawdownPassing && progress.tradeCount > 0 && (
                         <Badge variant="destructive" className="gap-1 mt-1">
                           <XCircle className="h-3 w-3" />
                           Failed
@@ -292,11 +314,18 @@ export default function DashboardCreatorEvaluation() {
                       )}
                     </div>
                   </div>
-                  <Progress 
-                    value={drawdownProgress}
-                    className="h-3" 
-                    data-testid="progress-drawdown" 
-                  />
+                  <div className="relative">
+                    <Progress
+                      value={Math.min(100, drawdownUsedPct)}
+                      className="h-2.5"
+                      data-testid="progress-drawdown"
+                    />
+                    {drawdownUsedPct > 75 && drawdownUsedPct <= 100 && (
+                      <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
+                        Warning: {(100 - drawdownUsedPct).toFixed(0)}% of drawdown limit remaining
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -337,6 +366,76 @@ export default function DashboardCreatorEvaluation() {
               )}
             </CardContent>
           </Card>
+
+          {completedTrades.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <History className="h-5 w-5" />
+                  Trade History
+                </CardTitle>
+                <CardDescription>
+                  {completedTrades.length} completed trade{completedTrades.length !== 1 ? 's' : ''} during this evaluation run
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-muted-foreground">
+                        <th className="text-left py-2.5 font-medium">#</th>
+                        <th className="text-left py-2.5 font-medium">Symbol</th>
+                        <th className="text-left py-2.5 font-medium">Side</th>
+                        <th className="text-right py-2.5 font-medium">Entry Price</th>
+                        <th className="text-right py-2.5 font-medium">Exit Price</th>
+                        <th className="text-right py-2.5 font-medium">P&L</th>
+                        <th className="text-right py-2.5 font-medium">P&L %</th>
+                        <th className="text-right py-2.5 font-medium">Closed</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {completedTrades.map((trade: any, index: number) => {
+                        const pnlValue = parseFloat(trade.pnlValue || "0");
+                        const pnlPct = parseFloat(trade.pnlPercentage || "0") * 100;
+                        const isProfit = pnlValue >= 0;
+                        return (
+                          <tr key={trade.id} className="border-b border-border last:border-0">
+                            <td className="py-2.5 text-muted-foreground">{completedTrades.length - index}</td>
+                            <td className="py-2.5 font-medium">{trade.symbol}</td>
+                            <td className="py-2.5">
+                              <div className="flex items-center gap-1">
+                                {trade.side === 'long' || trade.side === 'buy' ? (
+                                  <ArrowUpRight className="h-3.5 w-3.5 text-success" />
+                                ) : (
+                                  <ArrowDownRight className="h-3.5 w-3.5 text-destructive" />
+                                )}
+                                <span className="capitalize">{trade.side}</span>
+                              </div>
+                            </td>
+                            <td className="py-2.5 text-right tabular-nums">
+                              ${parseFloat(trade.entryPrice || "0").toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                            </td>
+                            <td className="py-2.5 text-right tabular-nums">
+                              ${parseFloat(trade.exitPrice || "0").toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                            </td>
+                            <td className={`py-2.5 text-right font-semibold tabular-nums ${isProfit ? 'text-success' : 'text-destructive'}`}>
+                              {isProfit ? '+' : ''}${Math.abs(pnlValue).toFixed(2)}
+                            </td>
+                            <td className={`py-2.5 text-right tabular-nums ${isProfit ? 'text-success' : 'text-destructive'}`}>
+                              {isProfit ? '+' : ''}{pnlPct.toFixed(2)}%
+                            </td>
+                            <td className="py-2.5 text-right text-muted-foreground">
+                              {trade.executedAt ? formatDistanceToNow(new Date(trade.executedAt), { addSuffix: true }) : '—'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>
@@ -379,7 +478,7 @@ export default function DashboardCreatorEvaluation() {
                 </div>
 
                 <div className="flex items-start gap-3">
-                  {progress.maxDrawdown <= progress.requiredMaxDrawdown ? (
+                  {drawdownPassing ? (
                     <CheckCircle2 className="h-5 w-5 text-success mt-0.5" />
                   ) : progress.tradeCount > 0 ? (
                     <XCircle className="h-5 w-5 text-destructive mt-0.5" />

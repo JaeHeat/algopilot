@@ -2,7 +2,6 @@ import {
   LayoutDashboard,
   Bot,
   Store,
-  CreditCard,
   Settings,
   ShieldCheck,
   TrendingUp,
@@ -23,9 +22,10 @@ import {
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/useAuth";
 
 const menuItems = [
-  { title: "Dashboard", icon: LayoutDashboard, url: "/dashboard" },
+  { title: "Dashboard", icon: LayoutDashboard, url: "/dashboard", exact: true },
   { title: "My Bots", icon: Bot, url: "/dashboard/my-bots" },
   { title: "My Trades", icon: LineChart, url: "/dashboard/my-trades" },
   { title: "Marketplace", icon: Store, url: "/dashboard/marketplace" },
@@ -43,17 +43,25 @@ const creatorItems = [
 
 export function AppSidebar() {
   const [location] = useLocation();
-  
+  const { user } = useAuth();
+
   const { data: subscriptions = [] } = useQuery<any[]>({
     queryKey: ["/api/subscriptions"],
   });
   
   const { data: creatorBots = [] } = useQuery<any[]>({
     queryKey: ["/api/creator/bots"],
+    enabled: user?.role === 'creator' || user?.role === 'admin',
   });
   
   const pausedCount = subscriptions.filter((sub) => sub.isPaused).length;
-  const hasCreatedBots = creatorBots.length > 0;
+  const isCreator = user?.role === 'creator' || user?.role === 'admin';
+  const isAdmin = user?.role === 'admin';
+
+  const isActive = (url: string, exact = false) => {
+    if (exact) return location === url;
+    return location === url || location.startsWith(url + '/') || location.startsWith(url.replace('/dashboard/', '/dashboard/'));
+  };
 
   return (
     <Sidebar>
@@ -68,14 +76,14 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => {
-                const isActive = location === item.url;
+                const active = isActive(item.url, item.exact);
                 const showBadge = item.title === "My Bots" && pausedCount > 0;
                 
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton
                       asChild
-                      className={isActive ? "bg-sidebar-accent" : ""}
+                      className={active ? "bg-sidebar-accent" : ""}
                       data-testid={`link-${item.title.toLowerCase().replace(/\s/g, '-')}`}
                     >
                       <Link href={item.url}>
@@ -98,62 +106,66 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
         
-        <SidebarGroup>
-          <SidebarGroupLabel>Creator Tools</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {creatorItems.map((item) => {
-                const isActive = location === item.url;
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      className={isActive ? "bg-sidebar-accent" : ""}
-                      data-testid="link-creator-dashboard"
-                    >
-                      <Link href={item.url}>
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                        {hasCreatedBots && (
-                          <Badge 
-                            className="ml-auto bg-primary text-primary-foreground h-5 min-w-5 px-1.5 flex items-center justify-center text-[10px] font-bold"
-                          >
-                            {creatorBots.length}
-                          </Badge>
-                        )}
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {isCreator && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Creator Tools</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {creatorItems.map((item) => {
+                  const active = isActive(item.url);
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        asChild
+                        className={active ? "bg-sidebar-accent" : ""}
+                        data-testid={`link-${item.title.toLowerCase().replace(/\s/g, '-')}`}
+                      >
+                        <Link href={item.url}>
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                          {creatorBots.length > 0 && item.title === "Manage Bots" && (
+                            <Badge 
+                              className="ml-auto bg-primary text-primary-foreground h-5 min-w-5 px-1.5 flex items-center justify-center text-[10px] font-bold"
+                            >
+                              {creatorBots.length}
+                            </Badge>
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
         
-        <SidebarGroup>
-          <SidebarGroupLabel>Administration</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {adminItems.map((item) => {
-                const isActive = location === item.url;
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      className={isActive ? "bg-sidebar-accent" : ""}
-                      data-testid="link-admin"
-                    >
-                      <Link href={item.url}>
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {isAdmin && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Administration</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {adminItems.map((item) => {
+                  const active = isActive(item.url);
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        asChild
+                        className={active ? "bg-sidebar-accent" : ""}
+                        data-testid="link-admin"
+                      >
+                        <Link href={item.url}>
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
     </Sidebar>
   );

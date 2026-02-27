@@ -858,19 +858,22 @@ export default function DashboardCreator() {
             {creatorBots.map((bot: any) => {
               const isLive = bot.evaluationStatus === "live";
               const isInEvaluation = bot.evaluationStatus === "in_evaluation";
-              const progress = bot.evaluationProgress || { 
-                tradeCount: 0, 
-                profitPercentage: 0, 
+              const progress = bot.evaluationProgress || {
+                tradeCount: 0,
+                profitPercentage: 0,
                 maxDrawdown: 0,
-                requiredTrades: 10, 
-                requiredProfit: 10,
-                requiredMaxDrawdown: 5,
+                requiredTrades: 10,
+                requiredProfit: 8,
+                requiredMaxDrawdown: 12,
               };
               const tradeProgress = (progress.tradeCount / progress.requiredTrades) * 100;
               const profitProgress = Math.max(0, (progress.profitPercentage / progress.requiredProfit) * 100);
-              const drawdownProgress = progress.maxDrawdown <= progress.requiredMaxDrawdown ? 100 : 0;
-              const meetsRequirements = 
-                progress.tradeCount >= progress.requiredTrades && 
+              const drawdownUsedPct = progress.requiredMaxDrawdown > 0
+                ? (progress.maxDrawdown / progress.requiredMaxDrawdown) * 100
+                : 0;
+              const drawdownPassing = progress.maxDrawdown <= progress.requiredMaxDrawdown;
+              const meetsRequirements =
+                progress.tradeCount >= progress.requiredTrades &&
                 progress.profitPercentage >= progress.requiredProfit &&
                 progress.maxDrawdown <= progress.requiredMaxDrawdown;
 
@@ -893,7 +896,13 @@ export default function DashboardCreator() {
                             In Evaluation
                           </Badge>
                         )}
-                        {!isLive && !isInEvaluation && (
+                        {bot.evaluationStatus === "failed" && (
+                          <Badge variant="destructive" className="gap-1" data-testid={`badge-status-${bot.id}`}>
+                            <XCircle className="h-3 w-3" />
+                            Failed
+                          </Badge>
+                        )}
+                        {!isLive && !isInEvaluation && bot.evaluationStatus !== "failed" && (
                           <Badge variant="outline" className="gap-1" data-testid={`badge-status-${bot.id}`}>
                             <AlertCircle className="h-3 w-3" />
                             Not Started
@@ -970,14 +979,14 @@ export default function DashboardCreator() {
                             <div>
                               <div className="flex items-center justify-between text-xs mb-1">
                                 <span className="text-muted-foreground">Max Drawdown</span>
-                                <span className={`font-medium ${progress.maxDrawdown <= progress.requiredMaxDrawdown ? 'text-success' : 'text-destructive'}`}>
+                                <span className={`font-medium ${drawdownPassing ? 'text-success' : 'text-destructive'}`}>
                                   {progress.maxDrawdown.toFixed(2)}% / {progress.requiredMaxDrawdown}%
-                                  {progress.maxDrawdown <= progress.requiredMaxDrawdown && " ✓"}
+                                  {drawdownPassing && " ✓"}
                                 </span>
                               </div>
-                              <Progress 
-                                value={drawdownProgress}
-                                className="h-2" 
+                              <Progress
+                                value={Math.min(100, drawdownUsedPct)}
+                                className="h-2"
                               />
                             </div>
                           </div>
