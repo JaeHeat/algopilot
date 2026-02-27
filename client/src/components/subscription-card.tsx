@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { TrendingUp, TrendingDown, Users, Settings, Pause, Play, BarChart3 } from "lucide-react";
+import { TrendingUp, TrendingDown, Users, Settings, Pause, Play, BarChart3, ExternalLink } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -151,8 +151,9 @@ export function SubscriptionCard({ subscription, initialSettingsOpen = false }: 
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold text-lg" data-testid={`text-bot-name-${subscription.id}`}>
+                  <h3 className="font-semibold text-lg flex items-center gap-1.5 group/name" data-testid={`text-bot-name-${subscription.id}`}>
                     {subscription.bot.name}
+                    <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover/name:opacity-100 transition-opacity" />
                   </h3>
                   {subscription.isPaused && (
                     <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-600">

@@ -4,7 +4,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Copy, RefreshCw, CheckCircle2, XCircle, Clock, Webhook, TrendingUp, Award, AlertCircle, Settings, BarChart3, History, Tag, Percent, DollarSign } from "lucide-react";
+import { Plus, Copy, RefreshCw, CheckCircle2, XCircle, Clock, Webhook, TrendingUp, Award, AlertCircle, Settings, BarChart3, History, Tag, Percent, DollarSign, Send, Users } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -596,6 +596,31 @@ export default function DashboardCreator() {
     },
   });
 
+  const testWebhookMutation = useMutation({
+    mutationFn: async (botId: string) => {
+      const res = await apiRequest("POST", `/api/creator/bots/${botId}/test-webhook`, {});
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || "Failed to send test signal");
+      }
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/creator/bots"] });
+      toast({
+        title: "Test Signal Sent",
+        description: "A test signal was logged in your recent activity. Your webhook is connected.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Test Failed",
+        description: error.message || "Could not send test signal",
+        variant: "destructive",
+      });
+    },
+  });
+
   const copyWebhookUrl = (url: string) => {
     navigator.clipboard.writeText(url);
     toast({
@@ -911,9 +936,17 @@ export default function DashboardCreator() {
                       </div>
                       <CardDescription>{bot.description}</CardDescription>
                     </div>
-                    <Badge variant={bot.webhook?.status === "active" ? "default" : "secondary"}>
-                      {bot.webhook?.status || "inactive"}
-                    </Badge>
+                    <div className="flex flex-col items-end gap-1.5">
+                      <Badge variant={bot.webhook?.status === "active" ? "default" : "secondary"}>
+                        {bot.webhook?.status || "inactive"}
+                      </Badge>
+                      {bot.performance?.subscribers !== undefined && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Users className="h-3 w-3" />
+                          <span>{bot.performance.subscribers} subscriber{bot.performance.subscribers !== 1 ? 's' : ''}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1027,6 +1060,20 @@ export default function DashboardCreator() {
                       >
                         <RefreshCw className={`h-4 w-4 ${regenerateWebhookMutation.isPending ? 'animate-spin' : ''}`} />
                       </Button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => testWebhookMutation.mutate(bot.id)}
+                            disabled={!bot.webhook || testWebhookMutation.isPending}
+                            data-testid={`button-test-webhook-${bot.id}`}
+                          >
+                            <Send className={`h-4 w-4 ${testWebhookMutation.isPending ? 'opacity-50' : ''}`} />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Send test signal</TooltipContent>
+                      </Tooltip>
                       <WebhookHistoryDialog bot={bot} />
                       <DiscountCodesDialog bot={bot} />
                     </div>

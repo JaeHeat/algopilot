@@ -327,6 +327,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post('/api/auth/change-password', isAuthenticated, async (req: any, res) => {
+    try {
+      const { currentPassword, newPassword } = req.body;
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ message: "Current password and new password are required" });
+      }
+      if (newPassword.length < 8) {
+        return res.status(400).json({ message: "New password must be at least 8 characters" });
+      }
+      const userId = req.session.userId;
+      const user = await storage.getUserById(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      if (!user.password) {
+        return res.status(400).json({ message: "No password set. Use forgot password to set one." });
+      }
+      const isValid = await bcrypt.compare(currentPassword, user.password);
+      if (!isValid) {
+        return res.status(400).json({ message: "Current password is incorrect" });
+      }
+      const hashedPassword = await bcrypt.hash(newPassword, 12);
+      await storage.updateUserPassword(userId, hashedPassword);
+      res.json({ message: "Password changed successfully" });
+    } catch (error: any) {
+      console.error('[Change Password] Error:', error);
+      res.status(500).json({ message: "Failed to change password" });
+    }
+  });
+
   // Stripe Webhook Endpoint (MUST be before CSRF protection - needs raw body for signature verification)
   app.post("/api/webhooks/stripe", async (req: any, res) => {
     const sig = req.headers['stripe-signature'];
@@ -1310,9 +1340,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             requiredProfit: 8,
             requiredMaxDrawdown: 12,
           };
-          
+
+          const performance = await storage.getBotPerformance(bot.id);
+
           return {
             ...bot,
+            performance,
             webhook: webhook ? {
               id: webhook.id,
               secret: webhook.secret,
@@ -1511,6 +1544,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error restoring webhook:", error);
       res.status(500).json({ message: "Failed to restore webhook" });
+    }
+  });
+
+  app.post("/api/creator/bots/:id/test-webhook", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.session.userId;
+      const bot = await storage.getBotById(req.params.id);
+      if (!bot) return res.status(404).json({ message: "Bot not found" });
+      if (bot.creatorId !== userId) return res.status(403).json({ message: "Forbidden" });
+
+      const webhook = await storage.getWebhookByBotId(req.params.id);
+      if (!webhook) return res.status(404).json({ message: "No webhook found for this bot" });
+
+      const testPayload = {
+        symbol: "BTCUSDT",
+        action: "buy",
+        price: 50000,
+        time: new Date().toISOString(),
+        test: true,
+      };
+
+      await storage.logWebhookEvent({
+        botId: req.params.id,
+        payload: testPayload,
+        headers: { "x-test-signal": "true" },
+        status: "success",
+        error: null,
+      });
+
+      await storage.updateWebhookLastReceived(req.params.id);
+
+      res.json({
+        message: "Test signal sent successfully",
+        payload: testPayload,
+        webhookUrl: `${req.protocol}://${req.get('host')}/api/webhooks/${req.params.id}/${webhook.secret}?token=${webhook.authToken}`,
+      });
+    } catch (error) {
+      console.error("Error sending test webhook:", error);
+      res.status(500).json({ message: "Failed to send test signal" });
     }
   });
 

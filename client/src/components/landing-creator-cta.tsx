@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Code, DollarSign, Users, TrendingUp } from "lucide-react";
+import { Link } from "wouter";
 
 export function LandingCreatorCTA() {
   return (
@@ -27,7 +28,7 @@ export function LandingCreatorCTA() {
                   <DollarSign className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <h3 className="font-semibold mb-1">70% Revenue Share</h3>
+                  <h3 className="font-semibold mb-1">75% Revenue Share</h3>
                   <p className="text-sm text-muted-foreground">Keep the majority of subscription fees. We handle billing and payments.</p>
                 </div>
               </div>
@@ -53,10 +54,12 @@ export function LandingCreatorCTA() {
               </div>
             </div>
             
-            <Button size="lg" className="gap-2" data-testid="button-become-creator">
-              Become a Creator
-              <Code className="h-4 w-4" />
-            </Button>
+            <Link href="/auth/register">
+              <Button size="lg" className="gap-2" data-testid="button-become-creator">
+                Become a Creator
+                <Code className="h-4 w-4" />
+              </Button>
+            </Link>
           </div>
           
           <Card className="p-6 bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">

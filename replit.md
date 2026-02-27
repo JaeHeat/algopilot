@@ -94,6 +94,22 @@ The platform utilizes a modern web stack: React with TypeScript, Wouter, TanStac
 - **API Integrations**: Binance, Bybit
 - **Email Service**: Resend
 
+## Recent Changes (February 27, 2026)
+- **User Journey QoL Improvements** (10 issues resolved):
+  - Fixed "Become a Creator" landing page button — now links to `/auth/register` instead of being dead
+  - Fixed revenue share copy: 70% → 75% on landing page creator CTA
+  - Bot detail page Subscribe button now redirects unauthenticated users to `/auth/register`
+  - Marketplace Subscribe button already redirected unauthenticated users (previously fixed); bot detail now consistent
+  - Dashboard overview empty state marketplace link now goes to `/dashboard/marketplace` (preserves sidebar context)
+  - Added `POST /api/auth/change-password` backend endpoint with bcrypt verification
+  - Added Password Change section to Settings page with show/hide toggles and match validation
+  - Added "Become a Creator" application section to Settings page for subscriber-role users (uses existing `/api/creator/apply` endpoint); shows pending/rejected/approved states
+  - Added `POST /api/creator/bots/:id/test-webhook` endpoint that logs a test signal to webhook events
+  - Added "Send test signal" button (Send icon) to creator bot cards with tooltip
+  - Creator bot cards now show subscriber count from `bot.performance.subscribers`
+  - Subscription cards show a link icon on bot name hover to indicate the card navigates to bot detail
+  - Creator bots API (`GET /api/creator/bots`) now includes `performance` data including subscriber count
+
 ## Recent Changes (December 1, 2025)
 - **Real-Time WebSocket Updates**: Implemented live trade notifications and dashboard updates
   - Backend: WebSocket server (ws) integrated with Express and session authentication

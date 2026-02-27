@@ -554,13 +554,21 @@ export default function BotDetail() {
                       <Clock className="h-4 w-4" />
                       <span>Cancel anytime</span>
                     </div>
-                    <Button 
-                      className="w-full" 
-                      onClick={() => setSubscribeDialogOpen(true)}
-                      data-testid="button-subscribe"
-                    >
-                      Subscribe Now
-                    </Button>
+                    {user ? (
+                      <Button
+                        className="w-full"
+                        onClick={() => setSubscribeDialogOpen(true)}
+                        data-testid="button-subscribe"
+                      >
+                        Subscribe Now
+                      </Button>
+                    ) : (
+                      <Link href="/auth/register" className="w-full">
+                        <Button className="w-full" data-testid="button-subscribe">
+                          Sign Up to Subscribe
+                        </Button>
+                      </Link>
+                    )}
                   </>
                 )}
                 {existingSubscription && (

@@ -327,8 +327,10 @@ export default function DashboardOverview() {
                 ? "All your bots are paused. Visit My Bots to manage them."
                 : "You haven't subscribed to any bots yet"}
             </p>
-            <Link href="/marketplace" className="text-primary hover:underline">
-              Browse the marketplace
+            <Link href="/dashboard/marketplace">
+              <Button data-testid="button-browse-marketplace-empty">
+                Browse the Marketplace
+              </Button>
             </Link>
           </div>
         )}
