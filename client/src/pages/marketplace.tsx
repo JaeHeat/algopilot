@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { EquitySparkline } from "@/components/equity-sparkline";
 import { Search, TrendingUp, ArrowLeft, Trophy, Medal, Award, Star, Bot as BotIcon, LogIn } from "lucide-react";
 import type { Bot, BotPerformance, UserOnboarding } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
@@ -30,8 +31,9 @@ export default function Marketplace() {
   const [searchQuery, setSearchQuery] = useState("");
   const [strategyFilter, setStrategyFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [assetClassFilter, setAssetClassFilter] = useState("all");
   const [riskFilter, setRiskFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("roi");
+  const [sortBy, setSortBy] = useState("algoScore");
   const [selectedBot, setSelectedBot] = useState<BotWithPerformance | null>(null);
   const [subscribeDialogOpen, setSubscribeDialogOpen] = useState(false);
 
@@ -74,22 +76,32 @@ export default function Marketplace() {
         bot.description.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStrategy = strategyFilter === "all" || bot.strategy === strategyFilter;
       const matchesCategory = categoryFilter === "all" || bot.category === categoryFilter;
+      const matchesAssetClass = assetClassFilter === "all" || (bot.assetClass ?? "crypto") === assetClassFilter;
       const matchesRisk = riskFilter === "all" || bot.riskLevel === riskFilter;
-      return matchesSearch && matchesStrategy && matchesCategory && matchesRisk;
+      return matchesSearch && matchesStrategy && matchesCategory && matchesAssetClass && matchesRisk;
     })
     .sort((a, b) => {
-      if (!a.performance || !b.performance) return 0;
+      const am = (a as any).metrics, bm = (b as any).metrics;
+      const num = (x: any) => (typeof x === "number" ? x : -Infinity);
       switch (sortBy) {
+        case "algoScore":
+          return num(bm?.algoScore) - num(am?.algoScore);
+        case "sortino":
+          return num(bm?.sortino) - num(am?.sortino);
+        case "calmar":
+          return num(bm?.calmar) - num(am?.calmar);
+        case "expectancy":
+          return num(bm?.expectancyPct) - num(am?.expectancyPct);
+        case "maxdd": // lower drawdown is better
+          return num(am?.maxDrawdownPct) - num(bm?.maxDrawdownPct);
         case "roi":
-          return parseFloat(b.performance.totalRoi) - parseFloat(a.performance.totalRoi);
+          return parseFloat(b.performance?.totalRoi ?? "0") - parseFloat(a.performance?.totalRoi ?? "0");
         case "winRate":
-          return parseFloat(b.performance.winRate) - parseFloat(a.performance.winRate);
+          return parseFloat(b.performance?.winRate ?? "0") - parseFloat(a.performance?.winRate ?? "0");
         case "subscribers":
-          return b.performance.subscribers - a.performance.subscribers;
-        case "sharpe":
-          return parseFloat(b.performance.sharpeRatio) - parseFloat(a.performance.sharpeRatio);
+          return (b.performance?.subscribers ?? 0) - (a.performance?.subscribers ?? 0);
         default:
-          return 0;
+          return num(bm?.algoScore) - num(am?.algoScore);
       }
     }) ?? [];
 
@@ -208,6 +220,17 @@ export default function Marketplace() {
               </SelectContent>
             </Select>
 
+            <Select value={assetClassFilter} onValueChange={setAssetClassFilter}>
+              <SelectTrigger data-testid="select-asset-class-filter">
+                <SelectValue placeholder="Market" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Markets</SelectItem>
+                <SelectItem value="crypto">Crypto</SelectItem>
+                <SelectItem value="stocks">Stocks</SelectItem>
+              </SelectContent>
+            </Select>
+
             <Select value={riskFilter} onValueChange={setRiskFilter}>
               <SelectTrigger data-testid="select-risk-filter">
                 <SelectValue placeholder="Risk Level" />
@@ -227,10 +250,14 @@ export default function Marketplace() {
                 <SelectValue placeholder="Sort by" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="algoScore">AlgoScore (best overall)</SelectItem>
+                <SelectItem value="sortino">Sortino (risk-adj.)</SelectItem>
+                <SelectItem value="calmar">Calmar (return/drawdown)</SelectItem>
+                <SelectItem value="expectancy">Expectancy / trade</SelectItem>
+                <SelectItem value="maxdd">Lowest Drawdown</SelectItem>
                 <SelectItem value="roi">Highest ROI</SelectItem>
                 <SelectItem value="winRate">Win Rate</SelectItem>
                 <SelectItem value="subscribers">Most Popular</SelectItem>
-                <SelectItem value="sharpe">Sharpe Ratio</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -248,7 +275,7 @@ export default function Marketplace() {
               <div>BOT</div>
               <div className="text-right">ROI</div>
               <div className="text-right">WIN RATE</div>
-              <div className="text-right">SHARPE</div>
+              <div className="text-right">ALGOSCORE</div>
               <div className="text-right">SUBS</div>
               <div className="text-right">PRICE</div>
             </div>
@@ -264,9 +291,13 @@ export default function Marketplace() {
                 </div>
 
                 <div className="flex items-center justify-center">
-                  {bot.iconUrl ? (
-                    <img 
-                      src={bot.iconUrl} 
+                  {(bot as any).metrics?.rated ? (
+                    <div className="w-16 h-12 rounded-md border bg-muted/30 px-1 flex items-center" title="Standardized equity curve" data-testid={`spark-bot-${index + 1}`}>
+                      <EquitySparkline data={(bot as any).metrics.equityCurve} height={38} />
+                    </div>
+                  ) : bot.iconUrl ? (
+                    <img
+                      src={bot.iconUrl}
                       alt={bot.name}
                       className="w-16 h-16 rounded object-cover"
                       data-testid={`img-bot-icon-${index + 1}`}
@@ -302,40 +333,61 @@ export default function Marketplace() {
                         {categoryLabels[bot.category] || bot.category}
                       </Badge>
                     )}
-                    <Badge variant="outline" className={`text-xs border ${getRiskBadgeColor(bot.riskLevel)}`}>
-                      {bot.riskLevel} Risk
+                    <Badge variant="outline" className="text-xs bg-muted">
+                      {(bot.assetClass ?? "crypto") === "stocks" ? "Stocks" : "Crypto"}
                     </Badge>
+                    {(() => {
+                      const tier = (bot as any).metrics?.riskTier as string | undefined;
+                      if (!tier) return null;
+                      const cls: Record<string, string> = {
+                        low: "border-green-500/40 bg-green-500/10 text-green-700 dark:text-green-400",
+                        moderate: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+                        high: "border-orange-500/40 bg-orange-500/10 text-orange-700 dark:text-orange-400",
+                        extreme: "border-red-500/40 bg-red-500/10 text-red-600",
+                      };
+                      return (
+                        <Badge variant="outline" className={`text-xs border ${cls[tier] ?? ""}`} data-testid={`badge-risk-tier-${index + 1}`}>
+                          {tier.charAt(0).toUpperCase() + tier.slice(1)} risk
+                        </Badge>
+                      );
+                    })()}
                   </div>
                 </div>
 
                 <div className="text-right">
-                  {bot.performance ? (
-                    <div className={`text-lg font-bold ${parseFloat(bot.performance.totalRoi) >= 0 ? 'text-success' : 'text-destructive'}`}>
-                      {parseFloat(bot.performance.totalRoi) >= 0 ? '+' : ''}
-                      {parseFloat(bot.performance.totalRoi).toFixed(2)}%
-                    </div>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
+                  {(() => {
+                    const m = (bot as any).metrics;
+                    const roi = m?.rated ? m.totalReturnPct : (bot.performance ? parseFloat(bot.performance.totalRoi) : null);
+                    if (roi === null) return <span className="text-muted-foreground">—</span>;
+                    return (
+                      <div className={`text-lg font-bold ${roi >= 0 ? 'text-success' : 'text-destructive'}`}>
+                        {roi >= 0 ? '+' : ''}{roi.toFixed(1)}%
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="text-right">
-                  {bot.performance ? (
-                    <div className="text-base font-semibold">
-                      {parseFloat(bot.performance.winRate).toFixed(1)}%
-                    </div>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
+                  {(() => {
+                    const m = (bot as any).metrics;
+                    const wr = m?.rated ? Math.round(m.winRate * 100) : (bot.performance ? parseFloat(bot.performance.winRate) : null);
+                    if (wr === null) return <span className="text-muted-foreground">—</span>;
+                    return <div className="text-base font-semibold">{wr}%</div>;
+                  })()}
                 </div>
 
                 <div className="text-right">
-                  {bot.performance ? (
-                    <div className="text-base font-semibold">
-                      {parseFloat(bot.performance.sharpeRatio).toFixed(2)}
+                  {(bot as any).metrics?.rated ? (
+                    <div>
+                      <div className="text-base font-bold" data-testid={`text-algoscore-${index + 1}`}>
+                        {(bot as any).metrics.algoScore}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground">
+                        n={(bot as any).metrics.trades}
+                      </div>
                     </div>
                   ) : (
-                    <span className="text-muted-foreground">—</span>
+                    <span className="text-muted-foreground" title="Not enough evaluation data to rate yet">—</span>
                   )}
                 </div>
 

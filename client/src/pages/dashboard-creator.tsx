@@ -50,6 +50,7 @@ const createBotFormSchema = z.object({
   description: z.string().min(10, "Description must be at least 10 characters"),
   strategy: z.string().min(3, "Strategy is required"),
   category: z.enum(["scalping", "day_trading", "swing_trading", "trend_following", "mean_reversion", "arbitrage", "market_making", "grid_trading"]),
+  assetClass: z.enum(["crypto", "stocks"]),
   riskLevel: z.string().min(1, "Risk level is required"),
   monthlyPrice: z.string().min(1, "Monthly price is required"),
   strategyDescription: z.string().min(20, "Strategy description must be at least 20 characters"),
@@ -546,6 +547,7 @@ export default function DashboardCreator() {
       description: "",
       strategy: "",
       category: "trend_following",
+      assetClass: "crypto",
       riskLevel: "2",
       monthlyPrice: "99.00",
       strategyDescription: "",
@@ -737,6 +739,31 @@ export default function DashboardCreator() {
                       </Select>
                       <FormDescription>
                         Choose the trading style that best describes this bot
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="assetClass"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Market</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-asset-class">
+                            <SelectValue placeholder="Select market" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="crypto">Crypto (Binance / Bybit)</SelectItem>
+                          <SelectItem value="stocks">Stocks (Alpaca)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Which market this bot trades — determines how subscribers connect their broker
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

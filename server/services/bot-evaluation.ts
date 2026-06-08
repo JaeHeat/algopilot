@@ -369,6 +369,7 @@ async function handleExitSignal(
       tradeCount: freshRun.tradeCount,
       cumulativeReturnPct: parseFloat(freshRun.cumulativeReturnPct),
       maxDrawdownPct: parseFloat(freshRun.maxDrawdownPct),
+      startedAt: freshRun.startedAt,
     });
   }
   
@@ -387,14 +388,19 @@ async function checkEvaluationStatus(
     tradeCount: number;
     cumulativeReturnPct: number;
     maxDrawdownPct: number;
+    startedAt?: Date;
   }
 ) {
-  const { tradeCount, cumulativeReturnPct, maxDrawdownPct } = metrics;
-  
+  const { tradeCount, cumulativeReturnPct, maxDrawdownPct, startedAt } = metrics;
+
   const REQUIRED_TRADES = 10;
   const REQUIRED_PROFIT_PCT = 8;
   const MAX_DRAWDOWN_PCT = 12;
   const MAX_TRADES_WITHOUT_PROFIT = 50;
+  // Minimum evaluation duration guard against "speedrunning" a pass in one lucky session.
+  // Default OFF (0): confidence-weighted ranking keeps small-sample bots off the top anyway,
+  // and a calendar gate is unfair across trade frequencies. Set MIN_EVALUATION_DAYS to re-enable.
+  const MIN_EVALUATION_DAYS = Number(process.env.MIN_EVALUATION_DAYS ?? 0);
   
   if (maxDrawdownPct > MAX_DRAWDOWN_PCT) {
     console.log(`[Evaluation] Bot ${botId} FAILED - Max drawdown exceeded: ${maxDrawdownPct.toFixed(2)}% > ${MAX_DRAWDOWN_PCT}%`);
@@ -441,7 +447,14 @@ async function checkEvaluationStatus(
   }
   
   if (tradeCount >= REQUIRED_TRADES && cumulativeReturnPct >= REQUIRED_PROFIT_PCT) {
-    console.log(`[Evaluation] Bot ${botId} PASSED - ${tradeCount} trades, ${cumulativeReturnPct.toFixed(2)}% profit, ${maxDrawdownPct.toFixed(2)}% max drawdown`);
+    // Gate the pass on minimum elapsed time, so performance must be sustained, not speedrun.
+    const elapsedDays = startedAt ? (Date.now() - new Date(startedAt).getTime()) / 86_400_000 : Infinity;
+    if (elapsedDays < MIN_EVALUATION_DAYS) {
+      console.log(`[Evaluation] Bot ${botId} met criteria but minimum evaluation period not reached (${elapsedDays.toFixed(1)}/${MIN_EVALUATION_DAYS}d) - holding in evaluation`);
+      return;
+    }
+
+    console.log(`[Evaluation] Bot ${botId} PASSED - ${tradeCount} trades, ${cumulativeReturnPct.toFixed(2)}% profit, ${maxDrawdownPct.toFixed(2)}% max drawdown, ${elapsedDays.toFixed(1)}d`);
     
     await storage.closeEvaluationRun(
       evaluationRunId,

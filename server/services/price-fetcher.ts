@@ -32,6 +32,8 @@ export class PriceFetcher {
       { name: 'Binance', fn: () => this.fetchFromBinance(symbol) },
       { name: 'Bybit', fn: () => this.fetchFromBybit(symbol) },
       { name: 'CoinGecko', fn: () => this.fetchFromCoinGecko(symbol) },
+      // Equities fallback: reached when the crypto sources fail (i.e. stock tickers like AAPL).
+      { name: 'Yahoo', fn: () => this.fetchFromYahoo(symbol) },
     ];
 
     for (const source of sources) {
@@ -132,6 +134,32 @@ export class PriceFetcher {
       return price;
     } catch (error: any) {
       console.log(`[PriceFetcher] CoinGecko error for ${symbol}:`, error.response?.status, error.response?.data || error.message);
+      return null;
+    }
+  }
+
+  private static async fetchFromYahoo(symbol: string): Promise<number | null> {
+    try {
+      // Skip obviously-crypto symbols so we don't mis-resolve them against an equities feed.
+      const upper = symbol.toUpperCase();
+      if (upper.endsWith('USDT') || upper.includes('.P') || upper.endsWith('PERP')) {
+        return null;
+      }
+      // Equities tickers are passed through as-is (e.g. AAPL, SPY); strip a trailing /USD if present.
+      const ticker = upper.replace(/\/USD$/, '').replace(/\/.*$/, '');
+
+      const response = await axios.get(
+        `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}`,
+        {
+          params: { interval: '1d', range: '1d' },
+          timeout: 4000,
+          headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' },
+        },
+      );
+
+      const price = response.data?.chart?.result?.[0]?.meta?.regularMarketPrice;
+      return typeof price === 'number' ? price : null;
+    } catch (error: any) {
       return null;
     }
   }

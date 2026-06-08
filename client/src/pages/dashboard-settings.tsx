@@ -261,7 +261,7 @@ export default function DashboardSettings() {
     }
   };
 
-  const availableExchanges = ["Binance", "Bybit", "OKX", "Kraken", "Bitfinex"];
+  const availableExchanges = ["Binance", "Bybit", "Alpaca", "OKX", "Kraken", "Bitfinex"];
 
   const getStatusIcon = (status: string | null) => {
     switch (status) {
@@ -671,18 +671,20 @@ export default function DashboardSettings() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>Account Type *</Label>
-                <Select value={accountType} onValueChange={(v: any) => setAccountType(v)}>
-                  <SelectTrigger data-testid="select-account-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="spot">Spot Trading</SelectItem>
-                    <SelectItem value="futures">Futures/Margin</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {selectedExchange !== "Alpaca" && (
+                <div className="space-y-2">
+                  <Label>Account Type *</Label>
+                  <Select value={accountType} onValueChange={(v: any) => setAccountType(v)}>
+                    <SelectTrigger data-testid="select-account-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="spot">Spot Trading</SelectItem>
+                      <SelectItem value="futures">Futures/Margin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center space-x-2">

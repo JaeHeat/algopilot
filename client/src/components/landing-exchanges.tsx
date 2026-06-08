@@ -1,11 +1,9 @@
 import { SiBinance } from "react-icons/si";
 
 const exchanges = [
+  { name: "Alpaca", letter: "A" },
   { name: "Binance", icon: <SiBinance className="h-8 w-8" />, hasIcon: true },
   { name: "Bybit", letter: "B" },
-  { name: "OKX", letter: "O" },
-  { name: "Kraken", letter: "K" },
-  { name: "Bitfinex", letter: "B" },
 ];
 
 export function LandingExchanges() {
@@ -13,7 +11,7 @@ export function LandingExchanges() {
     <div className="py-16 bg-muted/30">
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         <p className="text-center text-sm font-medium text-muted-foreground mb-8 uppercase tracking-wide">
-          Supports API Trading with Leverage on Major Exchanges
+          Connect your own broker or exchange — stocks &amp; crypto
         </p>
         <div className="flex flex-wrap items-center justify-center gap-12 lg:gap-16">
           {exchanges.map((exchange) => (
@@ -34,7 +32,7 @@ export function LandingExchanges() {
           ))}
         </div>
         <p className="text-center text-xs text-muted-foreground mt-6">
-          * Currently using mock integrations • Real API trading coming soon
+          Connect with your own API keys — start in paper mode, go live when you're ready.
         </p>
       </div>
     </div>

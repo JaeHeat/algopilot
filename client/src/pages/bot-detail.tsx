@@ -48,6 +48,20 @@ export default function BotDetail() {
     enabled: !!user,
   });
 
+  // Tamper-evident track-record verification (public).
+  const { data: ledgerVerify } = useQuery<{ valid: boolean; length: number }>({
+    queryKey: ["/api/bots", params.id, "ledger", "verify"],
+  });
+
+  // Trust summary: evaluation attempts + live-vs-evaluation divergence (public).
+  const { data: trust } = useQuery<{
+    attempts: { totalAttempts: number; failed: number; passed: number; active: number };
+    divergence: { status: "no_baseline" | "insufficient_data" | "aligned" | "diverging" | "severe"; message: string };
+    verification: { tier: "executed" | "market_verified" | "signal_only" | "none"; executedTrades: number; adjudicatedClosed: number; signals: number };
+  }>({
+    queryKey: ["/api/bots", params.id, "trust"],
+  });
+
   const existingSubscription = userSubscriptions.find(sub => sub.botId === params.id);
 
   if (botLoading) {
@@ -93,7 +107,9 @@ export default function BotDetail() {
   const riskInfo = getRiskLabelAndColor(bot.riskLevel);
 
   const currentHistory = performanceHistory.find(h => h.bucket === selectedTimeframe);
-  const equityCurveData = currentHistory?.equityCurve as any[] || [];
+  // Fall back to the standardized AlgoScore equity curve when no time-bucketed history exists.
+  const algoCurve = ((bot as any).metrics?.equityCurve as number[] | undefined) ?? [];
+  const equityCurveData = (currentHistory?.equityCurve as any[] | undefined) ?? algoCurve;
 
   const chartData = {
     labels: equityCurveData.map((_, i) => i),
@@ -211,7 +227,7 @@ export default function BotDetail() {
         Back to Marketplace
       </Button>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <div className="lg:col-span-2 space-y-6">
           <Card>
             <CardHeader>
@@ -225,6 +241,62 @@ export default function BotDetail() {
                         Verified
                       </Badge>
                     )}
+                    {trust && trust.verification.tier !== "none" && (() => {
+                      const t = trust.verification.tier;
+                      const cfg = {
+                        executed: { label: "Executed · real fills", cls: "border-green-500/40 bg-green-500/10 text-green-700 dark:text-green-400", title: "Backed by real broker executions — the exchange is the witness. Un-fakeable." },
+                        market_verified: { label: "Market-verified", cls: "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-400", title: "Fills & outcomes adjudicated by the platform against an independent price feed — not creator-reported." },
+                        signal_only: { label: "Signals · outcomes pending", cls: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400", title: "Tamper-proof timestamped signals; outcomes not yet resolved against the market." },
+                      }[t]!;
+                      return (
+                        <Badge variant="outline" className={`gap-1 ${cfg.cls}`} data-testid="badge-verification-tier" title={cfg.title}>
+                          <Shield className="h-3 w-3" /> {cfg.label}
+                        </Badge>
+                      );
+                    })()}
+                    {ledgerVerify && ledgerVerify.length > 0 && (
+                      <Badge
+                        variant="outline"
+                        className={`gap-1 ${ledgerVerify.valid
+                          ? "border-green-500/40 bg-green-500/10 text-green-700 dark:text-green-400"
+                          : "border-red-500/40 bg-red-500/10 text-red-600"}`}
+                        data-testid="badge-verified-live"
+                        title="Every signal is hashed and chained at the moment it arrives — this track record cannot be backfilled or altered."
+                      >
+                        <CheckCircle className="h-3 w-3" />
+                        {ledgerVerify.valid
+                          ? `Verified Live · ${ledgerVerify.length} signal${ledgerVerify.length === 1 ? "" : "s"}`
+                          : "Integrity error"}
+                      </Badge>
+                    )}
+                    {trust && ["aligned", "diverging", "severe"].includes(trust.divergence.status) && (
+                      <Badge
+                        variant="outline"
+                        className={`gap-1 ${trust.divergence.status === "aligned"
+                          ? "border-green-500/40 bg-green-500/10 text-green-700 dark:text-green-400"
+                          : trust.divergence.status === "diverging"
+                            ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                            : "border-red-500/40 bg-red-500/10 text-red-600"}`}
+                        data-testid="badge-divergence"
+                        title={trust.divergence.message}
+                      >
+                        {trust.divergence.status === "aligned"
+                          ? "Live tracks evaluation"
+                          : trust.divergence.status === "diverging"
+                            ? "Diverging from evaluation"
+                            : "Underperforming evaluation"}
+                      </Badge>
+                    )}
+                    {trust && trust.attempts.failed > 0 && (
+                      <Badge
+                        variant="outline"
+                        className="gap-1 text-muted-foreground"
+                        data-testid="badge-attempts"
+                        title="Number of prior evaluation attempts that failed before this listing."
+                      >
+                        {trust.attempts.failed} failed attempt{trust.attempts.failed === 1 ? "" : "s"}
+                      </Badge>
+                    )}
                   </div>
                   <CardDescription className="text-base">{bot.description}</CardDescription>
                 </div>
@@ -232,7 +304,6 @@ export default function BotDetail() {
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-2 mb-6">
-                <Badge className={riskInfo.color} data-testid="badge-risk-level">{riskInfo.label}</Badge>
                 <Badge variant="outline" data-testid="badge-strategy">{bot.strategy}</Badge>
                 {bot.category && (
                   <Badge variant="outline" className="bg-primary/5 border-primary/20" data-testid="badge-category">
@@ -244,34 +315,86 @@ export default function BotDetail() {
                 </Badge>
               </div>
 
-              {bot.performance && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Total ROI</p>
-                    <p className="text-2xl font-bold text-green-600" data-testid="text-total-roi">
-                      +{parseFloat(bot.performance.totalRoi).toFixed(1)}%
-                    </p>
+              {(bot as any).metrics?.rated && (() => {
+                const m = (bot as any).metrics;
+                const tierCls: Record<string, string> = {
+                  low: "border-green-500/40 bg-green-500/10 text-green-700 dark:text-green-400",
+                  moderate: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+                  high: "border-orange-500/40 bg-orange-500/10 text-orange-700 dark:text-orange-400",
+                  extreme: "border-red-500/40 bg-red-500/10 text-red-600",
+                };
+                const cell = (label: string, value: string, testid: string) => (
+                  <div data-testid={testid}>
+                    <p className="text-xs text-muted-foreground mb-1">{label}</p>
+                    <p className="text-lg font-bold">{value}</p>
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Win Rate</p>
-                    <p className="text-2xl font-bold" data-testid="text-win-rate">
-                      {winRate}%
-                    </p>
+                );
+                return (
+                  <div className="rounded-lg border bg-muted/30 p-4 mb-6" data-testid="panel-algoscore">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <p className="text-xs text-muted-foreground">AlgoScore — risk-adjusted, confidence-weighted</p>
+                        <p className="text-4xl font-bold" data-testid="text-algoscore">
+                          {m.algoScore}
+                          <span className="text-base font-normal text-muted-foreground">/100</span>
+                        </p>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={`text-sm ${tierCls[m.riskTier] ?? ""}`}
+                        data-testid="badge-risk-tier"
+                        title={m.riskFactors?.length ? `Risk drivers: ${m.riskFactors.join(", ")}` : undefined}
+                      >
+                        {m.riskTier.charAt(0).toUpperCase() + m.riskTier.slice(1)} risk
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-3 md:grid-cols-6 gap-3 text-center">
+                      {cell("Sortino", m.sortino.toFixed(2), "metric-sortino")}
+                      {cell("Calmar", m.calmar.toFixed(2), "metric-calmar")}
+                      {cell("Expectancy", `${m.expectancyPct >= 0 ? "+" : ""}${m.expectancyPct.toFixed(2)}%`, "metric-expectancy")}
+                      {cell("Max DD", `${m.maxDrawdownPct.toFixed(1)}%`, "metric-maxdd")}
+                      {cell("t-stat", m.tStat.toFixed(2), "metric-tstat")}
+                      {cell("Confidence", `${Math.round(m.confidence * 100)}% · n=${m.trades}`, "metric-confidence")}
+                    </div>
+                    {m.riskFactors?.length > 0 && (
+                      <p className="text-xs text-muted-foreground mt-3">Risk drivers: {m.riskFactors.join(", ")}</p>
+                    )}
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Sharpe Ratio</p>
-                    <p className="text-2xl font-bold" data-testid="text-sharpe-ratio">
-                      {parseFloat(bot.performance.sharpeRatio).toFixed(2)}
-                    </p>
+                );
+              })()}
+
+              {((bot as any).metrics?.rated || bot.performance) && (() => {
+                const m = (bot as any).metrics;
+                const rated = !!m?.rated;
+                const roi = rated ? m.totalReturnPct : parseFloat(bot.performance?.totalRoi ?? "0");
+                const wr = rated ? Math.round(m.winRate * 100) : winRate;
+                const sh = rated ? m.sharpe : parseFloat(bot.performance?.sharpeRatio ?? "0");
+                const dd = rated ? m.maxDrawdownPct : parseFloat(bot.performance?.maxDrawdown ?? "0");
+                return (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Total ROI</p>
+                      <p className={`text-2xl font-bold ${roi >= 0 ? "text-green-600" : "text-red-600"}`} data-testid="text-total-roi">
+                        {roi >= 0 ? "+" : ""}{roi.toFixed(1)}%
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Win Rate</p>
+                      <p className="text-2xl font-bold" data-testid="text-win-rate">{wr}%</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Sharpe Ratio</p>
+                      <p className="text-2xl font-bold" data-testid="text-sharpe-ratio">{sh.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Max Drawdown</p>
+                      <p className="text-2xl font-bold text-red-600" data-testid="text-max-drawdown">
+                        -{Math.abs(dd).toFixed(1)}%
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Max Drawdown</p>
-                    <p className="text-2xl font-bold text-red-600" data-testid="text-max-drawdown">
-                      -{parseFloat(bot.performance.maxDrawdown).toFixed(1)}%
-                    </p>
-                  </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Advanced Analytics */}
               {closedTrades.length > 0 && (
@@ -324,20 +447,27 @@ export default function BotDetail() {
               {equityCurveData.length > 0 && (
                 <div className="mt-6">
                   <div className="flex items-center justify-between mb-4">
-                    <h4 className="font-semibold">Performance Chart</h4>
-                    <div className="flex gap-1">
-                      {["1D", "1W", "1M", "3M", "1Y", "ALL"].map((timeframe) => (
-                        <Button
-                          key={timeframe}
-                          variant={selectedTimeframe === timeframe ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => setSelectedTimeframe(timeframe)}
-                          data-testid={`button-timeframe-${timeframe.toLowerCase()}`}
-                        >
-                          {timeframe}
-                        </Button>
-                      ))}
-                    </div>
+                    <h4 className="font-semibold">
+                      {performanceHistory.length > 0 ? "Performance Chart" : "Equity Curve"}
+                      {performanceHistory.length === 0 && (
+                        <span className="ml-2 text-xs font-normal text-muted-foreground">evaluation · standardized to 100</span>
+                      )}
+                    </h4>
+                    {performanceHistory.length > 0 && (
+                      <div className="flex gap-1">
+                        {["1D", "1W", "1M", "3M", "1Y", "ALL"].map((timeframe) => (
+                          <Button
+                            key={timeframe}
+                            variant={selectedTimeframe === timeframe ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setSelectedTimeframe(timeframe)}
+                            data-testid={`button-timeframe-${timeframe.toLowerCase()}`}
+                          >
+                            {timeframe}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="h-64">
                     <Line data={chartData} options={chartOptions} />
@@ -503,7 +633,7 @@ export default function BotDetail() {
           </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-6 lg:sticky lg:top-20">
           <Card>
             <CardHeader>
               <CardTitle>Creator</CardTitle>

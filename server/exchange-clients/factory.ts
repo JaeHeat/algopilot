@@ -1,8 +1,18 @@
 import { BaseExchangeClient, ExchangeCredentials } from './base';
 import { BinanceClient } from './binance';
 import { BybitClient } from './bybit';
+import { AlpacaClient } from './alpaca';
 
-export type SupportedExchange = 'Binance' | 'Bybit' | 'OKX' | 'Kraken' | 'Bitfinex';
+export type SupportedExchange = 'Binance' | 'Bybit' | 'Alpaca' | 'OKX' | 'Kraken' | 'Bitfinex';
+
+// Asset class each venue trades — used to tag bots/connections and filter the marketplace.
+export type AssetClass = 'crypto' | 'stocks';
+
+export const EXCHANGE_ASSET_CLASS: Record<string, AssetClass> = {
+  binance: 'crypto',
+  bybit: 'crypto',
+  alpaca: 'stocks',
+};
 
 export class ExchangeClientFactory {
   static createClient(
@@ -17,7 +27,10 @@ export class ExchangeClientFactory {
       
       case 'bybit':
         return new BybitClient(credentials);
-      
+
+      case 'alpaca':
+        return new AlpacaClient(credentials);
+
       case 'okx':
         throw new Error('OKX integration coming soon');
       
@@ -33,11 +46,15 @@ export class ExchangeClientFactory {
   }
 
   static getSupportedExchanges(): SupportedExchange[] {
-    return ['Binance', 'Bybit', 'OKX', 'Kraken', 'Bitfinex'];
+    return ['Binance', 'Bybit', 'Alpaca', 'OKX', 'Kraken', 'Bitfinex'];
   }
 
   static isExchangeSupported(exchange: string): boolean {
     const normalizedExchange = exchange.toLowerCase();
-    return ['binance', 'bybit', 'okx', 'kraken', 'bitfinex'].includes(normalizedExchange);
+    return ['binance', 'bybit', 'alpaca'].includes(normalizedExchange);
+  }
+
+  static getAssetClass(exchange: string): AssetClass | undefined {
+    return EXCHANGE_ASSET_CLASS[exchange.toLowerCase()];
   }
 }

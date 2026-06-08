@@ -49,8 +49,8 @@ export function LandingDashboardPreview() {
                   <TrendingUp className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-semibold">Momentum Master</h3>
-                  <p className="text-sm text-muted-foreground">by CryptoQuant</p>
+                  <h3 className="text-xl font-semibold">Grid Trader Pro</h3>
+                  <p className="text-sm text-muted-foreground">Trend Following · Crypto</p>
                 </div>
               </div>
               <Badge className="bg-success text-white">Active</Badge>

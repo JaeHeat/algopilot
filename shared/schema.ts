@@ -57,6 +57,7 @@ export const bots = pgTable("bots", {
   strategyDescription: text("strategy_description").notNull().default(""),
   strategy: text("strategy").notNull(),
   category: botCategoryEnum("category").notNull().default("trend_following"),
+  assetClass: text("asset_class").notNull().default("crypto"), // "crypto" | "stocks"
   riskLevel: text("risk_level").notNull(),
   monthlyPrice: decimal("monthly_price", { precision: 10, scale: 2 }).notNull(),
   iconUrl: text("icon_url"),
@@ -71,6 +72,7 @@ export const bots = pgTable("bots", {
   index("idx_bots_is_active").on(table.isActive),
   index("idx_bots_evaluation_status").on(table.evaluationStatus),
   index("idx_bots_category").on(table.category),
+  index("idx_bots_asset_class").on(table.assetClass),
 ]);
 
 export const botPerformance = pgTable("bot_performance", {
@@ -232,6 +234,55 @@ export const webhookEventLogs = pgTable("webhook_event_logs", {
 }, (table) => [
   index("idx_webhook_event_logs_bot_id").on(table.botId),
   index("idx_webhook_event_logs_processed_at").on(table.processedAt),
+]);
+
+// Tamper-evident, append-only signal ledger. Each accepted webhook signal is committed
+// (hashed + server-timestamped) BEFORE its outcome is known, and chained to the previous
+// entry — so a creator can never backfill, reorder, or cherry-pick their track record.
+// entryHash = sha256(botId | seq | committedAtMs | payloadHash | marketPrice | prevHash). Verifiable publicly.
+export const signalLedger = pgTable("signal_ledger", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  botId: varchar("bot_id").notNull().references(() => bots.id),
+  seq: integer("seq").notNull(), // 0-based per-bot position in the chain
+  payloadHash: text("payload_hash").notNull(), // sha256 of the canonical signal payload
+  prevHash: text("prev_hash").notNull(), // entryHash of the previous entry (genesis = 64 zeros)
+  entryHash: text("entry_hash").notNull(), // this entry's hash; links the chain forward
+  signalSummary: jsonb("signal_summary"), // {symbol, action, side, price} for display
+  // Independent market price the PLATFORM observed at receipt (not creator-controlled). Hashed
+  // into the entry, so an unachievable/backdated entry price is provable forever.
+  marketPrice: text("market_price"),
+  committedAt: timestamp("committed_at").notNull(), // server receipt time = the commitment
+}, (table) => [
+  uniqueIndex("idx_signal_ledger_bot_seq_unique").on(table.botId, table.seq),
+  index("idx_signal_ledger_committed").on(table.committedAt),
+]);
+
+// Platform-side adjudication of each signal's fill + outcome, computed from an INDEPENDENT
+// price feed the creator can't control. The creator never reports win/loss — this engine does.
+// status: pending -> filled -> won|lost|expired, or missed (entry never reached) / invalid.
+export const signalAdjudication = pgTable("signal_adjudication", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  botId: varchar("bot_id").notNull().references(() => bots.id),
+  ledgerSeq: integer("ledger_seq"), // links to signal_ledger.seq
+  symbol: text("symbol").notNull(),
+  side: text("side").notNull(), // "long" | "short"
+  entryType: text("entry_type").notNull().default("limit"), // "market" | "limit"
+  entryPrice: decimal("entry_price", { precision: 20, scale: 8 }),
+  stopPrice: decimal("stop_price", { precision: 20, scale: 8 }),
+  targetPrice: decimal("target_price", { precision: 20, scale: 8 }),
+  marketAtSignal: decimal("market_at_signal", { precision: 20, scale: 8 }), // independent price at receipt
+  status: text("status").notNull().default("pending"),
+  fillPrice: decimal("fill_price", { precision: 20, scale: 8 }),
+  fillAt: timestamp("fill_at"),
+  exitPrice: decimal("exit_price", { precision: 20, scale: 8 }),
+  exitAt: timestamp("exit_at"),
+  exitReason: text("exit_reason"), // "target" | "stop" | "expired"
+  rMultiple: decimal("r_multiple", { precision: 10, scale: 4 }),
+  signalAt: timestamp("signal_at").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_signal_adj_bot").on(table.botId),
+  index("idx_signal_adj_status").on(table.status),
 ]);
 
 export const botSettings = pgTable("bot_settings", {
@@ -497,6 +548,8 @@ export const insertWebhookUrlHistorySchema = createInsertSchema(webhookUrlHistor
 export const insertBotSettingsSchema = createInsertSchema(botSettings).omit({ id: true, updatedAt: true });
 export const insertDiscountCodeSchema = createInsertSchema(discountCodes).omit({ id: true, createdAt: true, currentUses: true });
 export const insertWebhookEventLogSchema = createInsertSchema(webhookEventLogs).omit({ id: true, processedAt: true });
+export const insertSignalLedgerSchema = createInsertSchema(signalLedger).omit({ id: true });
+export const insertSignalAdjudicationSchema = createInsertSchema(signalAdjudication).omit({ id: true, updatedAt: true });
 export const insertTradeSchema = createInsertSchema(trades).omit({ id: true, executedAt: true });
 export const insertPositionSchema = createInsertSchema(positions).omit({ id: true, openedAt: true, closedAt: true });
 export const insertUserOnboardingSchema = createInsertSchema(userOnboarding).omit({ id: true, createdAt: true, updatedAt: true, completedAt: true });
@@ -601,6 +654,10 @@ export type InsertBotSettings = z.infer<typeof insertBotSettingsSchema>;
 export type BotSettings = typeof botSettings.$inferSelect;
 export type InsertWebhookEventLog = z.infer<typeof insertWebhookEventLogSchema>;
 export type WebhookEventLog = typeof webhookEventLogs.$inferSelect;
+export type InsertSignalLedger = z.infer<typeof insertSignalLedgerSchema>;
+export type SignalLedgerEntry = typeof signalLedger.$inferSelect;
+export type InsertSignalAdjudication = z.infer<typeof insertSignalAdjudicationSchema>;
+export type SignalAdjudication = typeof signalAdjudication.$inferSelect;
 export type InsertTrade = z.infer<typeof insertTradeSchema>;
 export type Trade = typeof trades.$inferSelect;
 export type InsertPosition = z.infer<typeof insertPositionSchema>;

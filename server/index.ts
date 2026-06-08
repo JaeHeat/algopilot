@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
@@ -121,11 +122,29 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
+  const listenOptions: { port: number; host: string; reusePort?: boolean } = {
     port,
     host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
+  };
+  // reusePort (SO_REUSEPORT) is unsupported on Windows and throws ENOTSUP.
+  if (process.platform !== "win32") {
+    listenOptions.reusePort = true;
+  }
+  server.listen(listenOptions, () => {
     log(`serving on port ${port}`);
   });
+
+  // Platform-side signal adjudication — advance pending/open signals against the independent
+  // price feed every minute. This is what makes "Verified Live" outcomes creator-independent.
+  const runAdj = async () => {
+    try {
+      const { runAdjudication } = await import("./services/signal-adjudication");
+      const { changed, processed } = await runAdjudication();
+      if (changed > 0) log(`[Adjudication] ${changed}/${processed} signals advanced`);
+    } catch (e) {
+      console.error("[Adjudication] cycle error:", e);
+    }
+  };
+  setInterval(runAdj, 60_000);
+  setTimeout(runAdj, 5_000); // first pass shortly after boot
 })();

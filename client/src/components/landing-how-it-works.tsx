@@ -5,7 +5,7 @@ const steps = [
   {
     icon: Link2,
     title: "Connect Your Exchange",
-    description: "Link your Binance, Coinbase, or Bybit account securely using API keys. Your funds stay in your exchange—we never have access.",
+    description: "Link your Alpaca, Binance, or Bybit account securely using API keys. Your funds stay in your broker—we never have access.",
     step: "01",
   },
   {

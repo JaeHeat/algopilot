@@ -35,6 +35,7 @@ const webhookPayloadSchema = z.object({
   tp: priceValidator.optional(),
   time: z.string().optional(),
   timestamp: z.number().optional(),
+  entryType: z.enum(["market", "limit"]).optional(),
   reason: z.string().optional(),
   pnl_pct: z.number().optional(),
   pnl_usd: z.number().optional(),
@@ -1254,7 +1255,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/bots", async (req, res) => {
     try {
       const bots = await storage.getAllBots();
-      res.json(bots);
+      const { computeBotMetricsBatch } = await import('./services/algo-metrics');
+      const metrics = await computeBotMetricsBatch(bots.map((b: any) => b.id));
+      res.json(bots.map((b: any) => ({ ...b, metrics: metrics.get(b.id) ?? null })));
     } catch (error) {
       console.error("Error fetching bots:", error);
       res.status(500).json({ message: "Failed to fetch bots" });
@@ -1268,7 +1271,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Bot not found" });
       }
       const performance = await storage.getBotPerformance(req.params.id);
-      res.json({ ...bot, performance });
+      const { computeBotMetrics } = await import('./services/algo-metrics');
+      const metrics = await computeBotMetrics(req.params.id);
+      res.json({ ...bot, performance, metrics });
     } catch (error) {
       console.error("Error fetching bot:", error);
       res.status(500).json({ message: "Failed to fetch bot" });
@@ -3069,6 +3074,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Public verified-track-record endpoints — the tamper-evident signal ledger.
+  app.get("/api/bots/:id/ledger", async (req, res) => {
+    try {
+      const { getLedger } = await import('./services/signal-ledger');
+      const entries = await getLedger(req.params.id, 200);
+      // Truncate hashes for display; full hashes remain in the verify endpoint's integrity check.
+      res.json(entries.map((e) => ({
+        seq: e.seq,
+        committedAt: e.committedAt,
+        signal: e.signalSummary,
+        marketPrice: e.marketPrice, // independent platform price at receipt
+        payloadHash: e.payloadHash,
+        prevHash: e.prevHash.slice(0, 16) + '…',
+        entryHash: e.entryHash.slice(0, 16) + '…',
+      })));
+    } catch (error) {
+      console.error("Error fetching signal ledger:", error);
+      res.status(500).json({ message: "Failed to fetch signal ledger" });
+    }
+  });
+
+  app.get("/api/bots/:id/ledger/verify", async (req, res) => {
+    try {
+      const { verifyChain } = await import('./services/signal-ledger');
+      const result = await verifyChain(req.params.id);
+      res.json(result);
+    } catch (error) {
+      console.error("Error verifying signal ledger:", error);
+      res.status(500).json({ message: "Failed to verify signal ledger" });
+    }
+  });
+
+  // Trust summary: evaluation attempts + divergence + verification tier + adjudicated live record.
+  app.get("/api/bots/:id/trust", async (req, res) => {
+    try {
+      const { getTrustSummary } = await import('./services/trust-metrics');
+      const summary = await getTrustSummary(req.params.id);
+      res.json(summary);
+    } catch (error) {
+      console.error("Error fetching trust summary:", error);
+      res.status(500).json({ message: "Failed to fetch trust summary" });
+    }
+  });
+
+  // Platform-adjudicated signal outcomes (fills/wins/losses computed from the independent feed).
+  app.get("/api/bots/:id/signals", async (req, res) => {
+    try {
+      const { getBotSignals, getLiveRecord } = await import('./services/signal-adjudication');
+      const [signals, record] = await Promise.all([
+        getBotSignals(req.params.id, 100),
+        getLiveRecord(req.params.id),
+      ]);
+      res.json({ record, signals });
+    } catch (error) {
+      console.error("Error fetching adjudicated signals:", error);
+      res.status(500).json({ message: "Failed to fetch signals" });
+    }
+  });
+
   app.get("/api/exchanges", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.session.userId;
@@ -3526,7 +3590,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
         price,
         time: validatedPayload.time || new Date().toISOString(),
       });
-      
+
+      // Independent market price the PLATFORM observes at receipt (creator can't control it).
+      let marketPrice: number | null = null;
+      try {
+        const { PriceFetcher } = await import('./services/price-fetcher');
+        marketPrice = await PriceFetcher.getCurrentPrice(symbol);
+      } catch { /* feed unavailable for this symbol — proceed without snapshot */ }
+
+      // Commit the signal to the tamper-evident ledger BEFORE the outcome is known.
+      // Best-effort: a ledger failure must never block trade execution.
+      let ledgerSeq: number | null = null;
+      try {
+        const { recordSignal } = await import('./services/signal-ledger');
+        const entry = await recordSignal(botId, validatedPayload, { symbol, action, side: positionSide, price }, marketPrice);
+        ledgerSeq = entry?.seq ?? null;
+      } catch (ledgerErr) {
+        console.error(`[SignalLedger] Failed to record signal for bot ${botId}:`, ledgerErr);
+      }
+
+      // Open platform-side adjudication — fills & outcomes are computed from OUR feed, never
+      // creator-reported. An entry the market never reaches is recorded as "missed", not a win.
+      try {
+        const { normalizeSide, createPending } = await import('./services/signal-adjudication');
+        const adjSide = normalizeSide(action, positionSide);
+        if (adjSide) {
+          const sl = validatedPayload.sl != null ? (typeof validatedPayload.sl === 'string' ? parseFloat(validatedPayload.sl) : validatedPayload.sl) : null;
+          const tp = validatedPayload.tp != null ? (typeof validatedPayload.tp === 'string' ? parseFloat(validatedPayload.tp) : validatedPayload.tp) : null;
+          await createPending({
+            botId, ledgerSeq, symbol, side: adjSide,
+            entryType: validatedPayload.entryType === 'market' ? 'market' : 'limit',
+            entry: price ?? null, stop: sl, target: tp,
+            marketAtSignal: marketPrice, signalAt: new Date(),
+          });
+        }
+      } catch (adjErr) {
+        console.error(`[Adjudication] Failed to open adjudication for bot ${botId}:`, adjErr);
+      }
+
       // Check if bot is in evaluation mode
       const isInEvaluation = bot && (bot.evaluationStatus === 'not_started' || bot.evaluationStatus === 'in_evaluation');
       

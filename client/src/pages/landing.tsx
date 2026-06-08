@@ -4,29 +4,19 @@ import { Footer } from "@/components/footer";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { SubscribeDialog } from "@/components/subscribe-dialog";
-import { TrendingUp, Search, Star, Bot as BotIcon, Trophy, Medal, Award, LogIn, ArrowUpDown } from "lucide-react";
+import { EquitySparkline } from "@/components/equity-sparkline";
+import { LandingHowItWorks } from "@/components/landing-how-it-works";
+import { LandingDashboardPreview } from "@/components/landing-dashboard-preview";
+import { LandingFeatures } from "@/components/landing-features";
+import { LandingExchanges } from "@/components/landing-exchanges";
+import { TrendingUp, Star, Bot as BotIcon, ArrowRight, ShieldCheck, Lock, BarChart3 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useState, useEffect } from "react";
 import type { Bot, BotPerformance, UserOnboarding } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type BotWithPerformance = Bot & { performance: BotPerformance | null };
-
-const categoryChips = [
-  { value: "all", label: "All Strategies" },
-  { value: "scalping", label: "Scalping" },
-  { value: "day_trading", label: "Day Trading" },
-  { value: "swing_trading", label: "Swing Trading" },
-  { value: "trend_following", label: "Trend Following" },
-  { value: "mean_reversion", label: "Mean Reversion" },
-  { value: "arbitrage", label: "Arbitrage" },
-  { value: "market_making", label: "Market Making" },
-  { value: "grid_trading", label: "Grid Trading" },
-];
 
 const categoryLabels: Record<string, string> = {
   scalping: "Scalping",
@@ -39,40 +29,22 @@ const categoryLabels: Record<string, string> = {
   grid_trading: "Grid Trading",
 };
 
-const getRiskBadgeColor = (risk: string) => {
-  switch (risk.toLowerCase()) {
-    case "low": return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20";
-    case "medium": return "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20";
-    case "high": return "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20";
-    default: return "";
-  }
+const riskTierClass: Record<string, string> = {
+  low: "border-green-500/40 bg-green-500/10 text-green-700 dark:text-green-400",
+  moderate: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  high: "border-orange-500/40 bg-orange-500/10 text-orange-700 dark:text-orange-400",
+  extreme: "border-red-500/40 bg-red-500/10 text-red-600",
 };
 
-const getRankIcon = (index: number) => {
-  switch (index) {
-    case 0: return <Trophy className="h-4 w-4 text-yellow-500" />;
-    case 1: return <Medal className="h-4 w-4 text-gray-400" />;
-    case 2: return <Award className="h-4 w-4 text-amber-600" />;
-    default: return <span className="text-sm font-medium text-muted-foreground w-5 text-center tabular-nums">{index + 1}</span>;
-  }
-};
+const algoScoreColor = (s: number) =>
+  s >= 60 ? "text-emerald-500" : s >= 30 ? "text-primary" : "text-foreground";
 
 export default function Landing() {
   const { isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("roi");
-  const [selectedBot, setSelectedBot] = useState<BotWithPerformance | null>(null);
-  const [subscribeDialogOpen, setSubscribeDialogOpen] = useState(false);
 
   const { data: bots, isLoading } = useQuery<BotWithPerformance[]>({
     queryKey: ["/api/bots"],
-  });
-
-  const { data: subscriptions } = useQuery<any[]>({
-    queryKey: ["/api/subscriptions"],
-    enabled: isAuthenticated,
   });
 
   const { data: onboarding } = useQuery<UserOnboarding>({
@@ -95,27 +67,12 @@ export default function Landing() {
     }
   }, [isAuthenticated, onboarding]);
 
-  const subscribedBotIds = new Set(
-    subscriptions?.filter(s => s.status === 'active').map(s => s.botId) ?? []
-  );
-
-  const filteredBots = bots
-    ?.filter((bot) => {
-      const matchesSearch = bot.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        bot.description.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory = categoryFilter === "all" || bot.category === categoryFilter;
-      return matchesSearch && matchesCategory;
-    })
-    .sort((a, b) => {
-      if (!a.performance || !b.performance) return 0;
-      switch (sortBy) {
-        case "roi": return parseFloat(b.performance.totalRoi) - parseFloat(a.performance.totalRoi);
-        case "winRate": return parseFloat(b.performance.winRate) - parseFloat(a.performance.winRate);
-        case "subscribers": return b.performance.subscribers - a.performance.subscribers;
-        case "sharpe": return parseFloat(b.performance.sharpeRatio) - parseFloat(a.performance.sharpeRatio);
-        default: return 0;
-      }
-    }) ?? [];
+  // Teaser: only the top RATED strategies, ranked by AlgoScore.
+  const ratedBots = (bots ?? [])
+    .filter((b) => (b as any).metrics?.rated)
+    .sort((a, b) => (b as any).metrics.algoScore - (a as any).metrics.algoScore);
+  const topBots = ratedBots.slice(0, 6);
+  const totalCount = bots?.length ?? 0;
 
   return (
     <div className="min-h-screen">
@@ -142,216 +99,184 @@ export default function Landing() {
       <main>
         <LandingHero />
 
-        {/* Marketplace section */}
-        <div className="max-w-7xl mx-auto px-6 pb-20">
-          {/* Section header */}
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
-            <h2 className="text-xl font-semibold">Strategies</h2>
-            <div className="flex items-center gap-2">
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-36 h-8 text-sm" data-testid="select-sort-by">
-                  <ArrowUpDown className="h-3.5 w-3.5 mr-1.5 shrink-0" />
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="roi">Top ROI</SelectItem>
-                  <SelectItem value="winRate">Win Rate</SelectItem>
-                  <SelectItem value="subscribers">Most Popular</SelectItem>
-                  <SelectItem value="sharpe">Sharpe Ratio</SelectItem>
-                </SelectContent>
-              </Select>
+        {/* Trust strip — the moat */}
+        <div className="border-y bg-muted/30">
+          <div className="max-w-7xl mx-auto px-6 py-10 grid sm:grid-cols-3 gap-8">
+            {[
+              { icon: ShieldCheck, title: "Independently verified", body: "Every signal is hashed and timestamped the instant it fires. Track records can't be backfilled, cherry-picked, or faked." },
+              { icon: Lock, title: "Non-custodial by design", body: "Connect your own exchange with API keys. Your funds never leave your account — we can't touch them." },
+              { icon: BarChart3, title: "Ranked by AlgoScore", body: "Risk-adjusted return, weighted by how much data backs it up. No vanity win-rates, no survivorship mirages." },
+            ].map((item, i) => {
+              const Icon = item.icon;
+              return (
+                <div key={i} className="flex gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                    <Icon className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-semibold mb-0.5">{item.title}</p>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{item.body}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Top strategies teaser */}
+        <div className="max-w-7xl mx-auto px-6 py-16">
+          <div className="flex flex-wrap items-end justify-between gap-4 mb-2">
+            <div>
+              <span className="inline-block rounded-full bg-primary/10 text-primary text-xs font-semibold px-3 py-1 mb-3">
+                Strategy Marketplace
+              </span>
+              <h2 className="text-2xl md:text-3xl font-bold">Top performing strategies</h2>
+              <p className="text-muted-foreground mt-1 max-w-2xl">
+                Ranked by <span className="font-semibold text-foreground">AlgoScore</span> — risk-adjusted
+                return, weighted by how much live data backs it up. Every track record is independently verified.
+              </p>
             </div>
+            <Link to="/marketplace">
+              <Button variant="ghost" className="gap-1" data-testid="link-view-all-top">
+                View all {totalCount} <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
           </div>
 
-          {/* Search */}
-          <div className="relative mb-4">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search strategies..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-              data-testid="input-search-bots"
-            />
-          </div>
-
-          {/* Category chips */}
-          <div className="flex flex-wrap gap-2 mb-6">
-            {categoryChips.map((chip) => (
-              <button
-                key={chip.value}
-                onClick={() => setCategoryFilter(chip.value)}
-                data-testid={`chip-category-${chip.value}`}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${
-                  categoryFilter === chip.value
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background text-foreground border-border hover-elevate"
-                }`}
-              >
-                {chip.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Table header */}
-          {!isLoading && filteredBots.length > 0 && (
-            <div className="hidden md:grid grid-cols-[40px_56px_1fr_110px_110px_110px_130px] gap-4 px-4 py-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase border-b mb-1">
-              <div>#</div>
-              <div></div>
-              <div>Strategy</div>
-              <div className="text-right">ROI</div>
-              <div className="text-right">Win Rate</div>
-              <div className="text-right">Sharpe</div>
-              <div className="text-right">Price / mo</div>
-            </div>
-          )}
-
-          {/* Rows */}
           {isLoading ? (
-            <div className="space-y-2">
-              {[...Array(8)].map((_, i) => (
-                <div key={i} className="h-16 bg-muted/40 rounded-lg animate-pulse" />
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-6">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="h-72 bg-muted/40 rounded-xl animate-pulse" />
               ))}
             </div>
-          ) : filteredBots.length === 0 ? (
-            <div className="text-center py-16 text-muted-foreground">
-              No strategies found matching your criteria.
+          ) : topBots.length === 0 ? (
+            <div className="text-center py-20 text-muted-foreground border rounded-xl mt-6">
+              No rated strategies yet — they appear here once they clear evaluation.
             </div>
           ) : (
-            <div className="space-y-1">
-              {filteredBots.map((bot, index) => (
-                <Link to={`/bot/${bot.id}`} key={bot.id}>
-                  <div
-                    className="grid md:grid-cols-[40px_56px_1fr_110px_110px_110px_130px] gap-4 items-center px-4 py-3.5 rounded-lg hover-elevate active-elevate-2 cursor-pointer transition-all"
-                    data-testid={`row-bot-${index + 1}`}
-                  >
-                    {/* Rank */}
-                    <div className="flex items-center justify-center">
-                      {getRankIcon(index)}
-                    </div>
-
-                    {/* Icon */}
-                    <div className="flex items-center justify-center">
-                      {bot.iconUrl ? (
-                        <img
-                          src={bot.iconUrl}
-                          alt={bot.name}
-                          className="w-10 h-10 rounded-lg object-cover"
-                        />
-                      ) : (
-                        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                          <BotIcon className="h-5 w-5 text-primary" />
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-6">
+              {topBots.map((bot, i) => {
+                const m = (bot as any).metrics;
+                return (
+                  <Link to={`/bot/${bot.id}`} key={bot.id} data-testid={`card-bot-${i + 1}`}>
+                    <div className="group rounded-xl border bg-card p-5 hover-elevate active-elevate-2 transition-all h-full flex flex-col">
+                      {/* Header */}
+                      <div className="flex items-start gap-3 mb-3">
+                        <div className="w-11 h-11 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+                          {bot.iconUrl ? (
+                            <img src={bot.iconUrl} alt={bot.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <BotIcon className="h-6 w-6 text-primary" />
+                          )}
                         </div>
-                      )}
-                    </div>
-
-                    {/* Name + badges */}
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <span className="font-semibold truncate" data-testid={`text-bot-name-${index + 1}`}>
-                          {bot.name}
-                        </span>
-                        {bot.isVerified && (
-                          <Badge variant="secondary" className="gap-1 shrink-0 text-xs">
-                            <Star className="h-2.5 w-2.5" />
-                            Verified
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {bot.category && (
-                          <span className="text-xs text-muted-foreground">
-                            {categoryLabels[bot.category] || bot.category}
-                          </span>
-                        )}
-                        <span className="text-xs text-muted-foreground">·</span>
-                        <Badge variant="outline" className={`text-xs border ${getRiskBadgeColor(bot.riskLevel)}`}>
-                          {bot.riskLevel} Risk
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <h3 className="font-bold truncate" data-testid={`text-bot-name-${i + 1}`}>{bot.name}</h3>
+                            {bot.isVerified && <Star className="h-3.5 w-3.5 text-primary shrink-0" />}
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {categoryLabels[bot.category] || bot.category} · {((bot as any).assetClass ?? "crypto") === "stocks" ? "Stocks" : "Crypto"}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className={`text-xs shrink-0 ${riskTierClass[m.riskTier] ?? ""}`}>
+                          {m.riskTier.charAt(0).toUpperCase() + m.riskTier.slice(1)} risk
                         </Badge>
-                        {bot.performance && (
-                          <>
-                            <span className="text-xs text-muted-foreground">·</span>
-                            <span className="text-xs text-muted-foreground">
-                              {bot.performance.subscribers.toLocaleString()} subscribers
-                            </span>
-                          </>
-                        )}
+                      </div>
+
+                      {/* Equity curve */}
+                      <EquitySparkline data={m.equityCurve} height={64} className="mb-4" />
+
+                      {/* AlgoScore hero + return */}
+                      <div className="flex items-end justify-between mb-4">
+                        <div>
+                          <div
+                            className="text-xs font-extrabold uppercase tracking-wider text-primary flex items-center gap-1"
+                            title="AlgoScore — our risk-adjusted, confidence-weighted ranking. Higher = stronger edge backed by more data."
+                          >
+                            <ShieldCheck className="h-3.5 w-3.5" /> AlgoScore
+                          </div>
+                          <div className={`text-5xl font-extrabold leading-none ${algoScoreColor(m.algoScore)}`} data-testid={`text-algoscore-${i + 1}`}>
+                            {m.algoScore}
+                            <span className="text-base font-medium text-muted-foreground">/100</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Return</div>
+                          <div className={`text-2xl font-bold ${m.totalReturnPct >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
+                            {m.totalReturnPct >= 0 ? "+" : ""}{m.totalReturnPct.toFixed(1)}%
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Stats */}
+                      <div className="grid grid-cols-3 gap-2 py-3 border-t border-b text-center mb-4">
+                        <div>
+                          <div className="text-[11px] text-muted-foreground">Sortino</div>
+                          <div className="font-semibold tabular-nums">{m.sortino.toFixed(2)}</div>
+                        </div>
+                        <div>
+                          <div className="text-[11px] text-muted-foreground">Max DD</div>
+                          <div className="font-semibold tabular-nums">{m.maxDrawdownPct.toFixed(1)}%</div>
+                        </div>
+                        <div>
+                          <div className="text-[11px] text-muted-foreground">Trades</div>
+                          <div className="font-semibold tabular-nums">{m.trades}</div>
+                        </div>
+                      </div>
+
+                      {/* Footer */}
+                      <div className="flex items-center justify-between mt-auto">
+                        <span className="font-bold">
+                          ${parseFloat(bot.monthlyPrice).toFixed(0)}
+                          <span className="text-xs text-muted-foreground font-normal">/mo</span>
+                        </span>
+                        <span className="text-sm font-medium text-primary group-hover:underline flex items-center gap-1">
+                          View strategy <ArrowRight className="h-3.5 w-3.5" />
+                        </span>
                       </div>
                     </div>
-
-                    {/* ROI */}
-                    <div className="text-right">
-                      {bot.performance ? (
-                        <span className={`text-base font-bold ${parseFloat(bot.performance.totalRoi) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
-                          {parseFloat(bot.performance.totalRoi) >= 0 ? '+' : ''}
-                          {parseFloat(bot.performance.totalRoi).toFixed(1)}%
-                        </span>
-                      ) : <span className="text-muted-foreground">—</span>}
-                    </div>
-
-                    {/* Win rate */}
-                    <div className="text-right">
-                      {bot.performance ? (
-                        <span className="text-sm font-semibold">
-                          {parseFloat(bot.performance.winRate).toFixed(1)}%
-                        </span>
-                      ) : <span className="text-muted-foreground">—</span>}
-                    </div>
-
-                    {/* Sharpe */}
-                    <div className="text-right">
-                      {bot.performance ? (
-                        <span className="text-sm font-semibold">
-                          {parseFloat(bot.performance.sharpeRatio).toFixed(2)}
-                        </span>
-                      ) : <span className="text-muted-foreground">—</span>}
-                    </div>
-
-                    {/* Price + subscribe */}
-                    <div className="text-right flex items-center justify-end gap-2">
-                      <span className="font-semibold text-sm">
-                        ${parseFloat(bot.monthlyPrice).toFixed(0)}<span className="text-xs text-muted-foreground font-normal">/mo</span>
-                      </span>
-                      {subscribedBotIds.has(bot.id) ? (
-                        <Badge variant="secondary" className="shrink-0 text-xs" data-testid={`badge-subscribed-${index + 1}`}>
-                          Subscribed
-                        </Badge>
-                      ) : !isAuthenticated ? (
-                        <Button
-                          size="sm"
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setLocation("/auth/register"); }}
-                          data-testid={`button-subscribe-${index + 1}`}
-                        >
-                          <LogIn className="h-3.5 w-3.5 mr-1" />
-                          Sign Up
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedBot(bot); setSubscribeDialogOpen(true); }}
-                          data-testid={`button-subscribe-${index + 1}`}
-                        >
-                          Subscribe
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </Link>
-              ))}
+                  </Link>
+                );
+              })}
             </div>
           )}
+
+          {/* Bottom CTA */}
+          <div className="text-center mt-12">
+            <Link to="/marketplace">
+              <Button size="lg" variant="outline" data-testid="button-browse-all" onClick={() => { if (!isAuthenticated) setLocation("/marketplace"); }}>
+                Browse all {totalCount} strategies
+              </Button>
+            </Link>
+          </div>
+        </div>
+
+        <LandingHowItWorks />
+        <LandingDashboardPreview />
+        <LandingFeatures />
+        <LandingExchanges />
+
+        {/* Final CTA */}
+        <div className="max-w-7xl mx-auto px-6 py-16">
+          <div className="rounded-2xl border bg-card px-8 py-16 text-center">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Trade strategies you can actually trust</h2>
+            <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
+              Provable track records, risk-adjusted rankings, and one-click automation to your own exchange.
+              Start free — connect when you're ready.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <Button asChild size="lg" data-testid="button-cta-signup">
+                <Link href="/auth/register">Get started free <ArrowRight className="h-4 w-4 ml-1" /></Link>
+              </Button>
+              <Button asChild size="lg" variant="outline">
+                <Link href="/marketplace">Explore strategies</Link>
+              </Button>
+            </div>
+          </div>
         </div>
       </main>
 
       <Footer />
-
-      {selectedBot && (
-        <SubscribeDialog
-          bot={selectedBot}
-          open={subscribeDialogOpen}
-          onOpenChange={setSubscribeDialogOpen}
-        />
-      )}
     </div>
   );
 }

@@ -9,8 +9,8 @@ const features = [
   },
   {
     icon: Bot,
-    title: "Multi-Exchange Support",
-    description: "Connect Binance, Coinbase, and KuCoin accounts seamlessly with secure API integration.",
+    title: "Crypto + Stocks",
+    description: "Connect Alpaca for US stocks and Binance or Bybit for crypto — all with secure, non-custodial API keys.",
   },
   {
     icon: Zap,
@@ -24,8 +24,8 @@ const features = [
   },
   {
     icon: LineChart,
-    title: "Bot Marketplace",
-    description: "Browse hundreds of strategies ranked by performance. Subscribe to winners, avoid losers.",
+    title: "AlgoScore Ranking",
+    description: "Strategies ranked by risk-adjusted return, weighted by how much live data backs them — not vanity win-rates.",
   },
   {
     icon: DollarSign,
